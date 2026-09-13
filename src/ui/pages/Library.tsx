@@ -4,14 +4,17 @@
  * Settings so the gear stays focused on real settings.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AppLayout from '../components/layout/AppLayout';
 import MaterialIcon from '../components/MaterialIcon';
 import ZikrFormModal from '../components/ZikrFormModal';
 import { zikrService } from '../../core/services/zikrService';
+import { zikrSyncService } from '../../core/services/zikrSync';
 import { Zikr } from '../../core/db/types';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useI18n } from '../../core/i18n';
+
+const SYNC_STATUS_TIMEOUT_MS = 5000;
 
 const Library: React.FC = () => {
   const { t } = useI18n();
@@ -20,6 +23,38 @@ const Library: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editZikr, setEditZikr] = useState<Zikr | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+
+  const handleSyncLibrary = async () => {
+    if (isSyncing) return;
+    if (!zikrSyncService.isConfigured()) {
+      setSyncStatus({ kind: 'error', text: t('library.syncNotConfigured') });
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncStatus(null);
+    try {
+      const { added, updated } = await zikrSyncService.syncLibrary();
+      setSyncStatus({
+        kind: 'ok',
+        text: t('library.syncResult', { added, updated }),
+      });
+    } catch (error) {
+      console.error('Library sync failed:', error);
+      setSyncStatus({ kind: 'error', text: t('library.syncFailed') });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Auto-dismiss the sync result after a few seconds.
+  useEffect(() => {
+    if (!syncStatus) return;
+    const timer = setTimeout(() => setSyncStatus(null), SYNC_STATUS_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [syncStatus]);
 
   const filteredZikrs = zikrs.filter(zikr => {
     if (!searchQuery.trim()) return true;
@@ -51,11 +86,37 @@ const Library: React.FC = () => {
             onClick: () => setIsCreateModalOpen(true),
             ariaLabel: t('library.addNew'),
           },
+          {
+            icon: 'sync',
+            onClick: () => void handleSyncLibrary(),
+            ariaLabel: t('library.sync'),
+          },
         ],
       }}
       contentClassName="px-container-padding-mobile pt-8 pb-16 gap-6"
     >
-        {/* Search Input */}
+      {/* Library sync status */}
+      {syncStatus && (
+        <div
+          className={`rounded-xl border p-3 text-center font-body-md text-body-md ${
+            syncStatus.kind === 'ok'
+              ? 'bg-primary-container/20 border-primary/30 text-on-surface'
+              : 'bg-error/10 border-error/20 text-error'
+          }`}
+          role="status"
+        >
+          {isSyncing ? (
+            <span className="inline-flex items-center gap-2">
+              <MaterialIcon icon="sync" className="text-[18px] animate-spin" />
+              {t('library.syncing')}
+            </span>
+          ) : (
+            syncStatus.text
+          )}
+        </div>
+      )}
+
+      {/* Search Input */}
         {zikrs.length > 0 && (
           <div>
             <div className="relative">

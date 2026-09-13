@@ -49,6 +49,9 @@ This document outlines the technical architecture for the Zikr PWA. Decisions ar
 │  - NotificationService (Web Push + in-app)                    │
 │  - StreakService (consecutive day tracking)                  │
 │  - ExportService (JSON backup/restore)                       │
+│  - sharedRoom/ (Supabase-backed shared goals via RPCs)        │
+│  - zikrSync/ (shared zikr library: push custom zikrs for      │
+│    admin verification, pull verified ones — cursor-paginated) │
 ├─────────────────────────────────────────────────────────────┤
 │  PWA Layer                                                     │
 │  ─────────                                                     │

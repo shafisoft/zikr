@@ -5,7 +5,9 @@
 
 import React, { useState, useEffect } from 'react';
 import MaterialIcon from './MaterialIcon';
+import { ToggleSwitch } from './forms/ToggleSwitch';
 import { zikrService } from '../../core/services/zikrService';
+import { zikrSyncService } from '../../core/services/zikrSync';
 import { Zikr } from '../../core/db/types';
 import { getZikrDisplayInfo, getPredefinedZikrNames } from '../utils/zikrMapping';
 import { useI18n } from '../../core/i18n';
@@ -37,6 +39,7 @@ const ZikrFormModal: React.FC<ZikrFormModalProps> = ({
   const [customName, setCustomName] = useState('');
   const [customTranslation, setCustomTranslation] = useState('');
   const [customArabic, setCustomArabic] = useState('');
+  const [shareWithOthers, setShareWithOthers] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
 
@@ -45,6 +48,7 @@ const ZikrFormModal: React.FC<ZikrFormModalProps> = ({
     if (isOpen) {
       if (editZikr) {
         setIsCustom(editZikr.custom);
+        setShareWithOthers(false);
         if (editZikr.custom) {
           setCustomName(editZikr.name);
           setCustomTranslation(editZikr.translation ?? '');
@@ -58,6 +62,7 @@ const ZikrFormModal: React.FC<ZikrFormModalProps> = ({
         setCustomName('');
         setCustomTranslation('');
         setCustomArabic('');
+        setShareWithOthers(false);
       }
       setErrors({});
     }
@@ -131,12 +136,23 @@ const ZikrFormModal: React.FC<ZikrFormModalProps> = ({
         });
       } else {
         // Create new zikr
-        await zikrService.add({
+        const newId = await zikrService.add({
           name: zikrName,
           custom: isCustom,
           createdAt: new Date(),
           ...customFields,
         });
+
+        // Push to the shared library for review — best-effort; delivery
+        // is retried in the background if offline. Never blocks the save.
+        if (isCustom && shareWithOthers) {
+          void zikrSyncService.shareZikr({
+            id: newId,
+            name: zikrName,
+            arabicText: customFields.arabicText,
+            translation: customFields.translation,
+          });
+        }
       }
 
       // Close modal and refresh
@@ -332,6 +348,23 @@ const ZikrFormModal: React.FC<ZikrFormModalProps> = ({
                   <p className="font-caption text-caption text-error mt-2">{errors.translation}</p>
                 )}
               </div>
+
+              {/* Share with others (creation only — edits are never synced) */}
+              {!editZikr && (
+                <div className="bg-surface-container-low rounded-xl p-4 flex flex-col gap-2">
+                  <ToggleSwitch
+                    checked={shareWithOthers}
+                    onChange={setShareWithOthers}
+                    label={t('zikrForm.shareLabel')}
+                    disabled={isSaving}
+                  />
+                  {shareWithOthers && (
+                    <p className="font-caption text-caption text-on-surface-variant">
+                      {t('zikrForm.shareHint')}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Target Count Info */}
               <div className="bg-surface-container-low rounded-xl p-4">

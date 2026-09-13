@@ -48,9 +48,9 @@ npm run size-check      # Verify bundle size against 200KB limit
 
 ### Data Layer (Dexie.js + IndexedDB)
 
-**Database:** `zikr-db` with versioned schema (currently v4 — goals carry `zikrIds: number[]` + optional `name`; the legacy single-zikr `zikrId` column was folded into `zikrIds` by the v4 upgrade)
+**Database:** `zikr-db` with versioned schema (currently v5 — v4 folded the legacy goal `zikrId` into `zikrIds`; v5 added zikr-library sync fields on Zikr (`remoteId`, `sharedAt`, `pulledAt`) and the `zikrShareOutbox` table)
 
-**Stores:** zikrs, sessions, goals, streaks, settings, sessionFormState, zikrLastCount, sharedRooms, sharedSubmissions, syncOutbox, identity
+**Stores:** zikrs, sessions, goals, streaks, settings, sessionFormState, zikrLastCount, sharedRooms, sharedSubmissions, syncOutbox, identity, zikrShareOutbox
 
 **Type definitions:** `src/core/db/types.ts` - defines all interfaces
 
@@ -74,6 +74,7 @@ await db.transaction('rw', db.sessions, db.streaks, db.goals, async () => {
 **Pattern:** Each domain has a service file with CRUD operations and business logic:
 
 - `zikrService.ts` - Zikr CRUD with soft delete
+- `zikrSync/` - Shared zikr library sync (port/adapter pattern like sharedRoom): push custom zikrs on creation ("share with others"), pull admin-verified zikrs via the Library sync button. Push is creation-only; pulls are cursor-paginated (100/batch) with the cursor stored in settings (`zikrSyncCursor`); pending pushes retry via the `zikrShareOutbox` table.
 - `sessionService.ts` - Session CRUD with auto-updating streaks/goals
 - `streakService.ts` - Streak calculation and recalculation
 - `goalService.ts` - Goal progress tracking

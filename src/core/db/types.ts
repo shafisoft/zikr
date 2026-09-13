@@ -18,6 +18,12 @@ export interface Zikr {
   /** Predefined zikrs: sunnah default count and Quick Start rail flag. */
   defaultTarget?: number;
   isQuickStarter?: boolean;
+  /** Server uuid of this zikr in the shared library (pulled or pushed). */
+  remoteId?: string;
+  /** When this device pushed this zikr to the shared library (awaiting verification). */
+  sharedAt?: Date;
+  /** When this zikr was last pulled from the shared library. */
+  pulledAt?: Date;
 }
 
 export interface Session {
@@ -174,5 +180,22 @@ export interface SharedIdentity {
   displayName: string;
   /** Server-generated 12-char device token — the usage-metrics key. */
   token?: string;
+  createdAt: Date;
+}
+
+// ============================================================
+// NEW (v5): Zikr library sync — share custom zikrs to the shared
+// library (admin-verified) and pull verified ones back.
+// ============================================================
+
+/** Pending "share with others" push; delivered by the outbox flusher. */
+export interface ZikrShareOutboxItem {
+  id?: number;
+  zikrId: number;                   // local Zikr this share refers to
+  name: string;
+  arabicText?: string;
+  translation?: string;
+  attempts: number;
+  nextAttemptAt: Date;
   createdAt: Date;
 }

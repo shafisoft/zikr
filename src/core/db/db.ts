@@ -11,6 +11,7 @@ import {
   SharedSubmission,
   SyncOutboxItem,
   SharedIdentity,
+  ZikrShareOutboxItem,
 } from './types';
 
 export class ZikrDatabase extends Dexie {
@@ -25,6 +26,7 @@ export class ZikrDatabase extends Dexie {
   sharedSubmissions!: Table<SharedSubmission>; // NEW (v3) — local-only, never synced
   syncOutbox!: Table<SyncOutboxItem>;          // NEW (v3)
   identity!: Table<SharedIdentity>;            // NEW (v3)
+  zikrShareOutbox!: Table<ZikrShareOutboxItem>; // NEW (v5)
 
   constructor() {
     super('zikr-db');
@@ -92,6 +94,24 @@ export class ZikrDatabase extends Dexie {
           : (goal.zikrId != null ? [goal.zikrId] : []);
         delete goal.zikrId;
       });
+    });
+
+    // Version 5: zikr library sync. Zikr gains remoteId/sharedAt/pulledAt
+    // (additive fields, no upgrade needed); new zikrShareOutbox table holds
+    // pending "share with others" pushes (mirrors the room syncOutbox).
+    this.version(5).stores({
+      zikrs: '++id, name, custom, createdAt, deletedAt, remoteId',
+      sessions: '++id, zikrId, date, editableUntil, [zikrId+date]',
+      goals: '++id, status',
+      streaks: 'zikrId',
+      settings: 'key',
+      sessionFormState: '++id, createdAt',
+      zikrLastCount: 'zikrId, updatedAt',
+      sharedRooms: 'code, status, endsAt',
+      sharedSubmissions: '++id, roomCode, submittedAt, eventId',
+      syncOutbox: '++id, nextAttemptAt, eventId',
+      identity: 'userId',
+      zikrShareOutbox: '++id, zikrId, nextAttemptAt'           // NEW
     });
   }
 }

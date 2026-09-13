@@ -96,3 +96,22 @@ docker compose exec -T db psql -U postgres -d zikr_local \
 The anon key is safe to ship: it only works through the nine granted RPCs,
 and the backend never stores per-member contribution data (see the design
 doc).
+
+## Shared zikr library (0002_shared_zikrs.sql)
+
+Crowdsourced zikr definitions with admin moderation:
+
+1. Clients submit custom zikrs via `public.share_zikr(name, arabic, translation)`
+   — rows land with `verified = false` and are invisible to other users.
+2. **Verification is manual:** review `zikr_app.shared_zikrs` where
+   `verified = false` in the Table Editor, fix texts if needed, and set
+   `verified = true` + `verified_at = now()` (any UPDATE bumps `updated_at`
+   automatically via trigger — that is what re-delivers the row to clients
+   that already pulled it).
+3. Clients pull via `public.pull_verified_zikrs(cursor_updated_at, cursor_id)`
+   — cursor-paginated on `(updated_at, id)`, 100 rows per call. The client
+   loops while `hasMore` and stores the cursor for incremental syncs.
+
+Rejected submissions: just delete the row (or leave it — `purge_expired()`
+removes unverified rows older than 180 days). Duplicate names are rejected
+case-insensitively by a unique index.

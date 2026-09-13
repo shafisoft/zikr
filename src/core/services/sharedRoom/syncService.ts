@@ -7,9 +7,12 @@
  *   see docs/SharedGoals-Design.md.
  *
  * Started once (idempotent); the active room code is set by the store.
+ * Also flushes the zikr library share outbox (same cadence) so pending
+ * "share with others" pushes eventually deliver after a network failure.
  */
 
 import { sharedRoomService } from './instance';
+import { zikrSyncService } from '../zikrSync';
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -21,6 +24,7 @@ function tick() {
   if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
   void sharedRoomService.flushOutbox().catch(() => {});
+  void zikrSyncService.flushShareOutbox().catch(() => {});
 
   if (activeRoomCode) {
     sharedRoomService.refreshRoom(activeRoomCode).catch(() => {});
@@ -38,12 +42,14 @@ export function ensureSharedRoomSync() {
   // Deliver queued contributions when connectivity returns.
   window.addEventListener('online', () => {
     void sharedRoomService.flushOutbox().catch(() => {});
+    void zikrSyncService.flushShareOutbox().catch(() => {});
   });
 
   // Flush when the app regains focus.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       void sharedRoomService.flushOutbox().catch(() => {});
+      void zikrSyncService.flushShareOutbox().catch(() => {});
     }
   });
 
