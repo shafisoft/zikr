@@ -123,7 +123,6 @@ export const bn: Dictionary = {
 
   'room.addCount': 'আপনার সংখ্যা যোগ করুন',
   'room.customAmount': 'নিজের সংখ্যা লিখুন',
-  'room.startZikrTitle': 'নিজের তাসবিহে পড়ুন',
   'room.startCounting': 'কাউন্টার খুলুন',
   'room.syncing': 'সেভ হচ্ছে…',
   'room.queued': '{{count}} টি যোগ হওয়ার অপেক্ষায়…',

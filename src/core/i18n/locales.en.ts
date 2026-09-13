@@ -124,7 +124,6 @@ export const en = {
 
   'room.addCount': 'Add your count',
   'room.customAmount': 'Enter your count',
-  'room.startZikrTitle': 'Count on your own tasbeeh',
   'room.startCounting': 'Open counter',
   'room.syncing': 'Saving…',
   'room.queued': '{{count}} waiting to be added…',

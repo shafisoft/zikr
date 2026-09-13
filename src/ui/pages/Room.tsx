@@ -15,7 +15,9 @@ import PatternBackdrop from '../components/decor/PatternBackdrop';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
 import InputField from '../components/forms/InputField';
 import { useSharedRoomStore, sharedRoomErrorMessage } from '../../core/stores/sharedRoomStore';
+import { sharedRoomService } from '../../core/services/sharedRoom';
 import { useZikrStore } from '../../core/stores/zikrStore';
+import CounterModal from '../components/counter/CounterModal';
 import { SharedSubmission } from '../../core/db/types';
 import {
   formatTimeRemaining,
@@ -56,6 +58,12 @@ const Room: React.FC = () => {
 
   const [customDelta, setCustomDelta] = useState('');
   const [customOpen, setCustomOpen] = useState(false);
+  const [isCounterOpen, setIsCounterOpen] = useState(false);
+  // Live override for the hero ring while the counter modal is open — each
+  // count in the modal moves the room's ring immediately.
+  const [liveCount, setLiveCount] = useState<number | null>(null);
+  // Contribution history: collapsed to the total until the user expands it.
+  const [contributionExpanded, setContributionExpanded] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState<'code' | 'link' | null>(null);
 
@@ -82,6 +90,26 @@ const Room: React.FC = () => {
     () => (room ? zikrs.find(z => z.name === room.zikrName) ?? null : null),
     [zikrs, room]
   );
+
+  // Counting is possible while the room runs, for members, when the room's
+  // zikr exists in the local library.
+  const canCount = phase === 'active' && isMember && roomZikr !== null;
+
+  const roomRing = room ? (
+    <CircularProgress progress={progressPercent(liveCount ?? room.total, room.target)} size={180}>
+      <div className="flex flex-col items-center justify-center text-center">
+        <span className="font-headline-lg-mobile text-[40px] leading-[48px] font-bold text-primary tabular-nums">
+          {(liveCount ?? room.total).toLocaleString()}
+        </span>
+        <span className="font-caption text-caption text-on-surface-variant tabular-nums">
+          {t('counter.ofTarget', { target: room.target.toLocaleString() })}
+        </span>
+        <span className="font-label-md text-label-md text-tertiary font-bold tabular-nums mt-1">
+          {progressPercent(liveCount ?? room.total, room.target)}%
+        </span>
+      </div>
+    </CircularProgress>
+  ) : null;
 
   const shareLink = room
     ? `${window.location.origin}${import.meta.env.BASE_URL}join/${room.code}`
@@ -126,6 +154,7 @@ const Room: React.FC = () => {
   const isOwner = Boolean(room && identity && room.ownerId === identity.userId);
 
   const pendingCount = mySubmissions.filter((s) => s.syncState === 'pending').length;
+  const myContributionTotal = mySubmissions.reduce((sum, s) => sum + s.delta, 0);
 
   return (
     <AppLayout
@@ -163,22 +192,19 @@ const Room: React.FC = () => {
             <section className="relative rounded-t-full rounded-b-2xl border border-tertiary-container/30 bg-surface-container-low shadow-card px-6 pt-16 pb-8 overflow-hidden flex flex-col items-center">
               <PatternBackdrop className="absolute inset-0" />
               <div className="relative flex flex-col items-center gap-4 w-full">
-                <CircularProgress
-                  progress={progressPercent(room.total, room.target)}
-                  size={180}
-                >
-                  <div className="flex flex-col items-center justify-center text-center">
-                    <span className="font-headline-lg-mobile text-[40px] leading-[48px] font-bold text-primary tabular-nums">
-                      {room.total.toLocaleString()}
-                    </span>
-                    <span className="font-caption text-caption text-on-surface-variant tabular-nums">
-                      {t('counter.ofTarget', { target: room.target.toLocaleString() })}
-                    </span>
-                    <span className="font-label-md text-label-md text-tertiary font-bold tabular-nums mt-1">
-                      {progressPercent(room.total, room.target)}%
-                    </span>
-                  </div>
-                </CircularProgress>
+                {/* The ring already reads as a counter — when counting is
+                    possible it IS the CTA: tapping opens the counter modal. */}
+                {canCount ? (
+                  <button
+                    onClick={() => setIsCounterOpen(true)}
+                    aria-label={t('room.startCounting')}
+                    className="rounded-full cursor-pointer active-scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-surface"
+                  >
+                    {roomRing}
+                  </button>
+                ) : (
+                  roomRing
+                )}
 
                 {room.zikrArabic && (
                   <p
@@ -232,23 +258,6 @@ const Room: React.FC = () => {
                   <MaterialIcon icon="close" className="text-[18px]" />
                 </button>
               </div>
-            )}
-
-            {/* Start the room's zikr on your own counter */}
-            {phase === 'active' && isMember && roomZikr && (
-              <GlassCardLike>
-                <h3 className="font-label-md text-label-md text-primary mb-4 flex items-center gap-2">
-                  <MaterialIcon icon="play_circle" className="text-[20px]" />
-                  {t('room.startZikrTitle', { name: room.zikrName })}
-                </h3>
-                <button
-                  onClick={() => navigate(`/counter?zikrId=${roomZikr.id}`)}
-                  className="w-full min-h-[56px] rounded-xl bg-primary-container text-on-primary font-label-md text-label-md flex items-center justify-center gap-2 hover:opacity-90 active-scale-95 transition-all"
-                >
-                  <MaterialIcon icon="play_arrow" className="text-[20px]" />
-                  {t('room.startCounting')}
-                </button>
-              </GlassCardLike>
             )}
 
             {/* Contribute */}
@@ -376,27 +385,47 @@ const Room: React.FC = () => {
               </GlassCardLike>
             )}
 
-            {/* My contribution (local only) */}
+            {/* My contribution (local only) — total by default, tap for details */}
             <GlassCardLike>
-              <h3 className="font-label-md text-label-md text-primary mb-4 flex items-center gap-2">
-                <MaterialIcon icon="history" className="text-[20px]" />
-                {t('room.myContribution')}
-              </h3>
-              {mySubmissions.length === 0 ? (
-                <p className="font-caption text-caption text-on-surface-variant">
-                  {t('room.nothingYet')}
-                </p>
-              ) : (
-                <ul className="flex flex-col divide-y divide-outline-variant/10 -mx-1">
-                  {mySubmissions.slice(0, 20).map((s) => (
-                    <SubmissionRow key={s.eventId} submission={s} />
-                  ))}
-                </ul>
+              <button
+                onClick={() => setContributionExpanded((v) => !v)}
+                aria-expanded={contributionExpanded}
+                className="w-full flex items-center justify-between gap-3 text-left active-scale-[0.99] transition-transform"
+              >
+                <span className="font-label-md text-label-md text-primary flex items-center gap-2">
+                  <MaterialIcon icon="history" className="text-[20px]" />
+                  {t('room.myContribution')}
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="font-headline-sm text-headline-sm text-tertiary font-bold tabular-nums">
+                    {myContributionTotal.toLocaleString()}
+                  </span>
+                  <MaterialIcon
+                    icon={contributionExpanded ? 'expand_less' : 'expand_more'}
+                    className="text-on-surface-variant"
+                  />
+                </span>
+              </button>
+
+              {contributionExpanded && (
+                <div className="mt-4">
+                  {mySubmissions.length === 0 ? (
+                    <p className="font-caption text-caption text-on-surface-variant">
+                      {t('room.nothingYet')}
+                    </p>
+                  ) : (
+                    <ul className="flex flex-col divide-y divide-outline-variant/10 -mx-1">
+                      {mySubmissions.slice(0, 20).map((s) => (
+                        <SubmissionRow key={s.eventId} submission={s} />
+                      ))}
+                    </ul>
+                  )}
+                  <p className="font-caption text-caption text-on-surface-variant/70 mt-4 flex items-start gap-1.5">
+                    <MaterialIcon icon="lock" className="text-[14px] mt-0.5 shrink-0" />
+                    {t('room.localNote')}
+                  </p>
+                </div>
               )}
-              <p className="font-caption text-caption text-on-surface-variant/70 mt-4 flex items-start gap-1.5">
-                <MaterialIcon icon="lock" className="text-[14px] mt-0.5 shrink-0" />
-                {t('room.localNote')}
-              </p>
             </GlassCardLike>
 
             {/* Members */}
@@ -499,6 +528,34 @@ const Room: React.FC = () => {
           </>
         )}
 
+      {/* Counter in place — continues the room's count on your own tasbeeh;
+          only the taps you add here are saved and contributed */}
+      {roomZikr && room && (
+        <CounterModal
+          isOpen={isCounterOpen}
+          onClose={() => {
+            // Dismissed — but an auto-saved round may still be queued.
+            setIsCounterOpen(false);
+            setLiveCount(null);
+            void sharedRoomService
+              .flushOutbox()
+              .then(() => refreshCurrentRoom())
+              .catch(() => {});
+          }}
+          onFinish={() => {
+            setIsCounterOpen(false);
+            setLiveCount(null);
+            void sharedRoomService
+              .flushOutbox()
+              .then(() => refreshCurrentRoom())
+              .catch(() => {});
+          }}
+          zikr={roomZikr}
+          startCount={room.total}
+          target={room.target}
+          onCount={(count) => setLiveCount(count)}
+        />
+      )}
     </AppLayout>
   );
 };
