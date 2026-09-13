@@ -10,9 +10,8 @@ import GlassCard from '../components/cards/GlassCard';
 import ToggleSwitch from '../components/forms/ToggleSwitch';
 import MaterialIcon from '../components/MaterialIcon';
 import GoalFormModal from '../components/GoalFormModal';
-import TopAppBar from '../components/navigation/TopAppBar';
-import BottomNav from '../components/navigation/BottomNav';
-import { getNavItems } from '../components/navigation/navItems';
+import AppLayout from '../components/layout/AppLayout';
+import { useNavActions } from '../components/navigation/navActions';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
 import { useGoalStore } from '../../core/stores/goalStore';
 import { useZikrStore } from '../../core/stores/zikrStore';
@@ -38,6 +37,7 @@ interface GoalWithDisplay extends Goal {
 
 const Goals: React.FC = () => {
   const navigate = useNavigate();
+  const navActions = useNavActions();
   const { lang, t } = useI18n();
 
   // Store integrations
@@ -177,21 +177,11 @@ const Goals: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface antialiased flex flex-col pt-16 pb-24 max-w-md mx-auto">
-      {/* Top App Bar */}
-      <TopAppBar
-        brand
-        actions={[
-          {
-            icon: 'settings',
-            onClick: () => navigate('/settings'),
-            ariaLabel: t('common.settings'),
-          },
-        ]}
-      />
-
-      {/* Main Content */}
-      <main className="flex-1 w-full max-w-[800px] mx-auto px-container-padding-mobile py-8 flex flex-col">
+    <AppLayout
+      topBar={{ brand: true, actions: navActions }}
+      bottomNav
+      contentClassName="w-full max-w-[800px] mx-auto px-container-padding-mobile py-8"
+    >
         {/* Header Section */}
         <div className="mb-10 flex flex-col gap-4">
           <div>
@@ -360,14 +350,6 @@ const Goals: React.FC = () => {
             {t('goals.create')}
           </button>
         </div>
-      </main>
-
-      {/* Bottom Navigation */}
-      <BottomNav
-        items={getNavItems()}
-        activeId="goals"
-        onNavigate={(path) => navigate(path)}
-      />
 
       {/* Goal Form Modals */}
       <GoalFormModal
@@ -379,7 +361,7 @@ const Goals: React.FC = () => {
         onClose={handleCloseEditModal}
         editGoal={editGoal}
       />
-    </div>
+    </AppLayout>
   );
 };
 

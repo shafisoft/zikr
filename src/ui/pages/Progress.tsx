@@ -5,17 +5,15 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import GlassCard from '../components/cards/GlassCard';
 import InputField from '../components/forms/InputField';
 import MaterialIcon from '../components/MaterialIcon';
-import TopAppBar from '../components/navigation/TopAppBar';
+import AppLayout from '../components/layout/AppLayout';
+import { useNavActions } from '../components/navigation/navActions';
 import WeeklyChart from '../components/progress/WeeklyChart';
 import SessionHistory from '../components/SessionHistory';
 import BulkEntryForm from '../components/BulkEntryForm';
-import BottomNav from '../components/navigation/BottomNav';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
-import { getNavItems } from '../components/navigation/navItems';
 import { WeeklyDataPoint } from '../types/components';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { useStreakStore } from '../../core/stores/streakStore';
@@ -26,7 +24,7 @@ import { formatDate, getToday } from '../../core/utils/dateUtils';
 import { useI18n } from '../../core/i18n';
 
 const Progress: React.FC = () => {
-  const navigate = useNavigate();
+  const navActions = useNavActions();
   const { lang, t } = useI18n();
 
   // Store integrations
@@ -181,21 +179,11 @@ const Progress: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface antialiased flex flex-col pb-24 max-w-md mx-auto">
-      {/* Top App Bar */}
-      <TopAppBar
-        brand
-        actions={[
-          {
-            icon: 'settings',
-            onClick: () => navigate('/settings'),
-            ariaLabel: t('common.settings'),
-          },
-        ]}
-      />
-
-      {/* Main Content */}
-      <main className="flex-grow pt-24 px-container-padding-mobile flex flex-col gap-8">
+    <AppLayout
+      topBar={{ brand: true, actions: navActions }}
+      bottomNav
+      contentClassName="pt-8 px-container-padding-mobile gap-8"
+    >
         {/* Header */}
         <div className="text-center flex flex-col gap-4">
           <div>
@@ -355,15 +343,8 @@ const Progress: React.FC = () => {
             <SessionHistory onRefresh={handleSaveProgress} />
           )}
         </section>
-      </main>
 
-      {/* Bottom Navigation */}
-      <BottomNav
-        items={getNavItems()}
-        activeId="progress"
-        onNavigate={(path) => navigate(path)}
-      />
-    </div>
+    </AppLayout>
   );
 };
 

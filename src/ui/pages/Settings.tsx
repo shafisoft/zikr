@@ -1,25 +1,21 @@
 /**
  * Settings Screen (V2)
- * Settings page with dark mode, haptics, data management, and about sections
+ * Settings page with dark mode, haptics, data management, and about sections.
+ * Zikr content management lives in the Zikr Library (/library).
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import ToggleSwitch from '../components/forms/ToggleSwitch';
 import MaterialIcon from '../components/MaterialIcon';
-import ZikrFormModal from '../components/ZikrFormModal';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
 import { useSettingsStore } from '../../core/stores/settingsStore';
 import { exportService } from '../../core/services/exportService';
-import { zikrService } from '../../core/services/zikrService';
 import { db } from '../../core/db/db';
-import { Zikr } from '../../core/db/types';
 import { useSharedRoomStore } from '../../core/stores/sharedRoomStore';
-import { useZikrStore } from '../../core/stores/zikrStore';
 import { useI18n, LANGUAGES, applyDocumentLanguage } from '../../core/i18n';
+import AppLayout from '../components/layout/AppLayout';
 
 const Settings: React.FC = () => {
-  const navigate = useNavigate();
   const { lang, t } = useI18n();
 
   // Store integrations
@@ -27,7 +23,6 @@ const Settings: React.FC = () => {
   const loading = useSettingsStore(state => state.loading);
   const loadSettings = useSettingsStore(state => state.loadSettings);
   const saveSetting = useSettingsStore(state => state.saveSetting);
-  const zikrs = useZikrStore(state => state.zikrs);
 
   // Local state
   const [darkMode, setDarkMode] = useState(
@@ -40,18 +35,6 @@ const Settings: React.FC = () => {
   const sharedRoomStore = useSharedRoomStore();
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Modal state
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editZikr, setEditZikr] = useState<Zikr | null>(null);
-
-  // Filter zikrs based on search query
-  const filteredZikrs = zikrs.filter(zikr => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    return zikr.name.toLowerCase().includes(query);
-  });
 
   // Load settings on mount
   useEffect(() => {
@@ -146,32 +129,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  // Zikr management handlers
-  const handleEditZikr = (zikr: Zikr) => {
-    setEditZikr(zikr);
-  };
-
-  const handleDeleteZikr = async (zikr: Zikr) => {
-    const confirmed = confirm(t('settings.deleteZikrConfirm', { name: zikr.name }));
-    if (!confirmed) return;
-
-    try {
-      await zikrService.softDelete(zikr.id!);
-      alert(t('settings.zikrDeleted'));
-    } catch (error) {
-      console.error('Failed to delete zikr:', error);
-      alert(t('zikrForm.saveFailed'));
-    }
-  };
-
-  const handleCloseCreateModal = () => {
-    setIsCreateModalOpen(false);
-  };
-
-  const handleCloseEditModal = () => {
-    setEditZikr(null);
-  };
-
   // Get app version
   const appVersion = process.env.PACKAGE_VERSION || '1.0.0';
 
@@ -184,23 +141,10 @@ const Settings: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface antialiased flex flex-col pt-16 pb-8 max-w-md mx-auto">
-      {/* Top App Bar */}
-      <header className="bg-surface/80 backdrop-blur-md fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50 border-b border-outline-variant/30 flex justify-between items-center h-16 px-container-padding-mobile">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-primary active:scale-95 duration-200 w-touch-target-min h-touch-target-min flex items-center justify-center -ml-4"
-        >
-          <MaterialIcon icon="arrow_back" className="text-2xl" />
-        </button>
-        <div className="font-headline-md text-headline-md text-primary font-bold">
-          {t('settings.heading')}
-        </div>
-        <div className="w-touch-target-min" />
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 px-container-padding-mobile py-8 flex flex-col gap-8">
+    <AppLayout
+      topBar={{ title: t('settings.heading'), back: true }}
+      contentClassName="px-container-padding-mobile pt-8 pb-16 gap-8"
+    >
         {/* Preferences Section */}
         <section>
           <h2 className="font-label-md text-label-md text-on-surface-variant mb-4 px-2">
@@ -424,108 +368,6 @@ const Settings: React.FC = () => {
           </div>
         </section>
 
-        {/* Manage Zikrs Section */}
-        <section>
-          <div className="flex items-center justify-between mb-4 px-2">
-            <h2 className="font-label-md text-label-md text-on-surface-variant">
-              {t('settings.manageZikrs')}
-            </h2>
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="text-primary font-label-md text-label-md flex items-center gap-1 hover:opacity-80 transition-opacity"
-            >
-              <MaterialIcon icon="add" className="text-[18px]" />
-              {t('settings.addNew')}
-            </button>
-          </div>
-
-          {/* Search Input */}
-          {zikrs.length > 0 && (
-            <div className="mb-4">
-              <div className="relative">
-                <MaterialIcon
-                  icon="search"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]"
-                />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('settings.searchPlaceholder')}
-                  className="w-full bg-surface-container-low border border-outline-variant/50 rounded-xl pl-12 pr-4 h-touch-target-min font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors"
-                    aria-label="Clear search"
-                  >
-                    <MaterialIcon icon="close" className="text-[20px]" />
-                  </button>
-                )}
-              </div>
-              {searchQuery && (
-                <p className="font-caption text-caption text-on-surface-variant mt-2 px-2">
-                  {filteredZikrs.length === 1 ? t('settings.oneFound') : t('settings.found', { count: filteredZikrs.length })}
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-col gap-2">
-            {zikrs.length === 0 ? (
-              <div className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-8 text-center">
-                <MaterialIcon icon="spa" className="text-4xl text-tertiary-container mx-auto mb-3" />
-                <p className="font-body-md text-body-md text-on-surface-variant">
-                  {t('settings.noZikrs')}
-                </p>
-              </div>
-            ) : searchQuery && filteredZikrs.length === 0 ? (
-              <div className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-8 text-center">
-                <MaterialIcon icon="search_off" className="text-4xl text-tertiary-container mx-auto mb-3" />
-                <p className="font-body-md text-body-md text-on-surface-variant">
-                  {t('settings.noZikrsFound', { query: searchQuery })}
-                </p>
-              </div>
-            ) : (
-              filteredZikrs.map((zikr) => (
-                <div
-                  key={zikr.id}
-                  className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-4 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="bg-primary-container/20 p-2 rounded-lg">
-                      <MaterialIcon icon="spa" filled className="text-primary text-[20px]" />
-                    </div>
-                    <div>
-                      <p className="font-body-md text-body-md text-on-surface">{zikr.name}</p>
-                      <p className="font-caption text-caption text-on-surface-variant">
-                        {zikr.custom ? t('settings.customZikr') : t('settings.predefined')}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleEditZikr(zikr)}
-                      className="text-primary p-2 hover:bg-primary-container/20 rounded-lg transition-colors"
-                      aria-label={`Edit ${zikr.name}`}
-                    >
-                      <MaterialIcon icon="edit" className="text-[20px]" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteZikr(zikr)}
-                      className="text-error p-2 hover:bg-error/10 rounded-lg transition-colors"
-                      aria-label={`Delete ${zikr.name}`}
-                    >
-                      <MaterialIcon icon="delete" className="text-[20px]" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-
         {/* About Section */}
         <section>
           <h2 className="font-label-md text-label-md text-on-surface-variant mb-4 px-2">
@@ -565,19 +407,7 @@ const Settings: React.FC = () => {
             © 2024 Zikr
           </p>
         </section>
-      </main>
-
-      {/* Zikr Form Modals */}
-      <ZikrFormModal
-        isOpen={isCreateModalOpen}
-        onClose={handleCloseCreateModal}
-      />
-      <ZikrFormModal
-        isOpen={editZikr !== null}
-        onClose={handleCloseEditModal}
-        editZikr={editZikr}
-      />
-    </div>
+    </AppLayout>
   );
 };
 

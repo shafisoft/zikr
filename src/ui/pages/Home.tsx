@@ -6,15 +6,14 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import TopAppBar from '../components/navigation/TopAppBar';
-import BottomNav from '../components/navigation/BottomNav';
+import AppLayout from '../components/layout/AppLayout';
+import { useNavActions } from '../components/navigation/navActions';
 import CircularProgress from '../components/progress/CircularProgress';
 import ZikrCard from '../components/cards/ZikrCard';
 import MaterialIcon from '../components/MaterialIcon';
 import ZikrFormModal from '../components/ZikrFormModal';
 import PatternBackdrop from '../components/decor/PatternBackdrop';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
-import { getNavItems } from '../components/navigation/navItems';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { useGoalStore } from '../../core/stores/goalStore';
@@ -29,6 +28,7 @@ const DAILY_PHRASE_KEYS = [1, 2, 3, 4, 5];
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
+  const navActions = useNavActions();
   const { lang, t } = useI18n();
   const phraseKey = useMemo(() => {
     const now = new Date();
@@ -185,19 +185,11 @@ const Home: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface antialiased flex flex-col max-w-md mx-auto">
-      {/* Top App Bar */}
-      <TopAppBar
-        brand
-        action={{
-          icon: 'settings',
-          onClick: () => navigate('/settings'),
-          ariaLabel: 'Settings',
-        }}
-      />
-
-      {/* Main Content */}
-      <main className="flex-1 pt-24 pb-32 px-container-padding-mobile flex flex-col gap-8 relative">
+    <AppLayout
+      topBar={{ brand: true, actions: navActions }}
+      bottomNav
+      contentClassName="pt-8 pb-8 px-container-padding-mobile gap-8 relative"
+    >
         {/* Welcome & Streak Header */}
         <section className="relative flex flex-col items-center text-center gap-2">
           <PatternBackdrop className="absolute -inset-x-8 -top-8 h-48" />
@@ -291,21 +283,12 @@ const Home: React.FC = () => {
             {t('home.addMore')}
           </button>
         )}
-      </main>
-
-      {/* Bottom Navigation */}
-      <BottomNav
-        items={getNavItems()}
-        activeId="home"
-        onNavigate={(path) => navigate(path)}
-      />
-
       {/* Create Zikr Modal */}
       <ZikrFormModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
       />
-    </div>
+    </AppLayout>
   );
 };
 

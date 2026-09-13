@@ -128,7 +128,8 @@ src/
 │   └── components/ # Shared UI components (ErrorBoundary, etc.)
 ├── ui/             # Everything that renders (the Noor design system)
 │   ├── components/ # navigation/, cards/, decor/, forms/, progress/, modals
-│   ├── pages/      # Route pages (Home, Counter, Goals, Group, Progress, Settings)
+│   ├── layout/     # AppLayout — sole owner of the shell, top bar, bottom nav, bar-clearance spacing
+│   ├── pages/      # Route pages (Home, Counter, Goals, Group, Progress, Library, Settings)
 │   ├── hooks/      # useRipple, useHaptic
 │   ├── types/      # Component prop types
 │   └── utils/      # Display helpers (zikrMapping: record-first adapter over the catalog)
@@ -139,6 +140,14 @@ docs/design/        # Static HTML design mockups (reference only, not built)
 **Placement rule:** new UI goes in `src/ui`, new logic goes in `src/core`.
 `core` must never import from `ui`. (Known debt: V1-era `src/utils` and
 `src/core/utils` both exist.)
+
+**Layout rule:** every page renders inside `AppLayout` (`src/ui/components/layout/`)
+and only declares its chrome (`topBar`, `bottomNav`, `contentClassName`) — never
+hand-roll the shell div, `<header>`, `BottomNav`, or bar-clearance padding.
+Bar clearance is applied by AppLayout on a wrapper element; screen padding goes
+in `contentClassName` (Tailwind `p*-N` on one element would override, not add).
+Top-right actions come from `useNavActions()` (Library + Settings); `BottomNav`
+derives its active tab from the URL — pages never pass `activeId`.
 
 ### UI: "Noor" Design System (src-v2/)
 

@@ -7,9 +7,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaterialIcon from '../components/MaterialIcon';
-import TopAppBar from '../components/navigation/TopAppBar';
-import BottomNav from '../components/navigation/BottomNav';
-import { getNavItems } from '../components/navigation/navItems';
+import AppLayout from '../components/layout/AppLayout';
+import { useNavActions } from '../components/navigation/navActions';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
 import CreateRoomModal from '../components/CreateRoomModal';
 import JoinRoomModal from '../components/JoinRoomModal';
@@ -20,6 +19,7 @@ import { useI18n } from '../../core/i18n';
 
 const Group: React.FC = () => {
   const navigate = useNavigate();
+  const navActions = useNavActions();
   const { t } = useI18n();
   const {
     initialized,
@@ -52,21 +52,11 @@ const Group: React.FC = () => {
   const openRoom = (code: string) => navigate(`/group/${code}`);
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface antialiased flex flex-col pt-16 pb-24 max-w-md mx-auto">
-      {/* Top App Bar */}
-      <TopAppBar
-        brand
-        actions={[
-          {
-            icon: 'settings',
-            onClick: () => navigate('/settings'),
-            ariaLabel: t('common.settings'),
-          },
-        ]}
-      />
-
-      {/* Main Content */}
-      <main className="flex-1 w-full px-container-padding-mobile py-8 flex flex-col">
+    <AppLayout
+      topBar={{ brand: true, actions: navActions }}
+      bottomNav
+      contentClassName="w-full px-container-padding-mobile py-8"
+    >
         {/* Header */}
         <div className="mb-8 flex flex-col gap-4">
           <div>
@@ -182,7 +172,6 @@ const Group: React.FC = () => {
             )}
           </>
         )}
-      </main>
 
       {/* Modals */}
       <CreateRoomModal
@@ -202,9 +191,7 @@ const Group: React.FC = () => {
         }}
       />
 
-      {/* Bottom Navigation */}
-      <BottomNav items={getNavItems()} activeId="group" onNavigate={(path) => navigate(path)} />
-    </div>
+    </AppLayout>
   );
 };
 

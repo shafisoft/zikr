@@ -8,9 +8,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import MaterialIcon from '../components/MaterialIcon';
-import TopAppBar from '../components/navigation/TopAppBar';
-import BottomNav from '../components/navigation/BottomNav';
-import { getNavItems } from '../components/navigation/navItems';
+import AppLayout from '../components/layout/AppLayout';
+import { useNavActions } from '../components/navigation/navActions';
 import CircularProgress from '../components/progress/CircularProgress';
 import PatternBackdrop from '../components/decor/PatternBackdrop';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
@@ -31,6 +30,7 @@ const QUICK_AMOUNTS = [10, 33, 100];
 const Room: React.FC = () => {
   const { code = '' } = useParams();
   const navigate = useNavigate();
+  const navActions = useNavActions();
   const { t } = useI18n();
   const zikrs = useZikrStore(state => state.zikrs);
   const {
@@ -128,23 +128,16 @@ const Room: React.FC = () => {
   const pendingCount = mySubmissions.filter((s) => s.syncState === 'pending').length;
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface antialiased flex flex-col pt-16 pb-24 max-w-md mx-auto">
-      {/* Top App Bar */}
-      <TopAppBar
-        title={room ? room.title : 'Room'}
-        showBack
-        onBack={() => navigate('/group')}
-        actions={[
-          {
-            icon: 'settings',
-            onClick: () => navigate('/settings'),
-            ariaLabel: t('common.settings'),
-          },
-        ]}
-      />
-
-      {/* Main Content */}
-      <main className="flex-1 w-full px-container-padding-mobile py-6 flex flex-col gap-6">
+    <AppLayout
+      topBar={{
+        title: room ? room.title : 'Room',
+        back: true,
+        onBack: () => navigate('/group'),
+        actions: navActions,
+      }}
+      bottomNav
+      contentClassName="w-full px-container-padding-mobile pt-6 pb-6 gap-6"
+    >
         {loading && !room && (
           <div className="flex items-center justify-center py-16 text-on-surface-variant">
             {t('room.opening')}
@@ -505,11 +498,8 @@ const Room: React.FC = () => {
             )}
           </>
         )}
-      </main>
 
-      {/* Bottom Navigation */}
-      <BottomNav items={getNavItems()} activeId="group" onNavigate={(path) => navigate(path)} />
-    </div>
+    </AppLayout>
   );
 };
 

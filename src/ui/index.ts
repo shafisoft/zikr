@@ -10,6 +10,7 @@ export { CounterCircle } from './components/CounterCircle';
 // Navigation
 export { TopAppBar } from './components/navigation/TopAppBar';
 export { BottomNav } from './components/navigation/BottomNav';
+export { AppLayout } from './components/layout/AppLayout';
 export { getNavItems } from './components/navigation/navItems';
 
 // Cards

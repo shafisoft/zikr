@@ -19,6 +19,7 @@ import CounterV2 from './ui/pages/Counter';
 import GoalsV2 from './ui/pages/Goals';
 import ProgressV2 from './ui/pages/Progress';
 import SettingsV2 from './ui/pages/Settings';
+import LibraryV2 from './ui/pages/Library';
 import GroupV2 from './ui/pages/Group';
 import RoomV2 from './ui/pages/Room';
 import JoinV2 from './ui/pages/Join';
@@ -134,6 +135,7 @@ function App() {
               <Route path="/goals" element={<GoalsV2 />} />
               <Route path="/progress" element={<ProgressV2 />} />
               <Route path="/settings" element={<SettingsV2 />} />
+              <Route path="/library" element={<LibraryV2 />} />
               <Route path="/group" element={<GroupV2 />} />
               <Route path="/group/:code" element={<RoomV2 />} />
               <Route path="/join/:code" element={<JoinV2 />} />

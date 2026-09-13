@@ -2,27 +2,33 @@
  * Bottom Navigation Component
  * Mobile bottom navigation bar with active state highlighting.
  * Active item: deep green pill with a gold icon — the Noor design signature.
+ *
+ * Self-contained: reads the tab list, derives the active tab from the
+ * current URL, and navigates on tap. Screens just toggle it on via
+ * AppLayout's `bottomNav`.
  */
 
 import React from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import MaterialIcon from '../MaterialIcon';
-import { NavItem } from '../../types/components';
 import { useI18n } from '../../../core/i18n';
+import { getNavItems } from './navItems';
 
 interface BottomNavProps {
-  items: NavItem[];
-  activeId: string;
-  onNavigate: (id: string) => void;
   className?: string;
 }
 
-export const BottomNav: React.FC<BottomNavProps> = ({
-  items,
-  activeId,
-  onNavigate,
-  className = '',
-}) => {
+export const BottomNav: React.FC<BottomNavProps> = ({ className = '' }) => {
   const { t } = useI18n();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  const items = getNavItems();
+  // Home is the index route (exact match); the other tabs match by prefix
+  // so detail screens under them would highlight too, if any appear.
+  const activeId = items.find(item =>
+    item.path === '/' ? pathname === '/' || pathname === '/home' : pathname.startsWith(item.path)
+  )?.id;
 
   return (
     <nav
@@ -43,7 +49,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         return (
           <button
             key={item.id}
-            onClick={() => onNavigate(item.path)}
+            onClick={() => navigate(item.path)}
             className={`
               flex-1 flex flex-col items-center justify-center
               py-1
