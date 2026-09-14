@@ -7,11 +7,14 @@ user-facing change and date it when it ships.
 
 ## Unreleased
 
-_(nothing yet)_
+### Changed
+- Under the hood: single-source-of-truth refactor completed — the UI now
+  talks only to stores (no direct service/database imports, enforced by a
+  layer checker in `npm run lint`), Home and Progress derive their numbers
+  from one shared set of pure functions, and the session-history buckets
+  follow the app language instead of hardcoded English.
 
 ## 1.1.0 — 2026-09-14
-
-### Added
 - Share intent: the system share sheet can share a room invite (title +
   `/join/CODE` link) from the Room page, and the app itself from
   Settings → About. Falls back to copying the link when the browser has

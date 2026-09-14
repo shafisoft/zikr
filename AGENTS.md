@@ -40,7 +40,8 @@ npm run test:watch      # Watch mode
 ```
 
 # Linting & Quality
-npm run lint            # ESLint
+npm run lint            # Layer checker + ESLint
+npm run lint:layers     # Enforce ui → stores → services → db boundaries
 npm run size-check      # Verify bundle size against 200KB limit
 ```
 
@@ -139,8 +140,17 @@ docs/design/        # Static HTML design mockups (reference only, not built)
 ```
 
 **Placement rule:** new UI goes in `src/ui`, new logic goes in `src/core`.
-`core` must never import from `ui`. (Known debt: V1-era `src/utils` and
-`src/core/utils` both exist.)
+`core` must never import from `ui`.
+
+**Layer rule (enforced by `npm run lint:layers`):** `src/ui` talks ONLY to
+stores (`core/stores`) and pure utils (`core/utils`, `ui/utils`) — never to
+`core/db/db` or `core/services/*`. All writes go through store actions
+(zikr/goal/session/settings/sharedRoom stores own every mutation); services
+keep the business logic and transactions, and stores stay thin. Derived
+metrics (streak, totals, ring, weekly chart) come from `core/utils/metrics.ts`
++ `overallStreak.ts` via `useMemo` — never recompute them inline in pages,
+and never `useEffect`+`setState` for derived values. Stores hold error CODES,
+not localized strings; translation happens at render.
 
 **Layout rule:** every page renders inside `AppLayout` (`src/ui/components/layout/`)
 and only declares its chrome (`topBar`, `bottomNav`, `contentClassName`) — never
