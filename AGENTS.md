@@ -176,6 +176,10 @@ The only UI. Refined Islamic identity: deep emerald + gold on warm parchment (li
 
 ## Project Context
 
+See **CHANGELOG.md** for shipped, user-facing changes — update its
+`Unreleased` section with every user-facing change (agents included); date
+it only when the change ships to GitHub Pages.
+
 See **docs/architecture.md** for complete data schema and architecture diagrams.
 See **docs/Tasks.md** for v1 task breakdown across 5 epics.
 See **docs/Idea.md** for problem statement and target users.
