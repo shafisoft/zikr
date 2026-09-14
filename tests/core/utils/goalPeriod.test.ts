@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPeriodStart, getPeriodEnd, isDateInPeriod, isPeriodComplete } from '../../src/utils/goalUtils';
+import { getPeriodStart, getPeriodEnd, isDateInPeriod, isPeriodComplete } from '../../../src/core/utils/goalPeriod';
 
 // Pin a stable Wednesday to make week-start assertions deterministic
 // 2026-06-10 is a Wednesday

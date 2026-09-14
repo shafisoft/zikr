@@ -69,14 +69,13 @@ describe('UpdateBanner', () => {
     expect(pwaMockState.updateServiceWorker).toHaveBeenCalledWith(true);
   });
 
-  it('renders the offline-ready variant without a reload button', async () => {
+  it('stays silent for the offline-ready state (no user-facing banner)', async () => {
     pwaMockState.offlineReady = true;
+    pwaMockState.needRefresh = false;
     await render();
 
-    const el = bannerEl();
-    expect(el).not.toBeNull();
-    // Only the dismiss button — nothing to reload.
-    expect(el?.querySelectorAll('button').length).toBe(1);
+    // Offline-ready answers a question nobody asked — it must not render.
+    expect(bannerEl()).toBeNull();
   });
 
   it('dismiss clears the banner state', async () => {

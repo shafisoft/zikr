@@ -16,7 +16,7 @@ import { useI18n } from '../../core/i18n';
 export const UpdateBanner: React.FC = () => {
   const { t } = useI18n();
   const {
-    offlineReady: [offlineReady, setOfflineReady],
+    offlineReady: [, setOfflineReady],
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
@@ -29,7 +29,9 @@ export const UpdateBanner: React.FC = () => {
     },
   });
 
-  if (!(offlineReady || needRefresh)) return null;
+  // Offline-ready is silent by design: it answers a question nobody asked,
+  // so only a real pending update interrupts the user.
+  if (!needRefresh) return null;
 
   const dismiss = () => {
     setOfflineReady(false);
@@ -44,18 +46,16 @@ export const UpdateBanner: React.FC = () => {
         px-4 py-3 flex items-center justify-between gap-3"
     >
       <span className="font-label-md text-label-md text-on-surface flex items-center gap-2 min-w-0">
-        <MaterialIcon icon={needRefresh ? 'system_update_alt' : 'cloud_done'} className="text-[18px] text-tertiary" />
-        <span className="truncate">{needRefresh ? t('update.newVersion') : t('update.offlineReady')}</span>
+        <MaterialIcon icon="system_update_alt" className="text-[18px] text-tertiary" />
+        <span className="truncate">{t('update.newVersion')}</span>
       </span>
-      {needRefresh && (
-        <button
-          onClick={() => updateServiceWorker(true)}
-          className="shrink-0 h-9 px-3 rounded-lg bg-primary-container text-on-primary font-label-md text-label-md flex items-center gap-1 active-scale-95"
-        >
-          <MaterialIcon icon="refresh" className="text-[16px]" />
-          {t('update.reload')}
-        </button>
-      )}
+      <button
+        onClick={() => updateServiceWorker(true)}
+        className="shrink-0 h-9 px-3 rounded-lg bg-primary-container text-on-primary font-label-md text-label-md flex items-center gap-1 active-scale-95"
+      >
+        <MaterialIcon icon="refresh" className="text-[16px]" />
+        {t('update.reload')}
+      </button>
       <button onClick={dismiss} aria-label={t('common.close')} className="shrink-0 text-on-surface-variant">
         <MaterialIcon icon="close" className="text-[18px]" />
       </button>    </div>

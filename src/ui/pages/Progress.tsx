@@ -16,7 +16,7 @@ import BulkEntryForm from '../components/BulkEntryForm';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
 import { WeeklyDataPoint } from '../types/components';
 import { useSessionStore } from '../../core/stores/sessionStore';
-import { useStreakStore } from '../../core/stores/streakStore';
+import { calculateOverallStreak } from '../../core/utils/overallStreak';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { sessionService } from '../../core/services/sessionService';
 import { useSettingsStore } from '../../core/stores/settingsStore';
@@ -30,7 +30,6 @@ const Progress: React.FC = () => {
   // Store integrations
   const sessions = useSessionStore(state => state.sessions);
   const sessionsLoading = useSessionStore(state => state.loading);
-  const streaks = useStreakStore(state => state.streaks);
   const zikrs = useZikrStore(state => state.zikrs);
 
   // Local state
@@ -57,11 +56,9 @@ const Progress: React.FC = () => {
     const total = sessions.reduce((sum, s) => sum + s.count, 0);
     setTotalDhikr(total);
 
-    // Calculate streak from streaks store (take max current streak)
-    const maxStreak = streaks.length > 0
-      ? Math.max(...streaks.map(s => s.currentStreak))
-      : 0;
-    setStreakDays(maxStreak);
+    // Overall streak — same calculation as the Home page (max per-zikr
+    // streak measured something else and drifted from the Home number).
+    setStreakDays(calculateOverallStreak(sessions.map(s => s.date)));
 
     // Calculate weekly data
     const weekData = calculateWeeklyData(sessions);
@@ -71,7 +68,7 @@ const Progress: React.FC = () => {
     if (zikrs.length > 0 && !selectedZikr) {
       setSelectedZikr(zikrs[0].id || null);
     }
-  }, [sessions, streaks, zikrs, selectedZikr]);
+  }, [sessions, zikrs, selectedZikr]);
 
   const calculateWeeklyData = (sessionData: typeof sessions): WeeklyDataPoint[] => {
     const days = lang === 'bn' ? ['র', 'সো', 'ম', 'বু', 'বৃ', 'শু', 'শ'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -203,7 +200,7 @@ const Progress: React.FC = () => {
           <GlassCard className="p-6 flex flex-col items-center justify-center text-center">
             <MaterialIcon icon="local_fire_department" filled className="text-tertiary mb-2 text-4xl" />
             <p className="font-headline-md text-headline-md text-primary tabular-nums">
-              {t('progress.streakDays', { count: streakDays })}
+              {t(streakDays === 1 ? 'progress.streakDay' : 'progress.streakDays', { count: streakDays })}
             </p>
             <p className="font-caption text-caption text-on-surface-variant mt-1">
               {t('progress.streakLabel')}

@@ -21,6 +21,7 @@ import { goalService } from '../../core/services/goalService';
 import { useI18n } from '../../core/i18n';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
+import { calculateOverallStreak } from '../../core/utils/overallStreak';
 import { Zikr } from '../../core/db/types';
 
 /** Rotating hero phrases — one per day, rooted in dhikr itself (i18n keys). */
@@ -65,24 +66,8 @@ const Home: React.FC = () => {
     const total = todaySessions.reduce((sum, s) => sum + s.count, 0);
     setTodayTotal(total);
 
-    // Calculate overall streak (consecutive days with any session)
-    const allDates = [...new Set(sessions.map(s => formatDate(s.date)))].sort().reverse();
-    let streak = 0;
-    const checkDate = new Date(today);
-
-    for (const dateStr of allDates) {
-      const checkDateStr = formatDate(checkDate);
-      if (dateStr === checkDateStr) {
-        streak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else if (streak === 0) {
-        // Skip future dates or today if no session yet
-        continue;
-      } else {
-        break;
-      }
-    }
-    setStreakDays(streak);
+    // Overall streak — shared calculation with the Progress page
+    setStreakDays(calculateOverallStreak(sessions.map(s => s.date)));
 
     // Daily ring: aggregate across ALL active goals — only looking at the
     // first one showed 0% whenever the day's practice belonged to another

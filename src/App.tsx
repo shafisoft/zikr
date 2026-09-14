@@ -1,9 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { ErrorBoundary } from './core/components/ErrorBoundary';
+import { ErrorBoundary } from './ui/components/ErrorBoundary';
 import { useZikrStore } from './core/stores/zikrStore';
 import { useSessionStore } from './core/stores/sessionStore';
 import { useGoalStore } from './core/stores/goalStore';
-import { useStreakStore } from './core/stores/streakStore';
 import { useSettingsStore } from './core/stores/settingsStore';
 import { db } from './core/db/db';
 import { seedZikrs } from './core/db/seed';
@@ -48,7 +47,6 @@ function App() {
     const zikrUnsubscribe = useZikrStore.getState().initialize();
     const sessionUnsubscribe = useSessionStore.getState().initialize();
     const goalUnsubscribe = useGoalStore.getState().initialize();
-    const streakUnsubscribe = useStreakStore.getState().initialize();
 
     // Initialize dark mode — wait for persisted settings first, otherwise a
     // fresh boot races the async load and falls back to the system theme.
@@ -105,7 +103,6 @@ function App() {
       zikrUnsubscribe();
       sessionUnsubscribe();
       goalUnsubscribe();
-      streakUnsubscribe();
       mediaQuery.removeEventListener('change', handleSystemPrefChange);
     };
   }, []);

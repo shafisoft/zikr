@@ -1,6 +1,6 @@
 import { db } from '../db/db';
 import { Goal, Session } from '../db/types';
-import { getPeriodStart, getPeriodEnd } from '../../utils/goalUtils';
+import { getPeriodStart, getPeriodEnd } from '../utils/goalPeriod';
 
 export interface Progress {
   currentCount: number;

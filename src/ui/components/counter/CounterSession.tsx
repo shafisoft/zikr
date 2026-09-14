@@ -344,7 +344,7 @@ const RoundActions: React.FC<{
       "
     >
       <MaterialIcon icon="check_circle" className="text-[20px]" />
-      {t('counter.complete')}
+      {t('counter.complete', { count: savedCount })}
     </button>
   );
 };
