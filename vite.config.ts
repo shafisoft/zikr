@@ -38,6 +38,16 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // The updated worker must take over WITHOUT a user tap on the update
+        // banner. With plain 'prompt' mode the new worker waits until
+        // updateServiceWorker(true) runs — but any client already running a
+        // build whose banner is broken/invisible (e.g. the version where it
+        // sat under the navbar) can never activate it and is stuck forever.
+        // skipWaiting + clientsClaim lets each deploy rescue those clients;
+        // the running page keeps its old code until the next launch, so a
+        // mid-session count is never wiped by a reload.
+        skipWaiting: true,
+        clientsClaim: true,
         // Serve index.html for cold-open navigations (e.g. /join/CODE invite
         // links opened offline or before the service worker has cached docs).
         navigateFallback: 'index.html',

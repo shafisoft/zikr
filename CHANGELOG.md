@@ -9,6 +9,13 @@ user-facing change and date it when it ships.
 
 _(nothing yet)_
 
+### Fixed
+- Rescue for installed PWAs stuck on an old version: the service worker now
+  activates new deploys by itself (`skipWaiting` + `clientsClaim`) instead of
+  waiting for a tap on the update banner. Devices running a build whose
+  banner was unreachable (it rendered under the navbar) could never accept an
+  update — they now pick up the latest version on the next app launch.
+
 ## 1.1.1 — 2026-09-14
 
 ### Changed
