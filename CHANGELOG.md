@@ -7,6 +7,10 @@ user-facing change and date it when it ships.
 
 ## Unreleased
 
+_(nothing yet)_
+
+## 1.1.0 — 2026-09-14
+
 ### Added
 - Share intent: the system share sheet can share a room invite (title +
   `/join/CODE` link) from the Room page, and the app itself from
