@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import MaterialIcon from './MaterialIcon';
 import { useSessionHistoryStore } from '../../core/stores/sessionHistoryStore';
 import { useZikrStore } from '../../core/stores/zikrStore';
-import { sessionService } from '../../core/services/sessionService';
+import { useSessionStore } from '../../core/stores/sessionStore';
 import { formatDate } from '../../core/utils/dateUtils';
 import { Session } from '../../core/db/types';
 import { useI18n, localeTag } from '../../core/i18n';
@@ -55,7 +55,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
     setIsSaving(true);
 
     try {
-      await sessionService.updateSession(editingSession.id!, {
+      await useSessionStore.getState().updateSession(editingSession.id!, {
         count: newCount,
         updatedAt: new Date(),
       });
@@ -99,7 +99,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
     setIsSaving(true);
 
     try {
-      await sessionService.deleteSession(session.id!);
+      await useSessionStore.getState().deleteSession(session.id!);
       loadSessions(); // Refresh the list
       if (onRefresh) onRefresh();
     } catch (error) {

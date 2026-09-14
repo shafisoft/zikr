@@ -18,7 +18,6 @@ import { WeeklyDataPoint } from '../types/components';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { calculateOverallStreak } from '../../core/utils/overallStreak';
 import { useZikrStore } from '../../core/stores/zikrStore';
-import { sessionService } from '../../core/services/sessionService';
 import { useSettingsStore } from '../../core/stores/settingsStore';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
 import { useI18n } from '../../core/i18n';
@@ -140,7 +139,7 @@ const Progress: React.FC = () => {
     try {
       const timestampDate = new Date(logDate + 'T00:00:00');
 
-      await sessionService.add({
+      await useSessionStore.getState().saveSession({
         zikrId: selectedZikr,
         count,
         source: 'manual',

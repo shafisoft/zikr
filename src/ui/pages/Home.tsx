@@ -17,7 +17,7 @@ import OrnamentDivider from '../components/decor/OrnamentDivider';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { useGoalStore } from '../../core/stores/goalStore';
-import { goalService } from '../../core/services/goalService';
+
 import { useI18n } from '../../core/i18n';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
@@ -73,7 +73,7 @@ const Home: React.FC = () => {
     // first one showed 0% whenever the day's practice belonged to another
     // goal. Overlapping zikrs between goals are counted once (Set).
     const activeGoals = goals.filter(g => g.status === 'active');
-    const coveredZikrIds = new Set(activeGoals.flatMap(g => goalService.getGoalZikrIds(g)));
+    const coveredZikrIds = new Set(activeGoals.flatMap(g => useGoalStore.getState().getGoalZikrIds(g)));
     const goalTodayTotal = coveredZikrIds.size > 0
       ? todaySessions
           .filter(s => coveredZikrIds.has(s.zikrId) && s.countsToGoals !== false)

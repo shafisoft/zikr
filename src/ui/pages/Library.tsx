@@ -8,8 +8,6 @@ import React, { useState, useEffect } from 'react';
 import AppLayout from '../components/layout/AppLayout';
 import MaterialIcon from '../components/MaterialIcon';
 import ZikrFormModal from '../components/ZikrFormModal';
-import { zikrService } from '../../core/services/zikrService';
-import { zikrSyncService } from '../../core/services/zikrSync';
 import { Zikr } from '../../core/db/types';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useI18n } from '../../core/i18n';
@@ -19,34 +17,24 @@ const SYNC_STATUS_TIMEOUT_MS = 5000;
 const Library: React.FC = () => {
   const { t } = useI18n();
   const zikrs = useZikrStore(state => state.zikrs);
+  const storeIsSyncing = useZikrStore(state => state.isSyncing);
+  const syncLibrary = useZikrStore(state => state.syncLibrary);
+  const softDeleteZikr = useZikrStore(state => state.softDeleteZikr);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editZikr, setEditZikr] = useState<Zikr | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
   const handleSyncLibrary = async () => {
-    if (isSyncing) return;
-    if (!zikrSyncService.isConfigured()) {
-      setSyncStatus({ kind: 'error', text: t('library.syncNotConfigured') });
-      return;
-    }
-
-    setIsSyncing(true);
+    if (storeIsSyncing) return;
     setSyncStatus(null);
-    try {
-      const { added, updated } = await zikrSyncService.syncLibrary();
-      setSyncStatus({
-        kind: 'ok',
-        text: t('library.syncResult', { added, updated }),
-      });
-    } catch (error) {
-      console.error('Library sync failed:', error);
-      setSyncStatus({ kind: 'error', text: t('library.syncFailed') });
-    } finally {
-      setIsSyncing(false);
-    }
+    const result = await syncLibrary();
+    setSyncStatus(
+      result === 'error'
+        ? { kind: 'error', text: t('library.syncFailed') }
+        : { kind: 'ok', text: t('library.syncResult', { added: result.added, updated: result.updated }) }
+    );
   };
 
   // Auto-dismiss the sync result after a few seconds.
@@ -67,7 +55,7 @@ const Library: React.FC = () => {
     if (!confirmed) return;
 
     try {
-      await zikrService.softDelete(zikr.id!);
+      await softDeleteZikr(zikr.id!);
       alert(t('library.deleted'));
     } catch (error) {
       console.error('Failed to delete zikr:', error);
@@ -105,7 +93,7 @@ const Library: React.FC = () => {
           }`}
           role="status"
         >
-          {isSyncing ? (
+          {storeIsSyncing ? (
             <span className="inline-flex items-center gap-2">
               <MaterialIcon icon="sync" className="text-[18px] animate-spin" />
               {t('library.syncing')}

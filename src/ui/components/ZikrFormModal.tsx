@@ -6,9 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import MaterialIcon from './MaterialIcon';
 import { ToggleSwitch } from './forms/ToggleSwitch';
-import { zikrService } from '../../core/services/zikrService';
-import { zikrSyncService } from '../../core/services/zikrSync';
 import { Zikr } from '../../core/db/types';
+import { useZikrStore } from '../../core/stores/zikrStore';
 import { getZikrDisplayInfo, getPredefinedZikrNames } from '../utils/zikrMapping';
 import { useI18n } from '../../core/i18n';
 
@@ -34,6 +33,8 @@ const ZikrFormModal: React.FC<ZikrFormModalProps> = ({
   editZikr,
 }) => {
   const { lang, t } = useI18n();
+  const addZikr = useZikrStore(state => state.addZikr);
+  const updateZikr = useZikrStore(state => state.updateZikr);
   const [isCustom, setIsCustom] = useState(!editZikr || editZikr.custom);
   const [selectedPredefined, setSelectedPredefined] = useState('');
   const [customName, setCustomName] = useState('');
@@ -129,30 +130,21 @@ const ZikrFormModal: React.FC<ZikrFormModalProps> = ({
 
       if (editZikr) {
         // Update existing zikr
-        await zikrService.update(editZikr.id!, {
+        await updateZikr(editZikr.id!, {
           name: zikrName,
           custom: isCustom,
           ...customFields,
         });
       } else {
-        // Create new zikr
-        const newId = await zikrService.add({
+        // Create new zikr — the store fans the "share with others" toggle
+        // out to the shared library (best-effort, retried in background).
+        await addZikr({
           name: zikrName,
           custom: isCustom,
           createdAt: new Date(),
           ...customFields,
+          shareWithOthers: isCustom && shareWithOthers,
         });
-
-        // Push to the shared library for review — best-effort; delivery
-        // is retried in the background if offline. Never blocks the save.
-        if (isCustom && shareWithOthers) {
-          void zikrSyncService.shareZikr({
-            id: newId,
-            name: zikrName,
-            arabicText: customFields.arabicText,
-            translation: customFields.translation,
-          });
-        }
       }
 
       // Close modal and refresh

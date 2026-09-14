@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { db } from '../db/db';
+import { exportService } from '../services/exportService';
 
 interface SettingsState {
   settings: Record<string, any>;
@@ -7,6 +8,10 @@ interface SettingsState {
   loadSettings: () => Promise<void>;
   saveSetting: (key: string, value: any) => Promise<void>;
   getSetting: (key: string) => any;
+  /** One-shot maintenance ops (backup/restore/wipe) — no state to mirror. */
+  exportData: () => Promise<void>;
+  importData: (file: File) => Promise<void>;
+  clearAllData: () => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -41,5 +46,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   getSetting: (key) => {
     return get().settings[key];
-  }
+  },
+
+  exportData: () => exportService.exportData(),
+
+  importData: (file) => exportService.importData(file),
+
+  clearAllData: () => db.delete(),
 }));

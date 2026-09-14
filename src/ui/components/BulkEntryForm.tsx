@@ -8,7 +8,6 @@ import React, { useState, useEffect } from 'react';
 import MaterialIcon from './MaterialIcon';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
-import { sessionService } from '../../core/services/sessionService';
 import { useSettingsStore } from '../../core/stores/settingsStore';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
@@ -132,7 +131,7 @@ const BulkEntryForm: React.FC<BulkEntryFormProps> = ({ onSuccess, onCancel }) =>
 
       // Create sessions for each entry
       const sessionPromises = entriesWithCounts.map(entry =>
-        sessionService.add({
+        useSessionStore.getState().saveSession({
           zikrId: entry.zikrId,
           count: parseInt(entry.count, 10),
           source: 'manual',

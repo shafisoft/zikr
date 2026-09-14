@@ -9,8 +9,6 @@ import ToggleSwitch from '../components/forms/ToggleSwitch';
 import MaterialIcon from '../components/MaterialIcon';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
 import { useSettingsStore } from '../../core/stores/settingsStore';
-import { exportService } from '../../core/services/exportService';
-import { db } from '../../core/db/db';
 import { useSharedRoomStore } from '../../core/stores/sharedRoomStore';
 import { useI18n, LANGUAGES, applyDocumentLanguage } from '../../core/i18n';
 import useShare, { ShareOutcome } from '../hooks/useShare';
@@ -24,6 +22,9 @@ const Settings: React.FC = () => {
   const loading = useSettingsStore(state => state.loading);
   const loadSettings = useSettingsStore(state => state.loadSettings);
   const saveSetting = useSettingsStore(state => state.saveSetting);
+  const exportData = useSettingsStore(state => state.exportData);
+  const importData = useSettingsStore(state => state.importData);
+  const clearAllData = useSettingsStore(state => state.clearAllData);
 
   // Local state
   const [darkMode, setDarkMode] = useState(
@@ -77,7 +78,7 @@ const Settings: React.FC = () => {
   const handleExportData = async () => {
     setIsExporting(true);
     try {
-      await exportService.exportData();
+      await exportData();
     } catch (error) {
       console.error('Failed to export data:', error);
       alert(t('settings.exportFailed'));
@@ -100,7 +101,7 @@ const Settings: React.FC = () => {
 
       setIsImporting(true);
       try {
-        await exportService.importData(file);
+        await importData(file);
         alert(t('settings.importSuccess'));
         window.location.reload();
       } catch (error) {
@@ -121,7 +122,7 @@ const Settings: React.FC = () => {
     if (!confirmed2) return;
 
     try {
-      await db.delete();
+      await clearAllData();
       alert(t('settings.cleared'));
       window.location.reload();
     } catch (error) {

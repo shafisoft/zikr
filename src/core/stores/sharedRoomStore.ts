@@ -34,6 +34,10 @@ interface SharedRoomState {
   error: string | null;
 
   init: () => Promise<void>;
+  /** Synchronous backend-availability check (nav visibility, pre-init). */
+  isBackendConfigured: () => boolean;
+  /** Deliver queued contributions now, then refresh rooms. */
+  flushOutbox: () => Promise<void>;
   refresh: () => Promise<void>;
   openRoom: (code: string) => Promise<void>;
   closeCurrentRoom: () => void;
@@ -92,6 +96,14 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
   syncing: false,
   loading: false,
   error: null,
+
+  isBackendConfigured() {
+    return sharedRoomService.isConfigured();
+  },
+
+  async flushOutbox() {
+    await sharedRoomService.flushOutbox();
+  },
 
   async init() {
     const configured = sharedRoomService.isConfigured();

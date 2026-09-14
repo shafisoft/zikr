@@ -5,8 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import MaterialIcon from './MaterialIcon';
-import { goalService } from '../../core/services/goalService';
 import { Goal } from '../../core/db/types';
+import { useGoalStore } from '../../core/stores/goalStore';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
 import { useI18n } from '../../core/i18n';
@@ -40,6 +40,9 @@ const GoalFormModal: React.FC<GoalFormModalProps> = ({
 }) => {
   const { lang, t } = useI18n();
   const zikrs = useZikrStore(state => state.zikrs);
+  const addGoal = useGoalStore(state => state.addGoal);
+  const updateGoal = useGoalStore(state => state.updateGoal);
+  const getGoalZikrIds = useGoalStore(state => state.getGoalZikrIds);
 
   const [goalName, setGoalName] = useState('');
   const [selectedZikrIds, setSelectedZikrIds] = useState<number[]>([]);
@@ -55,7 +58,7 @@ const GoalFormModal: React.FC<GoalFormModalProps> = ({
     if (isOpen) {
       if (editGoal) {
         setGoalName(editGoal.name ?? '');
-        setSelectedZikrIds(goalService.getGoalZikrIds(editGoal));
+        setSelectedZikrIds(getGoalZikrIds(editGoal));
         setTarget(editGoal.target.toString());
         setPeriod(editGoal.period);
         setStartDate(editGoal.startDate ? formatDate(editGoal.startDate) : '');
@@ -149,10 +152,10 @@ const GoalFormModal: React.FC<GoalFormModalProps> = ({
 
       if (editGoal) {
         // Update existing goal
-        await goalService.update(editGoal.id!, goalData);
+        await updateGoal(editGoal.id!, goalData);
       } else {
         // Create new goal
-        await goalService.add(goalData);
+        await addGoal(goalData);
       }
 
       // Close modal and refresh

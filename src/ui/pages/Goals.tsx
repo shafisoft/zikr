@@ -18,7 +18,7 @@ import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { getZikrDisplayInfo, getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
 import { Goal } from '../../core/db/types';
-import { goalService, Progress } from '../../core/services/goalService';
+import type { Progress } from '../../core/stores/goalStore';
 import { localeTag, useI18n } from '../../core/i18n';
 
 interface GoalZikrDisplay {
@@ -43,6 +43,10 @@ const Goals: React.FC = () => {
   // Store integrations
   const goals = useGoalStore(state => state.goals);
   const goalsLoading = useGoalStore(state => state.loading);
+  const getGoalZikrIds = useGoalStore(state => state.getGoalZikrIds);
+  const calculateProgress = useGoalStore(state => state.calculateProgress);
+  const updateGoal = useGoalStore(state => state.updateGoal);
+  const deleteGoal = useGoalStore(state => state.deleteGoal);
   const zikrs = useZikrStore(state => state.zikrs);
   const sessions = useSessionStore(state => state.sessions);
 
@@ -57,7 +61,7 @@ const Goals: React.FC = () => {
   // recomputed whenever the underlying stores change (no effect/state round-trip)
   const enhancedGoals: GoalWithDisplay[] = useMemo(() => {
     return goals.map(goal => {
-      const zikrIds = goalService.getGoalZikrIds(goal);
+      const zikrIds = getGoalZikrIds(goal);
       const zikrDisplays: GoalZikrDisplay[] = zikrIds
         .map(zikrId => {
           const zikr = zikrs.find(z => z.id === zikrId);
@@ -77,7 +81,7 @@ const Goals: React.FC = () => {
 
       // Progress over the goal's current period across all its zikrs
       // (calculateProgress filters by the goal's zikr set itself)
-      const progress = goalService.calculateProgress(goal, sessions);
+      const progress = calculateProgress(goal, sessions);
 
       return {
         ...goal,
@@ -98,7 +102,7 @@ const Goals: React.FC = () => {
       // completedAt means "target reached" — pausing must not stamp it.
       // Reactivating clears any stale completion date (Dexie deletes keys
       // set to undefined).
-      await goalService.update(goalId, {
+      await updateGoal(goalId, {
         status: newActiveState ? 'active' : 'paused',
         ...(newActiveState ? { completedAt: undefined } : {}),
       } as any);
@@ -132,7 +136,7 @@ const Goals: React.FC = () => {
     if (!confirm('Are you sure you want to delete this goal?')) return;
 
     try {
-      await goalService.delete(goalId);
+      await deleteGoal(goalId);
     } catch (error) {
       console.error('Failed to delete goal:', error);
     }

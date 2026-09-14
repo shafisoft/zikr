@@ -15,7 +15,6 @@ import PatternBackdrop from '../components/decor/PatternBackdrop';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
 import InputField from '../components/forms/InputField';
 import { useSharedRoomStore, sharedRoomErrorMessage } from '../../core/stores/sharedRoomStore';
-import { sharedRoomService } from '../../core/services/sharedRoom';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import CounterModal from '../components/counter/CounterModal';
 import { SharedSubmission } from '../../core/db/types';
@@ -50,6 +49,7 @@ const Room: React.FC = () => {
     openRoom,
     closeCurrentRoom,
     refreshCurrentRoom,
+    flushOutbox,
     submit,
     leaveRoom,
     closeRoom,
@@ -553,16 +553,14 @@ const Room: React.FC = () => {
             // Dismissed — but an auto-saved round may still be queued.
             setIsCounterOpen(false);
             setLiveCount(null);
-            void sharedRoomService
-              .flushOutbox()
+            void flushOutbox()
               .then(() => refreshCurrentRoom())
               .catch(() => {});
           }}
           onFinish={() => {
             setIsCounterOpen(false);
             setLiveCount(null);
-            void sharedRoomService
-              .flushOutbox()
+            void flushOutbox()
               .then(() => refreshCurrentRoom())
               .catch(() => {});
           }}

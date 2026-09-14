@@ -8,7 +8,7 @@
  */
 
 import { NavItem } from '../../types/components';
-import sharedRoomService from '../../../core/services/sharedRoom';
+import { useSharedRoomStore } from '../../../core/stores/sharedRoomStore';
 
 const BASE_ITEMS: NavItem[] = [
   { id: 'home', label: 'nav.home', icon: 'home', path: '/' },
@@ -19,7 +19,7 @@ const BASE_ITEMS: NavItem[] = [
 
 /** Nav items for the current build — Group included only when available. */
 export function getNavItems(): NavItem[] {
-  if (!sharedRoomService.isConfigured()) {
+  if (!useSharedRoomStore.getState().isBackendConfigured()) {
     return BASE_ITEMS.filter((item) => item.id !== 'group');
   }
   return BASE_ITEMS;

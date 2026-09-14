@@ -21,8 +21,6 @@ import useHaptic from '../../hooks/useHaptic';
 import { useI18n } from '../../../core/i18n';
 import { useSessionStore } from '../../../core/stores/sessionStore';
 import { useSettingsStore } from '../../../core/stores/settingsStore';
-import { sessionService } from '../../../core/services/sessionService';
-import { sharedRoomService } from '../../../core/services/sharedRoom';
 import { getZikrDisplayInfoFromZikr } from '../../utils/zikrMapping';
 import { Zikr } from '../../../core/db/types';
 
@@ -63,6 +61,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
 }) => {
   const { lang, t } = useI18n();
   const clearCurrentSession = useSessionStore(state => state.clearCurrentSession);
+  const recordCount = useSessionStore(state => state.recordCount);
 
   // Local state: taps added in THIS session. What the user sees is
   // startCount + taps.
@@ -108,33 +107,11 @@ const CounterSession: React.FC<CounterSessionProps> = ({
     haptic('light');
   };
 
-  // Persist what this session added.
-  const persistCount = async (countToSave: number) => {
-    const countToGoals =
-      useSettingsStore.getState().settings.countToGoalsAndGroups ?? true;
-
-    await sessionService.add({
-      zikrId: zikr.id!,
-      count: countToSave,
-      source: 'app',
-      timestamp: new Date(),
-      date: new Date(),
-      editableUntil: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      countsToGoals: countToGoals,
-    });
-
-    // Best-effort: the same count also goes to every joined active room
-    // counting this zikr, unless the user turned that behaviour off.
-    if (countToGoals && zikr.name) {
-      try {
-        await sharedRoomService.propagateToRooms(zikr.name, countToSave);
-      } catch {
-        // rooms are best-effort; the session itself is already saved
-      }
-    }
-  };
+  // Persist what this session added — the business rules (edit window,
+  // counts-toward-goals default, room propagation) live in the store's
+  // recordCount/countRecorder, not here.
+  const persistCount = (countToSave: number) =>
+    recordCount({ zikrId: zikr.id!, zikrName: zikr.name, count: countToSave });
 
   // When the target is hit the round saves itself — no save button needed.
   // autoSaveTriggeredRef keeps this to one attempt per round (manual

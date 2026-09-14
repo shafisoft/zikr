@@ -5,6 +5,8 @@ import { createRetryableSubscription } from '../services/errorRecovery';
 import * as goalService from '../services/goalService';
 import type { Progress } from '../services/goalService';
 
+export type { Progress };
+
 interface GoalState {
   goals: Goal[];
   loading: boolean;
