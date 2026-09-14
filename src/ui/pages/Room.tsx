@@ -26,6 +26,7 @@ import {
   isValidDelta,
 } from '../../core/utils/sharedRoomUtils';
 import { useI18n } from '../../core/i18n';
+import useShare from '../hooks/useShare';
 
 const QUICK_AMOUNTS = [10, 33, 100];
 
@@ -66,6 +67,7 @@ const Room: React.FC = () => {
   const [contributionExpanded, setContributionExpanded] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState<'code' | 'link' | null>(null);
+  const { share } = useShare();
 
   useEffect(() => {
     void init_once();
@@ -472,6 +474,20 @@ const Room: React.FC = () => {
                 <MaterialIcon icon="share" className="text-[20px]" />
                 {t('room.invite')}
               </h3>
+              {/* Native share intent — the whole invite in one tap */}
+              <button
+                onClick={() =>
+                  share({
+                    title: room.title,
+                    text: t('room.shareText', { title: room.title }),
+                    url: shareLink,
+                  }).catch(() => {})
+                }
+                className="w-full h-touch-target-min mb-3 rounded-xl bg-primary-container text-on-primary font-label-md text-label-md flex items-center justify-center gap-2 hover:opacity-90 active-scale-95 transition-all"
+              >
+                <MaterialIcon icon="share" className="text-[18px]" />
+                {t('room.shareInvite')}
+              </button>
               <div className="flex items-center gap-3">
                 <div className="flex-1 bg-surface-container-lowest border border-tertiary-container/30 rounded-xl py-3 text-center">
                   <span className="font-label-md text-label-md text-[20px] tracking-[0.25em] text-primary tabular-nums">

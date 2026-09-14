@@ -13,6 +13,7 @@ import { exportService } from '../../core/services/exportService';
 import { db } from '../../core/db/db';
 import { useSharedRoomStore } from '../../core/stores/sharedRoomStore';
 import { useI18n, LANGUAGES, applyDocumentLanguage } from '../../core/i18n';
+import useShare, { ShareOutcome } from '../hooks/useShare';
 import AppLayout from '../components/layout/AppLayout';
 
 const Settings: React.FC = () => {
@@ -131,6 +132,9 @@ const Settings: React.FC = () => {
 
   // Get app version
   const appVersion = process.env.PACKAGE_VERSION || '1.0.0';
+  const { share } = useShare();
+  const [shareOutcome, setShareOutcome] = useState<ShareOutcome | null>(null);
+  const appUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
 
   if (loading) {
     return (
@@ -394,6 +398,39 @@ const Settings: React.FC = () => {
                 {t('settings.featuresBody')}
               </p>
             </div>
+
+            <button
+              onClick={() =>
+                share({
+                  title: 'Zikr',
+                  text: t('settings.shareAppText'),
+                  url: appUrl,
+                })
+                  .then(outcome => {
+                    setShareOutcome(outcome);
+                    setTimeout(() => setShareOutcome(null), 2000);
+                  })
+                  .catch(() => {
+                    // Neither share sheet nor clipboard available/allowed.
+                    setShareOutcome('failed');
+                    setTimeout(() => setShareOutcome(null), 3000);
+                  })
+              }
+              className="mt-4 w-full h-touch-target-min rounded-xl bg-primary-container text-on-primary font-label-md text-label-md flex items-center justify-center gap-2 hover:opacity-90 active-scale-95 transition-all"
+            >
+              <MaterialIcon icon="share" className="text-[18px]" />
+              {t('settings.shareApp')}
+            </button>
+            {shareOutcome === 'copied' && (
+              <p className="font-caption text-caption text-tertiary mt-2 text-center">
+                {t('room.copied')}
+              </p>
+            )}
+            {shareOutcome === 'failed' && (
+              <p className="font-caption text-caption text-error mt-2 text-center">
+                {t('createRoom.copyFailed')}
+              </p>
+            )}
           </div>
         </section>
 
