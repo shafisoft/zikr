@@ -313,6 +313,10 @@ export const en = {
   'goalForm.saveFailed': 'Failed to save goal. Please try again.',
 
   'history.title': 'No practice yet',
+  'history.bucketToday': 'Today',
+  'history.bucketYesterday': 'Yesterday',
+  'history.bucketThisWeek': 'This Week',
+  'history.bucketOlder': 'Older',
   'history.noSessionsHint': 'Finish a round of dhikr and it will appear here.',
   'history.loading': 'Loading sessions...',
   'history.editWindowNote': 'You can edit an entry within {{days}} days',

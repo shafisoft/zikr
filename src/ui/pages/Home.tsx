@@ -4,7 +4,7 @@
  * INTEGRATED WITH ZUSTAND STORES
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavActions } from '../components/navigation/navActions';
@@ -22,6 +22,7 @@ import { useI18n } from '../../core/i18n';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
 import { calculateOverallStreak } from '../../core/utils/overallStreak';
+import { todayTotal as metricsTodayTotal, goalRingProgress } from '../../core/utils/metrics';
 import { Zikr } from '../../core/db/types';
 
 /** Rotating hero phrases — one per day, rooted in dhikr itself (i18n keys). */
@@ -44,58 +45,29 @@ const Home: React.FC = () => {
   const sessions = useSessionStore(state => state.sessions);
   const sessionsLoading = useSessionStore(state => state.loading);
   const goals = useGoalStore(state => state.goals);
-
-  // Local state for computed values
-  const [streakDays, setStreakDays] = useState(0);
-  const [dailyGoalProgress, setDailyGoalProgress] = useState(0);
-  const [todayTotal, setTodayTotal] = useState(0);
-  const [recentZikrs, setRecentZikrs] = useState<Zikr[]>([]);
+  const getGoalZikrIds = useGoalStore(state => state.getGoalZikrIds);
 
   // Modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Calculate daily stats
-  useEffect(() => {
-    if (sessions.length === 0) return;
-
-    const today = getToday();
-    const todayDateStr = formatDate(today);
-
-    // Calculate today's total count
-    const todaySessions = sessions.filter(s => formatDate(s.date) === todayDateStr);
-    const total = todaySessions.reduce((sum, s) => sum + s.count, 0);
-    setTodayTotal(total);
-
-    // Overall streak — shared calculation with the Progress page
-    setStreakDays(calculateOverallStreak(sessions.map(s => s.date)));
-
-    // Daily ring: aggregate across ALL active goals — only looking at the
-    // first one showed 0% whenever the day's practice belonged to another
-    // goal. Overlapping zikrs between goals are counted once (Set).
-    const activeGoals = goals.filter(g => g.status === 'active');
-    const coveredZikrIds = new Set(activeGoals.flatMap(g => useGoalStore.getState().getGoalZikrIds(g)));
-    const goalTodayTotal = coveredZikrIds.size > 0
-      ? todaySessions
-          .filter(s => coveredZikrIds.has(s.zikrId) && s.countsToGoals !== false)
-          .reduce((sum, s) => sum + s.count, 0)
-      : 0;
-    const goalTarget = activeGoals.reduce((sum, g) => sum + g.target, 0);
-    if (goalTarget > 0 && goalTodayTotal > 0) {
-      const progress = Math.min(Math.round((goalTodayTotal / goalTarget) * 100), 100);
-      setDailyGoalProgress(progress);
-    } else {
-      setDailyGoalProgress(0);
-    }
-  }, [sessions, goals]);
+  // Derived stats — pure functions from core/utils/metrics + overallStreak,
+  // memoized directly off the stores (no effect/state round-trip, so the
+  // numbers can never go stale mid-render).
+  const streakDays = useMemo(
+    () => calculateOverallStreak(sessions.map(s => s.date)),
+    [sessions]
+  );
+  const todayTotal = useMemo(() => metricsTodayTotal(sessions), [sessions]);
+  const dailyGoalProgress = useMemo(
+    () => goalRingProgress(goals, sessions, getGoalZikrIds).percent,
+    [goals, sessions, getGoalZikrIds]
+  );
 
   // Quick Start rail: curated library zikrs (isQuickStarter) first — most
   // recently practiced first, then the rest of the starter set — followed by
   // any other zikrs (e.g. user-created) so new additions are usable here.
-  useEffect(() => {
-    if (zikrs.length === 0) {
-      setRecentZikrs([]);
-      return;
-    }
+  const recentZikrs = useMemo<Zikr[]>(() => {
+    if (zikrs.length === 0) return [];
 
     const pool = zikrs.filter(z => getZikrDisplayInfoFromZikr(z, lang).isQuickStarter);
 
@@ -123,7 +95,7 @@ const Home: React.FC = () => {
     const poolIds = new Set(pool.map(z => z.id));
     const otherZikrs = zikrs.filter(z => !poolIds.has(z.id!));
 
-    setRecentZikrs([...recentZikrObjects, ...remainingZikrs, ...otherZikrs].slice(0, 20));
+    return [...recentZikrObjects, ...remainingZikrs, ...otherZikrs].slice(0, 20);
   }, [zikrs, sessions, lang]);
 
   const handleStartZikr = (zikrId: number) => {

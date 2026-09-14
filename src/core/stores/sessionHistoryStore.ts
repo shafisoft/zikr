@@ -67,11 +67,13 @@ export const useSessionHistoryStore = create<SessionHistoryState>((set, get) => 
     const thisWeek = new Date(today);
     thisWeek.setDate(thisWeek.getDate() - 7);
 
+    // Titles are i18n KEYS — the component translates at render time so
+    // buckets follow the active language (stores hold no localized copy).
     const groups: Record<string, SessionGroup> = {
-      today: { title: 'Today', sessions: [], count: 0, expanded: true },  // Default expanded (review feedback)
-      yesterday: { title: 'Yesterday', sessions: [], count: 0, expanded: false },
-      thisWeek: { title: 'This Week', sessions: [], count: 0, expanded: false },
-      older: { title: 'Older', sessions: [], count: 0, expanded: false }
+      today: { title: 'history.bucketToday', sessions: [], count: 0, expanded: true },  // Default expanded (review feedback)
+      yesterday: { title: 'history.bucketYesterday', sessions: [], count: 0, expanded: false },
+      thisWeek: { title: 'history.bucketThisWeek', sessions: [], count: 0, expanded: false },
+      older: { title: 'history.bucketOlder', sessions: [], count: 0, expanded: false }
     };
 
     sessions.forEach(session => {

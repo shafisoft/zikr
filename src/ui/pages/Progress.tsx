@@ -4,7 +4,7 @@
  * NOW INTEGRATED WITH ZUSTAND STORES
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import GlassCard from '../components/cards/GlassCard';
 import InputField from '../components/forms/InputField';
 import MaterialIcon from '../components/MaterialIcon';
@@ -14,13 +14,19 @@ import WeeklyChart from '../components/progress/WeeklyChart';
 import SessionHistory from '../components/SessionHistory';
 import BulkEntryForm from '../components/BulkEntryForm';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
-import { WeeklyDataPoint } from '../types/components';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { calculateOverallStreak } from '../../core/utils/overallStreak';
+import { totalDhikr as metricsTotalDhikr, weeklyData as metricsWeeklyData } from '../../core/utils/metrics';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSettingsStore } from '../../core/stores/settingsStore';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
 import { useI18n } from '../../core/i18n';
+
+/** Monday-first chart labels — localized at the UI edge, as presentation. */
+const WEEK_LABELS = {
+  en: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+  bn: ['র', 'সো', 'ম', 'বু', 'বৃ', 'শু', 'শ'],
+} as const;
 
 const Progress: React.FC = () => {
   const navActions = useNavActions();
@@ -35,95 +41,28 @@ const Progress: React.FC = () => {
   const [logDate, setLogDate] = useState(formatDate(getToday()));
   const [logCount, setLogCount] = useState('');
   const [selectedZikr, setSelectedZikr] = useState<number | null>(null);
-  const [weeklyData, setWeeklyData] = useState<WeeklyDataPoint[]>([]);
-  const [streakDays, setStreakDays] = useState(0);
-  const [totalDhikr, setTotalDhikr] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [entryMode, setEntryMode] = useState<'single' | 'bulk'>('single');
 
-  // Calculate statistics
+  // Derived statistics — pure functions from core/utils (same ones Home
+  // uses), memoized off the stores. No effect/state round-trip.
+  const streakDays = useMemo(
+    () => calculateOverallStreak(sessions.map(s => s.date)),
+    [sessions]
+  );
+  const totalDhikr = useMemo(() => metricsTotalDhikr(sessions), [sessions]);
+  const weeklyData = useMemo(
+    () => metricsWeeklyData(sessions, WEEK_LABELS[lang]),
+    [sessions, lang]
+  );
+
+  // Set default zikr to first available
   useEffect(() => {
-    if (sessions.length === 0) {
-      setStreakDays(0);
-      setTotalDhikr(0);
-      setWeeklyData(getEmptyWeekData());
-      return;
-    }
-
-    // Calculate total dhikr
-    const total = sessions.reduce((sum, s) => sum + s.count, 0);
-    setTotalDhikr(total);
-
-    // Overall streak — same calculation as the Home page (max per-zikr
-    // streak measured something else and drifted from the Home number).
-    setStreakDays(calculateOverallStreak(sessions.map(s => s.date)));
-
-    // Calculate weekly data
-    const weekData = calculateWeeklyData(sessions);
-    setWeeklyData(weekData);
-
-    // Set default zikr to first available
     if (zikrs.length > 0 && !selectedZikr) {
       setSelectedZikr(zikrs[0].id || null);
     }
-  }, [sessions, zikrs, selectedZikr]);
-
-  const calculateWeeklyData = (sessionData: typeof sessions): WeeklyDataPoint[] => {
-    const days = lang === 'bn' ? ['র', 'সো', 'ম', 'বু', 'বৃ', 'শু', 'শ'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    const today = getToday();
-    const dayOfWeek = today.getDay();
-
-    // Calculate Monday of current week
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-
-    const data: WeeklyDataPoint[] = [];
-    let maxValue = 0;
-
-    // Generate data for each day of the week
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
-      const dateStr = formatDate(date);
-
-      const daySessions = sessionData.filter(s => formatDate(s.date) === dateStr);
-      const dayTotal = daySessions.reduce((sum, s) => sum + s.count, 0);
-
-      if (dayTotal > maxValue) maxValue = dayTotal;
-
-      // Check if this day is today
-      const isToday = formatDate(date) === formatDate(today);
-
-      data.push({
-        day: days[i],
-        value: dayTotal,
-        isToday,
-      });
-    }
-
-    // Normalize values if there's data
-    if (maxValue > 0) {
-      return data.map(d => ({
-        ...d,
-        value: Math.round((d.value / maxValue) * 100),
-      }));
-    }
-
-    return data;
-  };
-
-  const getEmptyWeekData = (): WeeklyDataPoint[] => {
-    const days = lang === 'bn' ? ['র', 'সো', 'ম', 'বু', 'বৃ', 'শু', 'শ'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    const today = getToday();
-    const dayOfWeek = today.getDay();
-
-    return days.map((day, index) => ({
-      day,
-      value: 0,
-      isToday: index === (dayOfWeek === 0 ? 6 : dayOfWeek - 1),
-    }));
-  };
+  }, [zikrs, selectedZikr]);
 
   const handleSaveProgress = async () => {
     if (!selectedZikr || !logCount || isSaving) return;

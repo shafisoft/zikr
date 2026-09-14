@@ -312,6 +312,10 @@ export const bn: Dictionary = {
   'goalForm.saveFailed': 'লক্ষ্য সংরক্ষণ ব্যর্থ হয়েছে। আবার চেষ্টা করুন।',
 
   'history.title': 'এখনো কোনো রেকর্ড নেই',
+  'history.bucketToday': 'আজ',
+  'history.bucketYesterday': 'গতকাল',
+  'history.bucketThisWeek': 'এই সপ্তাহ',
+  'history.bucketOlder': 'আরও আগে',
   'history.noSessionsHint': 'জিকির শেষ করলেই সেগুলো এখানে দেখা যাবে।',
   'history.loading': 'সেশন লোড হচ্ছে...',
   'history.editWindowNote': '{{days}} দিনের মধ্যে যেকোনো এন্ট্রি বদলাতে পারবেন',

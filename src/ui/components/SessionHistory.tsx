@@ -174,7 +174,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
                   className="text-on-surface-variant"
                 />
                 <span className="font-label-md text-label-md text-on-surface">
-                  {group.title}
+                  {t(group.title)}
                 </span>
                 <span className="font-caption text-caption text-on-surface-variant bg-surface-variant/30 px-2 py-0.5 rounded-full">
                   {group.count}

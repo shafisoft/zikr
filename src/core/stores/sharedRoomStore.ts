@@ -17,8 +17,7 @@ import sharedRoomService, {
   setActiveRoom,
   SharedRoomError,
 } from '../services/sharedRoom';
-import { useSettingsStore } from './settingsStore';
-import { translate, detectLanguage, Lang } from '../i18n';
+
 
 interface SharedRoomState {
   initialized: boolean;
@@ -62,27 +61,17 @@ interface SharedRoomState {
   clearError: () => void;
 }
 
-function currentLang(): Lang {
-  const l = useSettingsStore.getState().settings.language;
-  return l === 'bn' || l === 'en' ? l : detectLanguage();
-}
-
 /**
  * Store errors hold a SharedRoomErrorCode (or 'unknown'); the UI renders
  * them via the `errors.*` i18n keys so they follow the active language.
+ * Localized-string rendering lives in ui/utils/roomErrors.ts.
  */
 function errorCode(err: unknown): string {
   return err instanceof SharedRoomError ? err.code : 'unknown';
 }
 
-function errorToMessage(err: unknown): string {
-  return translate(currentLang(), `errors.${errorCode(err)}`);
-}
-
-/** Shared with UI components so modals can render the same messages. */
-export function sharedRoomErrorMessage(err: unknown): string {
-  return errorToMessage(err);
-}
+/** Re-exported so the UI can instanceof-check without importing services. */
+export { SharedRoomError };
 
 export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
   initialized: false,

@@ -10,7 +10,8 @@ import MaterialIcon from '../components/MaterialIcon';
 import PatternBackdrop from '../components/decor/PatternBackdrop';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
 import InputField from '../components/forms/InputField';
-import { useSharedRoomStore, sharedRoomErrorMessage } from '../../core/stores/sharedRoomStore';
+import { useSharedRoomStore } from '../../core/stores/sharedRoomStore';
+import { sharedRoomErrorMessage } from '../utils/roomErrors';
 import { normalizeRoomCode } from '../../core/utils/sharedRoomUtils';
 import { useI18n } from '../../core/i18n';
 
