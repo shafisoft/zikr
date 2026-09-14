@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavActions } from '../components/navigation/navActions';
 import CounterSession from '../components/counter/CounterSession';
@@ -23,6 +23,7 @@ import { Zikr } from '../../core/db/types';
 
 const Counter: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const navActions = useNavActions();
   const { lang, t } = useI18n();
   const [searchParams] = useSearchParams();
@@ -88,6 +89,14 @@ const Counter: React.FC = () => {
     void saveSetting('hapticsEnabled', !hapticsEnabled);
   };
 
+  // Leave the counter the way the user came in — back to the originating
+  // screen (Home, Goals, …). A direct load (no in-app history to pop) falls
+  // back to Home. 'default' is react-router's key for the first entry.
+  const leaveCounter = () => {
+    if (location.key !== 'default') navigate(-1);
+    else navigate('/');
+  };
+
   // Loading state
   if (zikrsLoading) {
     return (
@@ -123,7 +132,7 @@ const Counter: React.FC = () => {
       topBar={{
         title: selectedZikr.name,
         close: true,
-        onClose: () => navigate('/'),
+        onClose: leaveCounter,
         actions: [
           {
             icon: hapticsEnabled ? 'vibration' : 'smartphone',
@@ -144,7 +153,7 @@ const Counter: React.FC = () => {
           setCurrentSession({ zikrId: selectedZikr.id || null, count });
         }}
         variant="page"
-        onFinish={() => navigate('/?completed=true')}
+        onFinish={leaveCounter}
       />
     </AppLayout>
   );
