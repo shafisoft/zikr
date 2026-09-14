@@ -7,6 +7,10 @@ user-facing change and date it when it ships.
 
 ## Unreleased
 
+_(nothing yet)_
+
+## 1.1.1 — 2026-09-14
+
 ### Changed
 - Under the hood: single-source-of-truth refactor completed — the UI now
   talks only to stores (no direct service/database imports, enforced by a
