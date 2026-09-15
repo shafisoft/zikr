@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
 import { useZikrStore } from './core/stores/zikrStore';
 import { useSessionStore } from './core/stores/sessionStore';
-import { useGoalStore } from './core/stores/goalStore';
+import { usePlanStore } from './core/stores/planStore';
 import { useSettingsStore } from './core/stores/settingsStore';
 import { db } from './core/db/db';
 import { seedZikrs } from './core/db/seed';
@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react';
 import WelcomeV2 from './ui/components/Welcome';
 import HomeV2 from './ui/pages/Home';
 import CounterV2 from './ui/pages/Counter';
-import GoalsV2 from './ui/pages/Goals';
+import PlansV2 from './ui/pages/Plans';
 import ProgressV2 from './ui/pages/Progress';
 import SettingsV2 from './ui/pages/Settings';
 import LibraryV2 from './ui/pages/Library';
@@ -46,7 +46,7 @@ function App() {
 
     const zikrUnsubscribe = useZikrStore.getState().initialize();
     const sessionUnsubscribe = useSessionStore.getState().initialize();
-    const goalUnsubscribe = useGoalStore.getState().initialize();
+    const planUnsubscribe = usePlanStore.getState().initialize();
 
     // Initialize dark mode — wait for persisted settings first, otherwise a
     // fresh boot races the async load and falls back to the system theme.
@@ -102,7 +102,7 @@ function App() {
     return () => {
       zikrUnsubscribe();
       sessionUnsubscribe();
-      goalUnsubscribe();
+      planUnsubscribe();
       mediaQuery.removeEventListener('change', handleSystemPrefChange);
     };
   }, []);
@@ -129,7 +129,8 @@ function App() {
               <Route path="/welcome" element={<WelcomeV2 />} />
               <Route path="/home" element={<HomeV2 />} />
               <Route path="/counter" element={<CounterV2 />} />
-              <Route path="/goals" element={<GoalsV2 />} />
+              <Route path="/plans" element={<PlansV2 />} />
+              <Route path="/goals" element={<Navigate to="/plans" replace />} />
               <Route path="/progress" element={<ProgressV2 />} />
               <Route path="/settings" element={<SettingsV2 />} />
               <Route path="/library" element={<LibraryV2 />} />

@@ -49,9 +49,9 @@ npm run size-check      # Verify bundle size against 200KB limit
 
 ### Data Layer (Dexie.js + IndexedDB)
 
-**Database:** `zikr-db` with versioned schema (currently v5 — v4 folded the legacy goal `zikrId` into `zikrIds`; v5 added zikr-library sync fields on Zikr (`remoteId`, `sharedAt`, `pulledAt`) and the `zikrShareOutbox` table)
+**Database:** `zikr-db` with versioned schema (currently v6 — v4 folded the legacy goal `zikrId` into `zikrIds`; v5 added zikr-library sync fields on Zikr (`remoteId`, `sharedAt`, `pulledAt`) and the `zikrShareOutbox` table; v6 introduced **Plans**: `goals` migrated into `plans` + a `planOwners` ownership join, and shared rooms were slimmed into persistent groups whose targets live on group-owned plan rows)
 
-**Stores:** zikrs, sessions, goals, streaks, settings, sessionFormState, zikrLastCount, sharedRooms, sharedSubmissions, syncOutbox, identity, zikrShareOutbox
+**Stores:** zikrs, sessions, plans, planOwners, streaks, settings, sessionFormState, zikrLastCount, sharedRooms, sharedSubmissions, syncOutbox, identity, zikrShareOutbox (the `goals` table is legacy-emptied but stays declared for the historical v1→v2 upgrade)
 
 **Type definitions:** `src/core/db/types.ts` - defines all interfaces
 
@@ -61,7 +61,7 @@ npm run size-check      # Verify bundle size against 200KB limit
 
 **Pattern:** Database operations are wrapped in transactions for data integrity:
 ```typescript
-await db.transaction('rw', db.sessions, db.streaks, db.goals, async () => {
+await db.transaction('rw', db.sessions, db.streaks, db.plans, db.planOwners, async () => {
   // Multiple operations in single transaction
   await db.sessions.add(session);
   await updateStreak(session.zikrId, session.date);
@@ -76,9 +76,10 @@ await db.transaction('rw', db.sessions, db.streaks, db.goals, async () => {
 
 - `zikrService.ts` - Zikr CRUD with soft delete
 - `zikrSync/` - Shared zikr library sync (port/adapter pattern like sharedRoom): push custom zikrs on creation ("share with others"), pull admin-verified zikrs via the Library sync button. Push is creation-only; pulls are cursor-paginated (100/batch) with the cursor stored in settings (`zikrSyncCursor`); pending pushes retry via the `zikrShareOutbox` table.
+- `sharedRoom/` - Groups & plans sync (port/adapter). A room is a PERSISTENT GROUP (code, title, owner, members — never auto-purged); targets live on `plans` rows owned via `planOwners ('group', roomCode)`. The owner can run several plans at once (combined or per-zikr targets; one-time windows or recurring daily/weekly/monthly resetting in the plan's timezone). Contributions (`contribute(code, planId, zikrName, delta, eventId)`) are member-anonymous, idempotent increments; ended plans stay as group history. Server schema: `supabase/migrations/0002_group_plans.sql`.
 - `sessionService.ts` - Session CRUD with auto-updating streaks/goals
 - `streakService.ts` - Streak calculation and recalculation
-- `goalService.ts` - Goal progress tracking
+- `planService.ts` - Personal plan CRUD (owner `('user','me')`), progress for combined AND per-zikr target modes, auto complete/reactivate on session changes
 - `migrationService.ts` - Database version migrations
 - `progressiveSaveService.ts` - Chunked bulk operations
 - `exportService.ts` - JSON backup/restore
@@ -109,7 +110,7 @@ const unsubscribe = createRetryableSubscription(
 - `sessionStore.ts` - Active session state
 - `sessionHistoryStore.ts` - Session list with filters
 - `sessionFormStore.ts` - Manual entry form state
-- `goalStore.ts` - Goal list
+- `planStore.ts` - Personal plan list (user-owned view of the plans/planOwners join)
 - `streakStore.ts` - Streak data
 - `settingsStore.ts` - App settings
 - `uiStore.ts` - Modal states
@@ -131,7 +132,7 @@ src/
 ├── ui/             # Everything that renders (the Noor design system)
 │   ├── components/ # navigation/, cards/, decor/, forms/, progress/, modals
 │   ├── layout/     # AppLayout — sole owner of the shell, top bar, bottom nav, bar-clearance spacing
-│   ├── pages/      # Route pages (Home, Counter, Goals, Group, Progress, Library, Settings)
+│   ├── pages/      # Route pages (Home, Counter, Plans, Group, Progress, Library, Settings)
 │   ├── hooks/      # useRipple, useHaptic
 │   ├── types/      # Component prop types
 │   └── utils/      # Display helpers (zikrMapping: record-first adapter over the catalog)
@@ -181,7 +182,7 @@ The only UI. Refined Islamic identity: deep emerald + gold on warm parchment (li
 - **iOS limitations:** No scheduled local notifications - use in-app notification center
 - **Manual progress:** Core differentiator - users track physical tasbeeh sessions
 - **Counter rounds:** The counter auto-saves a session when the target is reached and offers "Another Round / Done" — no manual save button at target. Don't reintroduce count state in two places without a sync guard.
-- **Multi-zikr goals:** A goal covers `zikrIds: number[]` with combined progress. Always resolve a goal's zikrs via `goalService.getGoalZikrIds()` and compute progress via `calculateProgress` (it filters by the goal's zikr set itself). Never assume a single zikr.
+- **Plans:** A plan covers 1..5 zikrs (personal plans bind `plan.zikrs[].zikrId`; group plans bind by NAME — members' local libraries differ) with either a combined target or a target per zikr (`mode`). Personal plan progress: `planService.computePlanProgress` (it filters by the plan's zikr set itself; per-zikr mode completes only when EVERY zikr hits its target). Group plan progress comes from the server mirror (`planUtils.sharedPlanProgress` over `total`/`periodTotal`). Never assume a single zikr.
 - **Testing:** Utilities are well-tested. Use happy-dom for DOM tests, keep tests pure unit tests when possible (DB-backed service tests use `fake-indexeddb/auto`)
 
 ## Project Context

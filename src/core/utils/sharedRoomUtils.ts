@@ -2,16 +2,15 @@
  * Shared Goals (Rooms) — pure logic utilities.
  * No backend or DB imports so the rules are trivially testable.
  * See docs/SharedGoals-Design.md
+ *
+ * Plan-level phase/progress rules live in planUtils.ts (rooms are
+ * persistent groups since v6 — only plans have windows).
  */
-
-import { SharedRoom } from '../db/types';
 
 /** Code alphabet on the server: no 0/O/1/I/L (unambiguous when typed/read aloud). */
 const CODE_REGEX = /^[A-HJ-KMNP-Z2-9]{6}$/;
 
 export const MAX_DELTA = 10000;
-
-export type RoomPhase = 'upcoming' | 'active' | 'ended';
 
 /** Normalize user input into a canonical room code, or null if invalid. */
 export function normalizeRoomCode(input: string): string | null {
@@ -22,25 +21,6 @@ export function normalizeRoomCode(input: string): string | null {
 /** Validate a contribution delta (1..MAX_DELTA). */
 export function isValidDelta(delta: number): boolean {
   return Number.isInteger(delta) && delta >= 1 && delta <= MAX_DELTA;
-}
-
-/** Which phase the room is in relative to `now`. */
-export function getRoomPhase(
-  room: Pick<SharedRoom, 'startsAt' | 'endsAt' | 'status'>,
-  now: Date = new Date()
-): RoomPhase {
-  if (room.status === 'closed') return 'ended';
-  if (now < new Date(room.startsAt)) return 'upcoming';
-  if (now > new Date(room.endsAt)) return 'ended';
-  return 'active';
-}
-
-/** Whether submissions can be made right now. */
-export function canSubmit(
-  room: Pick<SharedRoom, 'startsAt' | 'endsAt' | 'status'>,
-  now: Date = new Date()
-): boolean {
-  return getRoomPhase(room, now) === 'active';
 }
 
 /** Combined progress 0..100 (capped — overshoot shows 100%). */
@@ -69,7 +49,7 @@ export function backoffDelayMs(attempts: number): number {
 }
 
 /**
- * Window presets for the create flow. Boundaries are local-time midnights,
+ * Window presets for one-time plans. Boundaries are local-time midnights,
  * matching the app convention of normalizing dates to midnight (dateUtils).
  */
 export function windowPreset(

@@ -1,6 +1,7 @@
 /**
- * Group Screen (V2) — shared goals hub.
- * Lists joined rooms by phase with create/join actions.
+ * Group Screen (V2) — the groups hub.
+ * Groups are persistent: they keep their code, members, and plan history.
+ * Cards summarise each group's active plans; closed groups live below.
  * Noor design system; INTEGRATED WITH sharedRoomStore.
  */
 
@@ -13,8 +14,8 @@ import OrnamentDivider from '../components/decor/OrnamentDivider';
 import CreateRoomModal from '../components/CreateRoomModal';
 import JoinRoomModal from '../components/JoinRoomModal';
 import { useSharedRoomStore } from '../../core/stores/sharedRoomStore';
-import { SharedRoom } from '../../core/db/types';
-import { formatTimeRemaining, getRoomPhase, progressPercent } from '../../core/utils/sharedRoomUtils';
+import { Plan, SharedRoom } from '../../core/db/types';
+import { getPlanPhase, sharedPlanProgress } from '../../core/utils/planUtils';
 import { useI18n } from '../../core/i18n';
 
 const Group: React.FC = () => {
@@ -25,6 +26,7 @@ const Group: React.FC = () => {
     initialized,
     configured,
     rooms,
+    plans,
     error,
     init,
     clearError,
@@ -38,15 +40,14 @@ const Group: React.FC = () => {
   }, [init]);
 
   const grouped = useMemo(() => {
-    const now = new Date();
-    const active: SharedRoom[] = [];
-    const ended: SharedRoom[] = [];
-    for (const room of rooms) {
-      (getRoomPhase(room, now) === 'ended' ? ended : active).push(room);
-    }
-    active.sort((a, b) => new Date(a.endsAt).getTime() - new Date(b.endsAt).getTime());
-    ended.sort((a, b) => new Date(b.endsAt).getTime() - new Date(a.endsAt).getTime());
-    return { active, ended };
+    const active = rooms.filter(r => r.status === 'active');
+    const closed = rooms.filter(r => r.status !== 'active');
+    // Most recently created group first (by local join time).
+    const byJoined = (a: SharedRoom, b: SharedRoom) =>
+      new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime();
+    active.sort(byJoined);
+    closed.sort(byJoined);
+    return { active, closed };
   }, [rooms]);
 
   const openRoom = (code: string) => navigate(`/group/${code}`);
@@ -137,26 +138,26 @@ const Group: React.FC = () => {
               </div>
             )}
 
-            {/* Active / upcoming rooms */}
+            {/* Active groups */}
             {grouped.active.length > 0 && (
               <section className="flex flex-col gap-4 mb-10">
                 <h3 className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wide">
-                  {t('group.active', { count: grouped.active.length })}
+                  {t('group.groups', { count: grouped.active.length })}
                 </h3>
                 {grouped.active.map((room) => (
-                  <RoomCard key={room.code} room={room} onClick={() => openRoom(room.code)} />
+                  <RoomCard key={room.code} room={room} plans={plans} onClick={() => openRoom(room.code)} />
                 ))}
               </section>
             )}
 
-            {/* Ended rooms */}
-            {grouped.ended.length > 0 && (
+            {/* Closed groups */}
+            {grouped.closed.length > 0 && (
               <section className="flex flex-col gap-4">
                 <h3 className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wide">
-                  {t('group.ended')}
+                  {t('group.closed')}
                 </h3>
-                {grouped.ended.map((room) => (
-                  <RoomCard key={room.code} room={room} onClick={() => openRoom(room.code)} />
+                {grouped.closed.map((room) => (
+                  <RoomCard key={room.code} room={room} plans={plans} onClick={() => openRoom(room.code)} />
                 ))}
               </section>
             )}
@@ -195,18 +196,23 @@ const Group: React.FC = () => {
   );
 };
 
-// ---------- Room card ----------
+// ---------- Group card ----------
 
 interface RoomCardProps {
   room: SharedRoom;
+  plans: Plan[];
   onClick: () => void;
 }
 
-const RoomCard: React.FC<RoomCardProps> = ({ room, onClick }) => {
+const RoomCard: React.FC<RoomCardProps> = ({ room, plans, onClick }) => {
   const { t } = useI18n();
-  const phase = getRoomPhase(room);
-  const percent = progressPercent(room.total, room.target);
-  const timeLeft = formatTimeRemaining(room.endsAt);
+  const now = new Date();
+
+  const roomPlans = plans.filter(p => p.roomCode === room.code);
+  const activePlans = roomPlans.filter(p => getPlanPhase(p, now) === 'active');
+  const primary = activePlans[0];
+  const primaryProgress = primary ? sharedPlanProgress(primary) : null;
+  const closed = room.status !== 'active';
 
   return (
     <button
@@ -225,42 +231,57 @@ const RoomCard: React.FC<RoomCardProps> = ({ room, onClick }) => {
             {room.title}
           </h4>
           <p className="font-caption text-caption text-on-surface-variant mt-0.5 truncate">
-            {room.zikrName}
-            {room.zikrArabic ? ` · ${room.zikrArabic}` : ''}
+            {primary
+              ? planZikrLabel(primary)
+              : t(closed ? 'group.closedLabel' : 'group.noActivePlan')}
           </p>
         </div>
         <span
           className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-caption text-caption border ${
-            phase === 'ended'
+            closed
               ? 'bg-surface-container-high text-on-surface-variant border-transparent'
               : 'bg-tertiary-container/10 text-tertiary border-tertiary-container/30'
           }`}
         >
-          <MaterialIcon icon="schedule" className="text-[14px]" />
-          {phase === 'ended' ? t('group.endedLabel') : t('group.timeLeft', { time: timeLeft })}
+          <MaterialIcon icon={closed ? 'lock' : 'target'} className="text-[14px]" />
+          {closed
+            ? t('group.closedLabel')
+            : activePlans.length > 1
+              ? t('group.planCount', { count: activePlans.length })
+              : primary
+                ? t('group.activeLabel')
+                : t('group.noActivePlan')}
         </span>
       </div>
 
-      {/* Progress */}
-      <div className="mt-4 relative z-10">
-        <div className="flex justify-between items-baseline mb-1.5">
-          <span className="font-label-md text-label-md text-primary tabular-nums">
-            {room.total.toLocaleString()}
-            <span className="text-on-surface-variant font-normal"> / {room.target.toLocaleString()}</span>
-          </span>
-          <span className="font-caption text-caption text-tertiary font-semibold tabular-nums">
-            {percent}%
-          </span>
+      {/* Primary plan progress */}
+      {primaryProgress && (
+        <div className="mt-4 relative z-10">
+          <div className="flex justify-between items-baseline mb-1.5">
+            <span className="font-label-md text-label-md text-primary tabular-nums">
+              {primaryProgress.combined.toLocaleString()}
+              <span className="text-on-surface-variant font-normal"> / {primaryProgress.target.toLocaleString()}</span>
+            </span>
+            <span className="font-caption text-caption text-tertiary font-semibold tabular-nums">
+              {primaryProgress.percent}%
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-surface-container-high overflow-hidden">
+            <div
+              className="h-full rounded-full bg-tertiary-container transition-all duration-700"
+              style={{ width: `${primaryProgress.percent}%` }}
+            />
+          </div>
         </div>
-        <div className="h-2 rounded-full bg-surface-container-high overflow-hidden">
-          <div
-            className="h-full rounded-full bg-tertiary-container transition-all duration-700"
-            style={{ width: `${percent}%` }}
-          />
-        </div>
-      </div>
+      )}
     </button>
   );
 };
+
+function planZikrLabel(plan: Plan): string {
+  const names = plan.zikrs.map(z => z.name);
+  const joined = names.length > 2 ? `${names.slice(0, 2).join(' · ')} +${names.length - 2}` : names.join(' · ');
+  return plan.title?.trim() ? `${plan.title} — ${joined}` : joined;
+}
 
 export default Group;

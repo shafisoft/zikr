@@ -16,13 +16,13 @@ import PatternBackdrop from '../components/decor/PatternBackdrop';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
-import { useGoalStore } from '../../core/stores/goalStore';
+import { usePlanStore } from '../../core/stores/planStore';
 
 import { useI18n } from '../../core/i18n';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
 import { calculateOverallStreak } from '../../core/utils/overallStreak';
-import { todayTotal as metricsTodayTotal, goalRingProgress } from '../../core/utils/metrics';
+import { todayTotal as metricsTodayTotal, planRingProgress } from '../../core/utils/metrics';
 import { Zikr } from '../../core/db/types';
 
 /** Rotating hero phrases — one per day, rooted in dhikr itself (i18n keys). */
@@ -44,8 +44,7 @@ const Home: React.FC = () => {
   const zikrsLoading = useZikrStore(state => state.loading);
   const sessions = useSessionStore(state => state.sessions);
   const sessionsLoading = useSessionStore(state => state.loading);
-  const goals = useGoalStore(state => state.goals);
-  const getGoalZikrIds = useGoalStore(state => state.getGoalZikrIds);
+  const plans = usePlanStore(state => state.plans);
 
   // Modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -59,8 +58,8 @@ const Home: React.FC = () => {
   );
   const todayTotal = useMemo(() => metricsTodayTotal(sessions), [sessions]);
   const dailyGoalProgress = useMemo(
-    () => goalRingProgress(goals, sessions, getGoalZikrIds).percent,
-    [goals, sessions, getGoalZikrIds]
+    () => planRingProgress(plans, sessions).percent,
+    [plans, sessions]
   );
 
   // Quick Start rail: curated library zikrs (isQuickStarter) first — most
@@ -176,7 +175,7 @@ const Home: React.FC = () => {
         </section>
 
         {/* Daily Goal Progress — mihrab arch */}
-        {goals.length > 0 && (
+        {plans.length > 0 && (
           <section className="relative w-full max-w-[300px] mx-auto flex flex-col items-center rounded-t-full rounded-b-2xl border border-tertiary-container/30 bg-surface-container-low shadow-card px-6 pt-20 pb-8 overflow-hidden">
             <PatternBackdrop className="absolute inset-0" variant="green" />
             <div className="relative flex flex-col items-center gap-5">

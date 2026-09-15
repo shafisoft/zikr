@@ -1,5 +1,5 @@
 /**
- * Shared Room Service — local-first orchestration for shared goals.
+ * Shared Room Service — local-first orchestration for groups and their plans.
  *
  * Depends ONLY on the SharedRoomBackend contract, never on a concrete
  * backend — pass any implementation (Supabase adapter, MockSharedRoomBackend,
@@ -13,6 +13,9 @@
 
 import { db } from '../../db/db';
 import {
+  Plan,
+  PlanOwner,
+  PlanZikr,
   SharedIdentity,
   SharedMember,
   SharedRoom,
@@ -20,8 +23,11 @@ import {
   SyncOutboxItem,
 } from '../../db/types';
 import { backoffDelayMs, isValidDelta, normalizeRoomCode } from '../../utils/sharedRoomUtils';
+import { canContribute } from '../../utils/planUtils';
 import {
+  CreatePlanInput,
   CreateRoomInput,
+  PlanSummary,
   RoomStatePayload,
   SharedRoomBackend,
   SharedRoomError,
@@ -46,6 +52,48 @@ export interface FlushResult {
   deferred: number;
 }
 
+/** Map a server plan summary onto the local mirror row. */
+function planFromSummary(summary: PlanSummary, roomCode: string): Plan {
+  const zikrs: PlanZikr[] = summary.zikrs.map((z) => ({
+    name: z.name,
+    arabic: z.arabic,
+    target: z.target ?? undefined,
+    total: z.total,
+    periodTotal: z.periodTotal,
+  }));
+  return {
+    id: summary.id,
+    title: summary.title ?? undefined,
+    mode: summary.mode,
+    period: summary.period,
+    timeZone: summary.timeZone ?? undefined,
+    target: summary.target ?? undefined,
+    zikrs,
+    startDate: summary.startsAt ? new Date(summary.startsAt) : undefined,
+    endDate: summary.endsAt ? new Date(summary.endsAt) : undefined,
+    status: summary.status,
+    createdAt: new Date(summary.createdAt),
+    endedAt: summary.endedAt ? new Date(summary.endedAt) : undefined,
+    // Mirror-only fields:
+    roomCode,
+    total: summary.total,
+    periodTotal: summary.periodTotal,
+    fetchedAt: new Date(),
+  };
+}
+
+/** Remove a group's plans + owner rows from the local mirror. */
+async function deleteLocalPlans(code: string): Promise<void> {
+  const plans = await db.plans.toArray();
+  const ids = plans.filter((p) => p.roomCode === code).map((p) => p.id);
+  if (ids.length > 0) {
+    await db.transaction('rw', db.plans, db.planOwners, async () => {
+      await db.plans.bulkDelete(ids);
+      await db.planOwners.where('planId').anyOf(ids).delete();
+    });
+  }
+}
+
 // ---------- service ----------
 
 export function createSharedRoomService(backend: SharedRoomBackend) {
@@ -63,19 +111,25 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
       code: r.code,
       id: r.id,
       title: r.title,
-      zikrName: r.zikrName,
-      zikrArabic: r.zikrArabic,
-      target: r.target,
-      total: r.total,
-      startsAt: new Date(r.startsAt),
-      endsAt: new Date(r.endsAt),
       ownerId: r.ownerId,
       status: r.status,
       joinedAt: joinedAt ?? existing?.joinedAt ?? new Date(),
       joinedWithUserId: joinedWithUserId ?? existing?.joinedWithUserId,
       fetchedAt: new Date(),
     };
-    await db.sharedRooms.put(room);
+    const plans = payload.plans.map((p) => planFromSummary(p, r.code));
+    await db.transaction('rw', db.sharedRooms, db.plans, db.planOwners, async () => {
+      await db.sharedRooms.put(room);
+      if (plans.length > 0) {
+        await db.plans.bulkPut(plans);
+        await db.planOwners.bulkPut(
+          plans.map(
+            (p) =>
+              ({ planId: p.id, ownerKind: 'group', ownerId: r.code }) satisfies PlanOwner
+          )
+        );
+      }
+    });
     return room;
   }
 
@@ -146,18 +200,22 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
       await this.track('app_opened');
     },
 
-    /** Create a room; creator becomes the first member. */
+    /** Create a group (with its first plan); creator becomes the first member. */
     async createRoom(
       input: Omit<CreateRoomInput, 'displayName'> & { windowType?: string },
       identity: SharedIdentity
     ): Promise<SharedRoom> {
-      const payload = await backend.createRoom({ ...input, displayName: identity.displayName });
+      const payload = await backend.createRoom({
+        title: input.title,
+        displayName: identity.displayName,
+        initialPlan: input.initialPlan,
+      });
       const room = await saveRoomState(payload, new Date(), identity.userId);
       await this.track('room_created', { window: input.windowType || 'custom' });
       return room;
     },
 
-    /** Join (or rejoin) a room by code with a display name. */
+    /** Join (or rejoin) a group by code with a display name. */
     async joinRoom(code: string, identity: SharedIdentity): Promise<SharedRoom> {
       const normalized = normalizeRoomCode(code);
       if (!normalized) throw new SharedRoomError('invalid-input', 'Invalid room code');
@@ -167,9 +225,31 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
       return room;
     },
 
+    /** Owner adds another plan to a group. */
+    async createPlan(code: string, input: CreatePlanInput): Promise<Plan[]> {
+      const payload = await backend.createPlan(code, input);
+      await saveRoomState(payload);
+      await this.track('plan_created', { mode: input.mode, period: input.period });
+      return payload.plans.map((p) => planFromSummary(p, payload.room.code));
+    },
+
+    /** Owner retires a plan early. */
+    async endPlan(code: string, planId: string): Promise<void> {
+      await backend.endPlan(code, planId);
+      await db.plans.update(planId, {
+        status: 'ended',
+        endedAt: new Date(),
+        fetchedAt: new Date(),
+      });
+      await this.track('plan_ended');
+    },
+
     async leaveRoom(code: string): Promise<void> {
       await backend.leaveRoom(code);
-      await db.sharedRooms.delete(normalizeRoomCode(code) || code);
+      await db.transaction('rw', db.sharedRooms, db.plans, db.planOwners, async () => {
+        await db.sharedRooms.delete(normalizeRoomCode(code) || code);
+        await deleteLocalPlans(code);
+      });
       await this.track('room_left');
     },
 
@@ -184,15 +264,16 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
       await this.track('member_removed');
     },
 
-    /** Fetch fresh goal/total from the server into the local mirror. */
+    /** Fetch fresh group state (plans incl. totals) into the local mirror. */
     async refreshRoom(code: string): Promise<SharedRoom | null> {
       const payload = await backend.getRoomState(code);
       return saveRoomState(payload);
     },
 
-    /** Full room state from the backend: mirror + members + my membership. */
+    /** Full group state from the backend: mirror + plans + members + my membership. */
     async fetchRoomState(code: string): Promise<{
       room: SharedRoom;
+      plans: Plan[];
       members: SharedMember[];
       isMember: boolean;
     }> {
@@ -201,21 +282,23 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
       try {
         payload = await backend.getRoomState(code);
       } catch (err) {
-        // Room gone server-side (purged/deleted) — drop the stale local mirror
-        // so it disappears from the list instead of erroring forever.
+        // Group gone server-side (deleted by owner) — drop the stale local
+        // mirror so it disappears from the list instead of erroring forever.
         if (err instanceof SharedRoomError && err.code === 'room-not-found') {
-          await db.sharedRooms.delete(code);
+          await db.transaction('rw', db.sharedRooms, db.plans, db.planOwners, async () => {
+            await db.sharedRooms.delete(code);
+            await deleteLocalPlans(code);
+          });
         }
         throw err;
       }
 
-      // Silent rejoin: this room is in the device's list (joined before), so
+      // Silent rejoin: this group is in the device's list (joined before), so
       // this device is a member — whatever the backend's current books say.
       // Rejoin with the saved name instead of nagging the user to join again.
       if (!payload.isMember && payload.room.status === 'active') {
         const cached = await db.sharedRooms.get(payload.room.code);
-        const windowOpen = new Date(payload.room.endsAt) > new Date();
-        if (cached && windowOpen) {
+        if (cached) {
           payload = await backend.joinRoom(payload.room.code, identity.displayName);
         }
       }
@@ -226,7 +309,12 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
         joinedAt: new Date(m.joinedAt),
         userId: m.userId,
       }));
-      return { room, members, isMember: payload.isMember };
+      return {
+        room,
+        plans: payload.plans.map((p) => planFromSummary(p, payload.room.code)),
+        members,
+        isMember: payload.isMember,
+      };
     },
 
     async getRoom(code: string): Promise<SharedRoom | undefined> {
@@ -237,7 +325,20 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
       return db.sharedRooms.toArray();
     },
 
-    /** My private contribution history for a room (local only, never synced). */
+    /** The mirrored plans of one group. */
+    async getRoomPlans(code: string): Promise<Plan[]> {
+      const plans = await db.plans.toArray();
+      return plans
+        .filter((p) => p.roomCode === code)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    },
+
+    /** Every mirrored (group) plan — for list summaries and propagation. */
+    async listSharedPlans(): Promise<Plan[]> {
+      return db.plans.filter((p) => p.roomCode != null).toArray();
+    },
+
+    /** My private contribution history for a group (local only, never synced). */
     async getMySubmissions(code: string): Promise<SharedSubmission[]> {
       const rows = await db.sharedSubmissions.where('roomCode').equals(code).toArray();
       return rows.sort(
@@ -252,6 +353,8 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
      */
     async submitContribution(
       code: string,
+      planId: string,
+      zikrName: string,
       delta: number,
       options: { autoFlush?: boolean } = {}
     ): Promise<SharedSubmission> {
@@ -260,6 +363,8 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
       const eventId = makeEventId();
       const submission: SharedSubmission = {
         roomCode: code,
+        planId,
+        zikrName,
         delta,
         submittedAt: new Date(),
         eventId,
@@ -268,6 +373,8 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
       const item: SyncOutboxItem = {
         eventId,
         roomCode: code,
+        planId,
+        zikrName,
         delta,
         attempts: 0,
         nextAttemptAt: new Date(),
@@ -291,21 +398,26 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
     },
 
     /**
-     * Best-effort: add this count to every joined ACTIVE room that counts
-     * the same zikr. Individual room failures (not a member, room closed)
-     * are skipped — used by the counter's "count towards goals & groups".
+     * Best-effort: add this count to every open plan in every joined group
+     * that counts the same zikr. Individual plan failures (not a member,
+     * plan ended) are skipped — used by the counter's "count towards
+     * goals & groups".
      */
     async propagateToRooms(zikrName: string, delta: number): Promise<number> {
       let applied = 0;
-      const rooms = await this.listRooms();
-      for (const room of rooms) {
-        if (room.status !== 'active' || room.zikrName !== zikrName) continue;
-        if (new Date(room.endsAt) <= new Date()) continue;
+      const [rooms, plans] = await Promise.all([this.listRooms(), this.listSharedPlans()]);
+      const roomByCode = new Map(rooms.map((r) => [r.code, r]));
+      for (const plan of plans) {
+        if (plan.status !== 'active') continue;
+        if (!canContribute(plan)) continue;
+        if (!plan.zikrs.some((z) => z.name === zikrName)) continue;
+        const room = plan.roomCode ? roomByCode.get(plan.roomCode) : undefined;
+        if (!room || room.status !== 'active') continue;
         try {
-          await this.submitContribution(room.code, delta);
+          await this.submitContribution(room.code, plan.id, zikrName, delta);
           applied++;
         } catch {
-          // one room failing must not block the others
+          // one plan failing must not block the others
         }
       }
       return applied;
@@ -329,18 +441,31 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
 
         for (const item of due) {
           try {
-            const { total } = await backend.contribute(item.roomCode, item.delta, item.eventId);
-            await db.transaction('rw', db.sharedSubmissions, db.syncOutbox, db.sharedRooms, async () => {
-              await db.sharedSubmissions.where('eventId').equals(item.eventId).modify({
-                syncState: 'synced',
-                note: undefined,
-              });
-              await db.syncOutbox.delete(item.id!);
-              const room = await db.sharedRooms.get(item.roomCode);
-              if (room) {
-                await db.sharedRooms.update(item.roomCode, { total, fetchedAt: new Date() });
+            const { total, periodTotal } = await backend.contribute(
+              item.roomCode,
+              item.planId,
+              item.zikrName,
+              item.delta,
+              item.eventId
+            );
+            await db.transaction(
+              'rw',
+              db.sharedSubmissions,
+              db.syncOutbox,
+              db.plans,
+              async () => {
+                await db.sharedSubmissions.where('eventId').equals(item.eventId).modify({
+                  syncState: 'synced',
+                  note: undefined,
+                });
+                await db.syncOutbox.delete(item.id!);
+                await db.plans.update(item.planId, {
+                  total,
+                  periodTotal,
+                  fetchedAt: new Date(),
+                });
               }
-            });
+            );
             result.applied++;
           } catch (err) {
             const sre = err instanceof SharedRoomError ? err : new SharedRoomError('unknown');

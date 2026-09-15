@@ -1,11 +1,12 @@
 /**
  * Shared Room Store (Zustand)
- * State for the Group tab: identity, joined rooms, the currently open room,
- * my local contribution history, and sync status.
+ * State for the Group tab: identity, joined groups, the currently open
+ * group with its plans, my local contribution history, and sync status.
  */
 
 import { create } from 'zustand';
 import {
+  Plan,
   SharedIdentity,
   SharedMember,
   SharedRoom,
@@ -17,6 +18,7 @@ import sharedRoomService, {
   setActiveRoom,
   SharedRoomError,
 } from '../services/sharedRoom';
+import type { CreatePlanInput } from '../services/sharedRoom';
 
 
 interface SharedRoomState {
@@ -24,7 +26,10 @@ interface SharedRoomState {
   configured: boolean;
   identity: SharedIdentity | null;
   rooms: SharedRoom[];
+  /** All mirrored (group) plans — Room/Group pages slice per roomCode. */
+  plans: Plan[];
   currentRoom: SharedRoom | null;
+  currentPlans: Plan[];
   currentMembers: SharedMember[];
   isMember: boolean;
   mySubmissions: SharedSubmission[];
@@ -41,16 +46,16 @@ interface SharedRoomState {
   openRoom: (code: string) => Promise<void>;
   closeCurrentRoom: () => void;
   refreshCurrentRoom: () => Promise<void>;
-  submit: (delta: number) => Promise<void>;
+  submit: (delta: number, planId: string, zikrName: string) => Promise<void>;
   createRoom: (input: {
     title: string;
-    zikrName: string;
-    zikrArabic?: string;
-    target: number;
-    startsAt: Date;
-    endsAt: Date;
+    initialPlan: CreatePlanInput;
     windowType?: string;
   }) => Promise<SharedRoom>;
+  /** Owner adds another plan to the current room. */
+  createPlan: (code: string, input: CreatePlanInput) => Promise<void>;
+  /** Owner retires a plan early. */
+  endPlan: (code: string, planId: string) => Promise<void>;
   joinRoom: (code: string) => Promise<SharedRoom>;
   leaveRoom: (code: string) => Promise<void>;
   closeRoom: (code: string) => Promise<void>;
@@ -78,7 +83,9 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
   configured: true,
   identity: null,
   rooms: [],
+  plans: [],
   currentRoom: null,
+  currentPlans: [],
   currentMembers: [],
   isMember: false,
   mySubmissions: [],
@@ -98,7 +105,7 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
     const configured = sharedRoomService.isConfigured();
     set({ configured });
     if (!configured) {
-      set({ initialized: true, rooms: [] });
+      set({ initialized: true, rooms: [], plans: [] });
       return;
     }
 
@@ -106,8 +113,11 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
 
     try {
       const identity = await sharedRoomService.ensureIdentity(get().identity?.displayName);
-      const rooms = await sharedRoomService.listRooms();
-      set({ initialized: true, identity, rooms });
+      const [rooms, plans] = await Promise.all([
+        sharedRoomService.listRooms(),
+        sharedRoomService.listSharedPlans(),
+      ]);
+      set({ initialized: true, identity, rooms, plans });
       // Deliver anything queued from previous sessions.
       await get().flush();
     } catch (err) {
@@ -118,8 +128,11 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
   },
 
   async refresh() {
-    const rooms = await sharedRoomService.listRooms();
-    set({ rooms });
+    const [rooms, plans] = await Promise.all([
+      sharedRoomService.listRooms(),
+      sharedRoomService.listSharedPlans(),
+    ]);
+    set({ rooms, plans });
   },
 
   async openRoom(code) {
@@ -134,16 +147,21 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
       // Show the cache instantly (deep links may have nothing cached).
       const cached = await sharedRoomService.getRoom(normalized);
       if (cached) set({ currentRoom: cached });
+      const cachedPlans = await sharedRoomService.getRoomPlans(normalized);
+      if (cachedPlans.length > 0) set({ currentPlans: cachedPlans });
 
-      const { room, members, isMember } = await sharedRoomService.fetchRoomState(normalized);
+      const { room, plans, members, isMember } =
+        await sharedRoomService.fetchRoomState(normalized);
       const rooms = get().rooms;
       set({
         currentRoom: room,
+        currentPlans: plans,
         currentMembers: members,
         isMember,
         rooms: rooms.some(r => r.code === room.code)
           ? rooms.map(r => (r.code === room.code ? room : r))
           : [...rooms, room],
+        plans: mergePlans(get().plans, plans),
         mySubmissions: await sharedRoomService.getMySubmissions(normalized),
       });
       void sharedRoomService.track('room_opened');
@@ -156,22 +174,24 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
 
   closeCurrentRoom() {
     setActiveRoom(null);
-    set({ currentRoom: null, currentMembers: [], isMember: false, mySubmissions: [] });
+    set({ currentRoom: null, currentPlans: [], currentMembers: [], isMember: false, mySubmissions: [] });
   },
 
   async refreshCurrentRoom() {
     const code = get().currentRoom?.code;
     if (!code) return;
     try {
-      const { room, members, isMember } = await sharedRoomService.fetchRoomState(code);
+      const { room, plans, members, isMember } = await sharedRoomService.fetchRoomState(code);
       const rooms = get().rooms;
       set({
         currentRoom: room,
+        currentPlans: plans,
         currentMembers: members,
         isMember,
         rooms: rooms.some(r => r.code === room.code)
           ? rooms.map(r => (r.code === room.code ? room : r))
           : [...rooms, room],
+        plans: mergePlans(get().plans, plans),
         mySubmissions: await sharedRoomService.getMySubmissions(code),
       });
     } catch (err) {
@@ -179,7 +199,7 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
     }
   },
 
-  async submit(delta) {
+  async submit(delta, planId, zikrName) {
     const room = get().currentRoom;
     if (!room) return;
     if (!isValidDelta(delta)) {
@@ -188,7 +208,7 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
     }
     set({ syncing: true, error: null });
     try {
-      await sharedRoomService.submitContribution(room.code, delta);
+      await sharedRoomService.submitContribution(room.code, planId, zikrName, delta);
       set({ mySubmissions: await sharedRoomService.getMySubmissions(room.code) });
       // Deliver immediately when online; the poll covers the offline case.
       await get().flush();
@@ -206,7 +226,9 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
       const code = get().currentRoom?.code;
       if (code) {
         const room = await sharedRoomService.getRoom(code);
+        const plans = await sharedRoomService.getRoomPlans(code);
         if (room) set({ currentRoom: room });
+        if (plans.length > 0) set({ currentPlans: plans });
         set({ mySubmissions: await sharedRoomService.getMySubmissions(code) });
       }
       await get().refresh();
@@ -221,13 +243,36 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const room = await sharedRoomService.createRoom(input, identity);
-      set({ rooms: [...get().rooms, room] });
+      const plans = await sharedRoomService.getRoomPlans(room.code);
+      set({ rooms: [...get().rooms, room], plans: mergePlans(get().plans, plans) });
       return room;
     } catch (err) {
       set({ error: errorCode(err) });
       throw err;
     } finally {
       set({ loading: false });
+    }
+  },
+
+  async createPlan(code, input) {
+    set({ loading: true, error: null });
+    try {
+      const plans = await sharedRoomService.createPlan(code, input);
+      set({ currentPlans: plans, plans: mergePlans(get().plans, plans) });
+    } catch (err) {
+      set({ error: errorCode(err) });
+      throw err;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  async endPlan(code, planId) {
+    try {
+      await sharedRoomService.endPlan(code, planId);
+      await get().refreshCurrentRoom();
+    } catch (err) {
+      set({ error: errorCode(err) });
     }
   },
 
@@ -238,10 +283,12 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
     try {
       const room = await sharedRoomService.joinRoom(code, identity);
       const rooms = get().rooms;
+      const plans = await sharedRoomService.getRoomPlans(room.code);
       set({
         rooms: rooms.some(r => r.code === room.code)
           ? rooms.map(r => (r.code === room.code ? room : r))
           : [...rooms, room],
+        plans: mergePlans(get().plans, plans),
       });
       return room;
     } catch (err) {
@@ -257,7 +304,9 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
       await sharedRoomService.leaveRoom(code);
       set({
         rooms: get().rooms.filter(r => r.code !== code),
+        plans: get().plans.filter(p => p.roomCode !== code),
         currentRoom: get().currentRoom?.code === code ? null : get().currentRoom,
+        currentPlans: get().currentRoom?.code === code ? [] : get().currentPlans,
       });
     } catch (err) {
       set({ error: errorCode(err) });
@@ -303,3 +352,13 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
     set({ error: null });
   },
 }));
+
+/** Replace in place (by id), append new ones. */
+function mergePlans(current: Plan[], incoming: Plan[]): Plan[] {
+  if (incoming.length === 0) return current;
+  const byId = new Map(current.map((p) => [p.id, p]));
+  for (const p of incoming) byId.set(p.id, p);
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}

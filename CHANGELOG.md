@@ -7,6 +7,24 @@ user-facing change and date it when it ships.
 
 ## Unreleased
 
+### Changed
+- **Groups are forever.** A shared-goals room no longer dies with its time
+  window (and is no longer auto-deleted 60 days later): a group keeps its
+  code, members, and history, and ended plans stay visible under "Past
+  plans". Only the owner can close a group.
+- **Goals become Plans.** Personal goals are now "Plans" (same data,
+  migrated automatically; `/goals` redirects to `/plans`). A plan covers
+  one or more zikrs (up to 5) with either one combined target or a target
+  per zikr — for personal plans too, which previously only supported the
+  combined style.
+- **Group plans.** The group owner can start several plans at once inside
+  a group, each with its own zikrs, target mode, and schedule: one-time
+  windows (today / this week / custom dates) or recurring daily / weekly /
+  monthly plans that reset automatically for everyone at the same moment
+  (the creator's timezone). Contributing targets a specific zikr of a
+  specific plan; the counter still propagates automatically to every
+  matching plan.
+
 _(nothing yet)_
 
 ### Fixed

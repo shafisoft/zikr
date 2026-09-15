@@ -6,8 +6,9 @@
  * functions, same numbers.
  */
 
-import { Session, Goal } from '../db/types';
+import { Session, Plan } from '../db/types';
 import { formatDate, getToday } from './dateUtils';
+import { planTargetTotal } from './planUtils';
 
 /** Total count of today's sessions (any zikr). */
 export function todayTotal(sessions: Session[]): number {
@@ -22,32 +23,30 @@ export function totalDhikr(sessions: Session[]): number {
   return sessions.reduce((sum, s) => sum + s.count, 0);
 }
 
-export interface GoalRing {
+export interface PlanRing {
   percent: number;
   todayCount: number;
   target: number;
 }
 
 /**
- * Home's daily ring: aggregate across ALL active goals (only looking at
- * the first one showed 0% whenever the day's practice belonged to another
- * goal). Overlapping zikrs between goals are counted once (Set).
+ * Home's daily ring: aggregate across ALL active personal plans (only
+ * looking at the first one showed 0% whenever the day's practice belonged
+ * to another plan). Overlapping zikrs between plans are counted once (Set).
  */
-export function goalRingProgress(
-  goals: Goal[],
-  sessions: Session[],
-  getGoalZikrIds: (goal: Goal) => number[]
-): GoalRing {
+export function planRingProgress(plans: Plan[], sessions: Session[]): PlanRing {
   const todayStr = formatDate(getToday());
   const todaySessions = sessions.filter(s => formatDate(s.date) === todayStr);
-  const activeGoals = goals.filter(g => g.status === 'active');
-  const coveredZikrIds = new Set(activeGoals.flatMap(g => getGoalZikrIds(g)));
+  const activePlans = plans.filter(p => p.status === 'active');
+  const coveredZikrIds = new Set(
+    activePlans.flatMap(p => p.zikrs.map(z => z.zikrId).filter((id): id is number => id != null))
+  );
   const todayCount = coveredZikrIds.size > 0
     ? todaySessions
         .filter(s => coveredZikrIds.has(s.zikrId) && s.countsToGoals !== false)
         .reduce((sum, s) => sum + s.count, 0)
     : 0;
-  const target = activeGoals.reduce((sum, g) => sum + g.target, 0);
+  const target = activePlans.reduce((sum, p) => sum + planTargetTotal(p), 0);
   const percent =
     target > 0 && todayCount > 0
       ? Math.min(Math.round((todayCount / target) * 100), 100)

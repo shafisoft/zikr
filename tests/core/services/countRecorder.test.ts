@@ -4,7 +4,7 @@ import { db } from '../../../src/core/db/db';
 import { recordCount } from '../../../src/core/services/countRecorder';
 
 beforeEach(async () => {
-  await Promise.all([db.sessions.clear(), db.streaks.clear(), db.goals.clear()]);
+  await Promise.all([db.sessions.clear(), db.streaks.clear(), db.plans.clear()]);
   vi.restoreAllMocks();
 });
 

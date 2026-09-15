@@ -10,6 +10,7 @@
 import { SharedRoomError } from './contract';
 import { isCaptchaEnabled, getCaptchaToken } from './captcha';
 import type {
+  CreatePlanInput,
   CreateRoomInput,
   RoomStatePayload,
   SharedRoomBackend,
@@ -45,6 +46,9 @@ async function getClient(): Promise<any> {
 function mapServerError(rawMessage: string): SharedRoomError {
   const msg = (rawMessage || '').toLowerCase();
   if (msg.includes('room_not_found')) return new SharedRoomError('room-not-found');
+  if (msg.includes('plan_not_found')) return new SharedRoomError('plan-not-found');
+  if (msg.includes('plan_ended')) return new SharedRoomError('plan-ended');
+  if (msg.includes('zikr_not_in_plan')) return new SharedRoomError('zikr-not-in-plan');
   if (msg.includes('window_ended') || msg.includes('window_already_ended'))
     return new SharedRoomError('window-ended');
   if (msg.includes('window_not_started')) return new SharedRoomError('window-not-started');
@@ -69,6 +73,24 @@ async function rpc<T>(fn: string, params: Record<string, unknown>): Promise<T> {
     // fetch failures land here
     throw new SharedRoomError('network', (err as Error)?.message);
   }
+}
+
+/** CreatePlanInput → the jsonb payload shape the server functions expect. */
+function planToPayload(input: CreatePlanInput): Record<string, unknown> {
+  return {
+    title: input.title || null,
+    mode: input.mode,
+    period: input.period,
+    timeZone: input.timeZone ?? null,
+    target: input.target ?? null,
+    zikrs: input.zikrs.map((z) => ({
+      name: z.name,
+      arabic: z.arabic || null,
+      target: z.target ?? null,
+    })),
+    startsAt: input.startsAt ? input.startsAt.toISOString() : null,
+    endsAt: input.endsAt ? input.endsAt.toISOString() : null,
+  };
 }
 
 export class SupabaseSharedRoomBackend implements SharedRoomBackend {
@@ -110,14 +132,10 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   }
 
   createRoom(input: CreateRoomInput): Promise<RoomStatePayload> {
-    return rpc<RoomStatePayload>('create_room', {
+    return rpc<RoomStatePayload>('create_group', {
       p_title: input.title,
-      p_zikr_name: input.zikrName,
-      p_zikr_arabic: input.zikrArabic || null,
-      p_target: input.target,
-      p_starts_at: input.startsAt.toISOString(),
-      p_ends_at: input.endsAt.toISOString(),
       p_name: input.displayName,
+      p_plan: planToPayload(input.initialPlan),
     });
   }
 
@@ -125,9 +143,28 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
     return rpc<RoomStatePayload>('join_room', { p_code: code, p_name: displayName });
   }
 
-  contribute(code: string, delta: number, eventId: string): Promise<{ total: number }> {
-    return rpc<{ total: number }>('contribute', {
+  createPlan(code: string, input: CreatePlanInput): Promise<RoomStatePayload> {
+    return rpc<RoomStatePayload>('create_plan', {
       p_code: code,
+      p_plan: planToPayload(input),
+    });
+  }
+
+  endPlan(code: string, planId: string): Promise<void> {
+    return rpc('end_plan', { p_code: code, p_plan_id: planId });
+  }
+
+  contribute(
+    code: string,
+    planId: string,
+    zikrName: string,
+    delta: number,
+    eventId: string
+  ): Promise<{ total: number; periodTotal: number }> {
+    return rpc<{ total: number; periodTotal: number }>('contribute', {
+      p_code: code,
+      p_plan_id: planId,
+      p_zikr_name: zikrName,
       p_delta: delta,
       p_event_id: eventId,
     });

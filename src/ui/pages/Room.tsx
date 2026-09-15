@@ -1,7 +1,8 @@
 /**
- * Room Screen (V2) — one shared goal.
- * Combined progress ring, contribution, member chips, share code,
- * owner management. My contribution history is device-local only.
+ * Room Screen (V2) — one persistent group.
+ * Group header (title, members) + the group's plans: several can run at
+ * once; ended plans stay as history. Contributions target one zikr of one
+ * plan. My contribution history is device-local only.
  * Noor design system; INTEGRATED WITH sharedRoomStore.
  */
 
@@ -18,13 +19,18 @@ import { useSharedRoomStore } from '../../core/stores/sharedRoomStore';
 import { sharedRoomErrorMessage } from '../utils/roomErrors';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import CounterModal from '../components/counter/CounterModal';
-import { SharedSubmission } from '../../core/db/types';
+import CreatePlanModal from '../components/CreatePlanModal';
+import { Plan, SharedSubmission, Zikr } from '../../core/db/types';
 import {
   formatTimeRemaining,
-  getRoomPhase,
-  progressPercent,
   isValidDelta,
+  progressPercent,
 } from '../../core/utils/sharedRoomUtils';
+import {
+  formatResetsIn,
+  getPlanPhase,
+  sharedPlanProgress,
+} from '../../core/utils/planUtils';
 import { useI18n } from '../../core/i18n';
 import useShare from '../hooks/useShare';
 
@@ -41,6 +47,7 @@ const Room: React.FC = () => {
     configured,
     identity,
     currentRoom,
+    currentPlans,
     currentMembers,
     isMember,
     mySubmissions,
@@ -52,6 +59,7 @@ const Room: React.FC = () => {
     refreshCurrentRoom,
     flushOutbox,
     submit,
+    endPlan,
     leaveRoom,
     closeRoom,
     removeMember,
@@ -59,11 +67,16 @@ const Room: React.FC = () => {
   } = useSharedRoomStore();
 
   const [customDelta, setCustomDelta] = useState('');
-  const [customOpen, setCustomOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState<string | null>(null); // planId
+  /** Selected zikr for quick-add on multi-zikr plans (planId → zikr name). */
+  const [quickZikr, setQuickZikr] = useState<Record<string, string>>({});
   const [isCounterOpen, setIsCounterOpen] = useState(false);
-  // Live override for the hero ring while the counter modal is open — each
-  // count in the modal moves the room's ring immediately.
+  const [isCreatePlanOpen, setIsCreatePlanOpen] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  // Live override while the counter modal is open — each tap moves the
+  // plan's ring immediately.
   const [liveCount, setLiveCount] = useState<number | null>(null);
+  const [counterContext, setCounterContext] = useState<{ plan: Plan; zikr: Zikr; base: number } | null>(null);
   // Contribution history: collapsed to the total until the user expands it.
   const [contributionExpanded, setContributionExpanded] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -85,34 +98,23 @@ const Room: React.FC = () => {
   useEffect(() => () => closeCurrentRoom(), [closeCurrentRoom]);
 
   const room = currentRoom;
-  const phase = useMemo(() => (room ? getRoomPhase(room) : 'active'), [room]);
+  const roomActive = room?.status === 'active';
 
-  // The room's zikr as a local record (matched by name) — lets members open
-  // the counter pre-filled with the same dhikr the room is counting.
-  const roomZikr = useMemo(
-    () => (room ? zikrs.find(z => z.name === room.zikrName) ?? null : null),
-    [zikrs, room]
-  );
+  const { activePlans, endedPlans } = useMemo(() => {
+    const now = new Date();
+    const active = (currentPlans || []).filter(
+      p => p.status !== 'ended' && getPlanPhase(p, now) !== 'ended'
+    );
+    const ended = (currentPlans || []).filter(
+      p => p.status === 'ended' || getPlanPhase(p, now) === 'ended'
+    );
+    return { activePlans: active, endedPlans: ended };
+  }, [currentPlans]);
 
-  // Counting is possible while the room runs, for members, when the room's
-  // zikr exists in the local library.
-  const canCount = phase === 'active' && isMember && roomZikr !== null;
-
-  const roomRing = room ? (
-    <CircularProgress progress={progressPercent(liveCount ?? room.total, room.target)} size={180}>
-      <div className="flex flex-col items-center justify-center text-center">
-        <span className="font-headline-lg-mobile text-[40px] leading-[48px] font-bold text-primary tabular-nums">
-          {(liveCount ?? room.total).toLocaleString()}
-        </span>
-        <span className="font-caption text-caption text-on-surface-variant tabular-nums">
-          {t('counter.ofTarget', { target: room.target.toLocaleString() })}
-        </span>
-        <span className="font-label-md text-label-md text-tertiary font-bold tabular-nums mt-1">
-          {progressPercent(liveCount ?? room.total, room.target)}%
-        </span>
-      </div>
-    </CircularProgress>
-  ) : null;
+  // The local zikr record matching a plan zikr name — lets members open
+  // the counter pre-filled with the same dhikr the plan is counting.
+  const localZikrByName = (name: string): Zikr | null =>
+    zikrs.find(z => z.name === name) ?? null;
 
   const shareLink = room
     ? `${window.location.origin}${import.meta.env.BASE_URL}join/${room.code}`
@@ -129,16 +131,17 @@ const Room: React.FC = () => {
     }
   };
 
-  const handleQuickSubmit = async (delta: number) => {
+  const handleQuickSubmit = async (plan: Plan, zikrName: string, delta: number) => {
+    if (!room) return;
     setActionError(null);
     try {
-      await submit(delta);
+      await submit(delta, plan.id, zikrName);
     } catch (err) {
       setActionError(sharedRoomErrorMessage(err));
     }
   };
 
-  const handleCustomSubmit = async () => {
+  const handleCustomSubmit = async (plan: Plan, zikrName: string) => {
     const delta = parseInt(customDelta, 10);
     if (!isValidDelta(delta)) {
       setActionError(t('errors.invalid-delta'));
@@ -146,12 +149,29 @@ const Room: React.FC = () => {
     }
     setActionError(null);
     try {
-      await submit(delta);
+      await submit(delta, plan.id, zikrName);
       setCustomDelta('');
-      setCustomOpen(false);
+      setCustomOpen(null);
     } catch (err) {
       setActionError(sharedRoomErrorMessage(err));
     }
+  };
+
+  const openCounter = (plan: Plan, zikrName: string) => {
+    const zikr = localZikrByName(zikrName);
+    if (!zikr || !room) return;
+    const progress = sharedPlanProgress(plan);
+    const zEntry = plan.zikrs.find(z => z.name === zikrName);
+    // Combined: continue the group's combined count. Per-zikr: that zikr's count.
+    const base =
+      plan.mode === 'combined'
+        ? progress.combined
+        : plan.period !== 'one-time'
+          ? zEntry?.periodTotal ?? 0
+          : zEntry?.total ?? 0;
+    setCounterContext({ plan, zikr, base });
+    setLiveCount(null);
+    setIsCounterOpen(true);
   };
 
   const isOwner = Boolean(room && identity && room.ownerId === identity.userId);
@@ -191,52 +211,26 @@ const Room: React.FC = () => {
 
         {room && (
           <>
-            {/* Hero: combined progress in a mihrab arch */}
+            {/* Hero: the persistent group */}
             <section className="relative rounded-t-full rounded-b-2xl border border-tertiary-container/30 bg-surface-container-low shadow-card px-6 pt-16 pb-8 overflow-hidden flex flex-col items-center">
               <PatternBackdrop className="absolute inset-0" />
-              <div className="relative flex flex-col items-center gap-4 w-full">
-                {/* The ring already reads as a counter — when counting is
-                    possible it IS the CTA: tapping opens the counter modal. */}
-                {canCount ? (
-                  <button
-                    onClick={() => setIsCounterOpen(true)}
-                    aria-label={t('room.startCounting')}
-                    className="rounded-full cursor-pointer active-scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-surface"
-                  >
-                    {roomRing}
-                  </button>
-                ) : (
-                  roomRing
-                )}
-
-                {room.zikrArabic && (
-                  <p
-                    className="font-display-arabic text-[28px] leading-[40px] text-tertiary text-center"
-                    lang="ar"
-                    dir="rtl"
-                  >
-                    {room.zikrArabic}
-                  </p>
-                )}
-                <p className="font-label-md text-label-md text-on-surface-variant text-center">
-                  {room.zikrName}
-                </p>
-
+              <div className="relative flex flex-col items-center gap-3 w-full">
+                <h1 className="font-headline-lg text-headline-lg text-primary text-center">
+                  {room.title}
+                </h1>
                 <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-caption text-caption border ${
-                      phase === 'active'
-                        ? 'bg-tertiary-container/10 text-tertiary border-tertiary-container/30'
-                        : 'bg-surface-container-high text-on-surface-variant border-transparent'
-                    }`}
-                  >
-                    <MaterialIcon icon="schedule" className="text-[14px]" />
-                    {phase === 'active' ? t('group.timeLeft', { time: formatTimeRemaining(room.endsAt) }) : t('group.endedLabel')}
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-caption text-caption bg-tertiary-container/10 text-tertiary border border-tertiary-container/30">
+                    <MaterialIcon icon="groups" className="text-[14px]" />
+                    {t('room.members', { count: currentMembers.length })}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-caption text-caption bg-surface-container-high text-on-surface-variant">
+                    <MaterialIcon icon="target" className="text-[14px]" />
+                    {t('room.planCount', { active: activePlans.length, total: currentPlans.length })}
                   </span>
                   {room.status === 'closed' && (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-caption text-caption bg-surface-container-high text-on-surface-variant">
                       <MaterialIcon icon="lock" className="text-[14px]" />
-                      closed
+                      {t('group.closedLabel')}
                     </span>
                   )}
                 </div>
@@ -263,87 +257,73 @@ const Room: React.FC = () => {
               </div>
             )}
 
-            {/* Contribute */}
-            {phase === 'active' && isMember && (
-              <GlassCardLike>
-                <h3 className="font-label-md text-label-md text-primary mb-4 flex items-center gap-2">
-                  <MaterialIcon icon="add_circle" className="text-[20px]" />
-                  {t('room.addCount')}
-                </h3>
-                <div className="flex gap-2 mb-3">
-                  {QUICK_AMOUNTS.map((amount) => (
-                    <button
-                      key={amount}
-                      onClick={() => handleQuickSubmit(amount)}
-                      disabled={syncing}
-                      className="flex-1 h-12 rounded-xl bg-surface-container-high text-primary font-label-md text-label-md border border-outline-variant/30 active-scale-95 transition-transform disabled:opacity-50 tabular-nums"
-                    >
-                      +{amount}
-                    </button>
-                  ))}
-                </div>
-                {customOpen ? (
-                  <div className="flex flex-col gap-3">
-                    <InputField
-                      label={t('room.customAmount')}
-                      type="number"
-                      placeholder="e.g., 300"
-                      value={customDelta}
-                      onChange={(v) => setCustomDelta(String(v))}
-                    />
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => {
-                          setCustomOpen(false);
-                          setCustomDelta('');
-                        }}
-                        className="flex-1 h-12 rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-variant/50 transition-colors"
-                      >
-                        {t('common.cancel')}
-                      </button>
-                      <button
-                        onClick={handleCustomSubmit}
-                        disabled={syncing}
-                        className="flex-1 h-12 rounded-xl bg-primary-container text-on-primary font-label-md text-label-md hover:opacity-90 active-scale-95 transition-all disabled:opacity-50"
-                      >
-                        {t('common.add')}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setCustomOpen(true)}
-                    className="w-full h-12 rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-variant/50 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <MaterialIcon icon="edit" className="text-[18px]" />
-                    {t('room.customAmount')}
-                  </button>
-                )}
+            {/* Active plans */}
+            {activePlans.length > 0 && (
+              <section className="flex flex-col gap-4">
+                {activePlans.map((plan) => (
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    canContribute={roomActive && isMember}
+                    liveCount={
+                      counterContext?.plan.id === plan.id && liveCount !== null ? liveCount : null
+                    }
+                    quickZikr={quickZikr[plan.id]}
+                    onQuickZikr={(name) =>
+                      setQuickZikr(prev => ({ ...prev, [plan.id]: name }))
+                    }
+                    localZikrByName={localZikrByName}
+                    syncing={syncing}
+                    customOpen={customOpen === plan.id}
+                    customDelta={customDelta}
+                    onCustomDelta={setCustomDelta}
+                    onCustomOpen={(open) => {
+                      setCustomOpen(open ? plan.id : null);
+                      if (!open) setCustomDelta('');
+                    }}
+                    onQuickSubmit={(zikrName, delta) => handleQuickSubmit(plan, zikrName, delta)}
+                    onCustomSubmit={(zikrName) => handleCustomSubmit(plan, zikrName)}
+                    onOpenCounter={(zikrName) => openCounter(plan, zikrName)}
+                    onEnd={
+                      isOwner && roomActive
+                        ? () => {
+                            if (confirm(t('plan.endConfirm'))) void endPlan(room.code, plan.id);
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
+              </section>
+            )}
 
-                {/* Sync status */}
-                <p className="font-caption text-caption text-on-surface-variant mt-3 flex items-center gap-1.5">
-                  {syncing ? (
-                    <>
-                      <MaterialIcon icon="cloud_upload" className="text-[16px] text-tertiary" />
-                      {t('room.syncing')}
-                    </>
-                  ) : pendingCount > 0 ? (
-                    <>
-                      <MaterialIcon icon="cloud_upload" className="text-[16px] text-tertiary" />
-                      {t('room.queued', { count: pendingCount })}
-                    </>
-                  ) : (
-                    <>
-                      <MaterialIcon icon="cloud_done" className="text-[16px] text-primary" />
-                      {t('room.allSynced')}
-                    </>
-                  )}
-                </p>
+            {/* No active plans */}
+            {activePlans.length === 0 && roomActive && (
+              <GlassCardLike>
+                <div className="text-center flex flex-col items-center gap-2 py-4">
+                  <MaterialIcon icon="flag" className="text-4xl text-tertiary" />
+                  <p className="font-headline-md text-headline-md text-primary">
+                    {t('room.noActivePlans')}
+                  </p>
+                  <p className="font-caption text-caption text-on-surface-variant">
+                    {isOwner ? t('room.noActivePlansOwner') : t('room.noActivePlansMember')}
+                  </p>
+                </div>
               </GlassCardLike>
             )}
 
+            {/* Owner: new plan */}
+            {isOwner && roomActive && (
+              <button
+                onClick={() => setIsCreatePlanOpen(true)}
+                className="w-full h-touch-target-min rounded-xl border border-tertiary-container/40 bg-tertiary-container/10 text-tertiary font-label-md text-label-md flex items-center justify-center gap-2 hover:bg-tertiary-container/20 active-scale-95 transition-all"
+              >
+                <MaterialIcon icon="add_circle" className="text-[20px]" />
+                {t('plan.new')}
+              </button>
+            )}
+
             {/* Not a member (preview via deep link) */}
-            {phase === 'active' && !isMember && initialized && (
+            {!isMember && initialized && (
               <GlassCardLike>
                 <p className="font-body-md text-body-md text-on-surface-variant mb-4">
                   {t('room.viewingRoom')}
@@ -365,26 +345,52 @@ const Room: React.FC = () => {
               </GlassCardLike>
             )}
 
-            {/* Ended summary */}
-            {phase === 'ended' && (
+            {/* Past plans (history) */}
+            {endedPlans.length > 0 && (
               <GlassCardLike>
-                <div className="text-center flex flex-col items-center gap-2">
+                <button
+                  onClick={() => setHistoryExpanded((v) => !v)}
+                  aria-expanded={historyExpanded}
+                  className="w-full flex items-center justify-between gap-3 text-left active-scale-[0.99] transition-transform"
+                >
+                  <span className="font-label-md text-label-md text-primary flex items-center gap-2">
+                    <MaterialIcon icon="history" className="text-[20px]" />
+                    {t('room.pastPlans', { count: endedPlans.length })}
+                  </span>
                   <MaterialIcon
-                    icon={room.total >= room.target ? 'celebration' : 'flag'}
-                    filled
-                    className={`text-4xl ${room.total >= room.target ? 'text-tertiary' : 'text-on-surface-variant'}`}
+                    icon={historyExpanded ? 'expand_less' : 'expand_more'}
+                    className="text-on-surface-variant"
                   />
-                  <p className="font-headline-md text-headline-md text-primary">
-                    {room.total >= room.target ? t('room.goalReached') : t('room.timeUp')}
-                  </p>
-                  <p className="font-caption text-caption text-on-surface-variant tabular-nums">
-                    {t('room.endedSummary', {
-                      total: room.total.toLocaleString(),
-                      target: room.target.toLocaleString(),
-                      percent: progressPercent(room.total, room.target),
+                </button>
+                {historyExpanded && (
+                  <ul className="mt-4 flex flex-col divide-y divide-outline-variant/10">
+                    {endedPlans.map((plan) => {
+                      const progress = sharedPlanProgress(plan);
+                      return (
+                        <li key={plan.id} className="py-3 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-label-md text-label-md text-on-surface truncate">
+                              {plan.title?.trim() ||
+                                plan.zikrs.map(z => z.name).join(' · ')}
+                            </p>
+                            <p className="font-caption text-caption text-on-surface-variant tabular-nums">
+                              {t('room.endedSummary', {
+                                total: progress.combined.toLocaleString(),
+                                target: progress.target.toLocaleString(),
+                                percent: progress.percent,
+                              })}
+                            </p>
+                          </div>
+                          <MaterialIcon
+                            icon={progress.done ? 'celebration' : 'flag'}
+                            filled
+                            className={progress.done ? 'text-tertiary' : 'text-on-surface-variant'}
+                          />
+                        </li>
+                      );
                     })}
-                  </p>
-                </div>
+                  </ul>
+                )}
               </GlassCardLike>
             )}
 
@@ -430,6 +436,28 @@ const Room: React.FC = () => {
                 </div>
               )}
             </GlassCardLike>
+
+            {/* Sync status */}
+            {isMember && (
+              <p className="font-caption text-caption text-on-surface-variant flex items-center gap-1.5">
+                {syncing ? (
+                  <>
+                    <MaterialIcon icon="cloud_upload" className="text-[16px] text-tertiary" />
+                    {t('room.syncing')}
+                  </>
+                ) : pendingCount > 0 ? (
+                  <>
+                    <MaterialIcon icon="cloud_upload" className="text-[16px] text-tertiary" />
+                    {t('room.queued', { count: pendingCount })}
+                  </>
+                ) : (
+                  <>
+                    <MaterialIcon icon="cloud_done" className="text-[16px] text-primary" />
+                    {t('room.allSynced')}
+                  </>
+                )}
+              </p>
+            )}
 
             {/* Members */}
             <GlassCardLike>
@@ -516,7 +544,7 @@ const Room: React.FC = () => {
             </GlassCardLike>
 
             {/* Owner / member management */}
-            {isOwner && phase === 'active' && (
+            {isOwner && roomActive && (
               <button
                 onClick={() => {
                   if (confirm(t('room.closeConfirm'))) {
@@ -545,9 +573,9 @@ const Room: React.FC = () => {
           </>
         )}
 
-      {/* Counter in place — continues the room's count on your own tasbeeh;
+      {/* Counter in place — continues the plan's count on your own tasbeeh;
           only the taps you add here are saved and contributed */}
-      {roomZikr && room && (
+      {counterContext && room && (
         <CounterModal
           isOpen={isCounterOpen}
           onClose={() => {
@@ -565,10 +593,25 @@ const Room: React.FC = () => {
               .then(() => refreshCurrentRoom())
               .catch(() => {});
           }}
-          zikr={roomZikr}
-          startCount={room.total}
-          target={room.target}
+          zikr={counterContext.zikr}
+          startCount={counterContext.base}
+          target={
+            counterContext.plan.mode === 'combined'
+              ? counterContext.plan.target ?? 0
+              : counterContext.plan.zikrs.find(
+                  z => z.name === counterContext.zikr.name
+                )?.target ?? 0
+          }
           onCount={(count) => setLiveCount(count)}
+        />
+      )}
+
+      {/* Owner starts another plan in the same group */}
+      {room && (
+        <CreatePlanModal
+          isOpen={isCreatePlanOpen}
+          onClose={() => setIsCreatePlanOpen(false)}
+          roomCode={room.code}
         />
       )}
     </AppLayout>
@@ -582,6 +625,276 @@ const GlassCardLike: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   </section>
 );
 
+// ---------- Plan card ----------
+
+interface PlanCardProps {
+  plan: Plan;
+  canContribute: boolean;
+  liveCount: number | null;
+  quickZikr?: string;
+  onQuickZikr: (name: string) => void;
+  localZikrByName: (name: string) => Zikr | null;
+  syncing: boolean;
+  customOpen: boolean;
+  customDelta: string;
+  onCustomDelta: (v: string) => void;
+  onCustomOpen: (open: boolean) => void;
+  onQuickSubmit: (zikrName: string, delta: number) => void;
+  onCustomSubmit: (zikrName: string) => void;
+  onOpenCounter: (zikrName: string) => void;
+  onEnd?: () => void;
+}
+
+const PlanCard: React.FC<PlanCardProps> = ({
+  plan,
+  canContribute,
+  liveCount,
+  quickZikr,
+  onQuickZikr,
+  localZikrByName,
+  syncing,
+  customOpen,
+  customDelta,
+  onCustomDelta,
+  onCustomOpen,
+  onQuickSubmit,
+  onCustomSubmit,
+  onOpenCounter,
+  onEnd,
+}) => {
+  const { t } = useI18n();
+  const now = new Date();
+  const phase = getPlanPhase(plan, now);
+  const progress = sharedPlanProgress(plan);
+  const multiZikr = plan.zikrs.length > 1;
+  const activeZikr = quickZikr ?? plan.zikrs[0]?.name;
+  const singleZikr = plan.zikrs.length === 1 ? plan.zikrs[0] : null;
+
+  const periodChip =
+    plan.period === 'one-time'
+      ? plan.endDate
+        ? t('group.timeLeft', { time: formatTimeRemaining(new Date(plan.endDate), now) })
+        : t('plans.oneTime')
+      : t('plan.resetsIn', {
+          time: formatResetsIn(plan.period, plan.timeZone || 'UTC', now),
+        });
+
+  const periodLabel =
+    plan.period === 'daily'
+      ? t('plans.dailyPractice')
+      : plan.period === 'weekly'
+        ? t('plans.weekly')
+        : plan.period === 'monthly'
+          ? t('plans.monthly')
+          : t('plans.oneTime');
+
+  return (
+    <section className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-5">
+      {/* Header */}
+      <div className="flex justify-between items-start gap-3 mb-4">
+        <div className="min-w-0">
+          <div className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-tertiary-container/10 border border-tertiary-container/30 text-tertiary font-caption text-caption uppercase tracking-wide mb-2">
+            {periodLabel}
+          </div>
+          <h3 className="font-headline-md text-headline-md text-primary truncate">
+            {plan.title?.trim() || plan.zikrs.map(z => z.name).join(' · ')}
+          </h3>
+          {singleZikr?.arabic && (
+            <p className="font-display-arabic text-[22px] leading-8 text-tertiary" lang="ar" dir="rtl">
+              {singleZikr.arabic}
+            </p>
+          )}
+          <span className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full font-caption text-caption bg-tertiary-container/10 text-tertiary border border-tertiary-container/30">
+            <MaterialIcon icon={plan.period === 'one-time' ? 'schedule' : 'replay'} className="text-[14px]" />
+            {phase === 'upcoming' ? t('plan.upcoming') : periodChip}
+          </span>
+        </div>
+        {onEnd && (
+          <button
+            onClick={onEnd}
+            className="shrink-0 text-on-surface-variant hover:text-error transition-colors p-1"
+            aria-label={t('plan.end')}
+          >
+            <MaterialIcon icon="stop_circle" className="text-[20px]" />
+          </button>
+        )}
+      </div>
+
+      {/* Progress */}
+      {plan.mode === 'combined' ? (
+        <CombinedProgress
+          percent={progressPercent(liveCount ?? progress.combined, progress.target)}
+          current={(liveCount ?? progress.combined)}
+          target={progress.target}
+          countable={canContribute && phase === 'active' && !!localZikrByName(plan.zikrs[0]?.name ?? '')}
+          onOpenCounter={() => onOpenCounter(plan.zikrs[0]?.name ?? '')}
+        />
+      ) : (
+        <div className="flex flex-col gap-3">
+          {plan.zikrs.map(z => {
+            const recurring = plan.period !== 'one-time';
+            const zCurrent = recurring ? z.periodTotal ?? 0 : z.total ?? 0;
+            const zTarget = z.target ?? 0;
+            const countable =
+              canContribute && phase === 'active' && !!localZikrByName(z.name);
+            return (
+              <button
+                key={z.name}
+                type="button"
+                onClick={() => countable && onOpenCounter(z.name)}
+                disabled={!countable}
+                className={`text-left w-full ${countable ? 'cursor-pointer active-scale-[0.99] transition-transform' : 'cursor-default'}`}
+                aria-label={t('room.startCounting')}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-label-md text-label-md text-on-surface truncate">
+                    {z.name}
+                    {z.arabic && (
+                      <span className="font-display-arabic text-tertiary ml-2" lang="ar" dir="rtl">
+                        {z.arabic}
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-caption text-caption text-on-surface-variant tabular-nums shrink-0 ml-2">
+                    {zCurrent.toLocaleString()} / {zTarget.toLocaleString()}
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-surface-container-high overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      zCurrent >= zTarget && zTarget > 0 ? 'bg-primary' : 'bg-tertiary-container'
+                    }`}
+                    style={{ width: `${progressPercent(zCurrent, zTarget)}%` }}
+                  />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Quick add */}
+      {canContribute && phase === 'active' && (
+        <div className="mt-4 pt-4 border-t border-outline-variant/20">
+          {multiZikr && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {plan.zikrs.map(z => (
+                <button
+                  key={z.name}
+                  type="button"
+                  onClick={() => onQuickZikr(z.name)}
+                  className={`px-3 py-1.5 rounded-full font-caption text-caption border transition-all ${
+                    activeZikr === z.name
+                      ? 'bg-primary-container text-on-primary border-transparent'
+                      : 'bg-surface-container-low text-on-surface-variant border-outline-variant/30'
+                  }`}
+                >
+                  {z.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2 mb-3">
+            {QUICK_AMOUNTS.map((amount) => (
+              <button
+                key={amount}
+                onClick={() => activeZikr && onQuickSubmit(activeZikr, amount)}
+                disabled={syncing || !activeZikr}
+                className="flex-1 h-12 rounded-xl bg-surface-container-high text-primary font-label-md text-label-md border border-outline-variant/30 active-scale-95 transition-transform disabled:opacity-50 tabular-nums"
+              >
+                +{amount}
+              </button>
+            ))}
+          </div>
+          {customOpen ? (
+            <div className="flex flex-col gap-3">
+              <InputField
+                label={t('room.customAmount')}
+                type="number"
+                placeholder="e.g., 300"
+                value={customDelta}
+                onChange={(v) => onCustomDelta(String(v))}
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => onCustomOpen(false)}
+                  className="flex-1 h-12 rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-variant/50 transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={() => activeZikr && onCustomSubmit(activeZikr)}
+                  disabled={syncing}
+                  className="flex-1 h-12 rounded-xl bg-primary-container text-on-primary font-label-md text-label-md hover:opacity-90 active-scale-95 transition-all disabled:opacity-50"
+                >
+                  {t('common.add')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => onCustomOpen(true)}
+              className="w-full h-12 rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-variant/50 transition-colors flex items-center justify-center gap-2"
+            >
+              <MaterialIcon icon="edit" className="text-[18px]" />
+              {t('room.customAmount')}
+            </button>
+          )}
+        </div>
+      )}
+
+      {phase === 'upcoming' && (
+        <p className="font-caption text-caption text-on-surface-variant mt-3">
+          {t('plan.upcomingNote')}
+        </p>
+      )}
+    </section>
+  );
+};
+
+const CombinedProgress: React.FC<{
+  percent: number;
+  current: number;
+  target: number;
+  countable: boolean;
+  onOpenCounter: () => void;
+}> = ({ percent, current, target, countable, onOpenCounter }) => {
+  const { t } = useI18n();
+  const ring = (
+    <CircularProgress progress={percent} size={180}>
+      <div className="flex flex-col items-center justify-center text-center">
+        <span className="font-headline-lg-mobile text-[40px] leading-[48px] font-bold text-primary tabular-nums">
+          {current.toLocaleString()}
+        </span>
+        <span className="font-caption text-caption text-on-surface-variant tabular-nums">
+          {t('counter.ofTarget', { target: target.toLocaleString() })}
+        </span>
+        <span className="font-label-md text-label-md text-tertiary font-bold tabular-nums mt-1">
+          {percent}%
+        </span>
+      </div>
+    </CircularProgress>
+  );
+
+  // The ring already reads as a counter — when counting is possible it IS
+  // the CTA: tapping opens the counter modal.
+  return (
+    <div className="flex justify-center">
+      {countable ? (
+        <button
+          onClick={onOpenCounter}
+          aria-label={t('room.startCounting')}
+          className="rounded-full cursor-pointer active-scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-surface"
+        >
+          {ring}
+        </button>
+      ) : (
+        ring
+      )}
+    </div>
+  );
+};
+
 const SubmissionRow: React.FC<{ submission: SharedSubmission }> = ({ submission }) => {
   const time = new Date(submission.submittedAt).toLocaleString(undefined, {
     month: 'short',
@@ -591,7 +904,7 @@ const SubmissionRow: React.FC<{ submission: SharedSubmission }> = ({ submission 
   });
   return (
     <li className="flex items-center justify-between py-2.5 px-1">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
         <MaterialIcon
           icon={submission.syncState === 'synced' ? 'cloud_done' : submission.syncState === 'pending' ? 'cloud_upload' : 'cloud_off'}
           className={`text-[18px] ${
@@ -605,6 +918,11 @@ const SubmissionRow: React.FC<{ submission: SharedSubmission }> = ({ submission 
         <span className="font-label-md text-label-md text-primary tabular-nums">
           +{submission.delta.toLocaleString()}
         </span>
+        {submission.zikrName && (
+          <span className="font-caption text-caption text-on-surface-variant truncate">
+            {submission.zikrName}
+          </span>
+        )}
       </div>
       <span className="font-caption text-caption text-on-surface-variant">{time}</span>
     </li>

@@ -25,25 +25,33 @@ export async function softDelete(id: number): Promise<void> {
 }
 
 export async function hardDelete(id: number): Promise<void> {
-  await db.transaction('rw', db.zikrs, db.sessions, db.goals, db.streaks, async () => {
+  await db.transaction('rw', db.zikrs, db.sessions, db.plans, db.planOwners, db.streaks, async () => {
     await db.zikrs.delete(id);
     await db.sessions.where('zikrId').equals(id).delete();
-    // Goals reference zikrs via the zikrIds array — only remove goals that
-    // are solely about this zikr; multi-zikr goals just lose one entry.
-    const goals = await db.goals.toArray();
-    const soleZikrGoalIds: number[] = [];
-    for (const goal of goals) {
-      const ids = goal.zikrIds ?? [];
-      if (!ids.includes(id)) continue;
-      if (ids.length === 1) {
-        if (goal.id != null) soleZikrGoalIds.push(goal.id);
+    // Personal plans bind zikrs via plan.zikrs[].zikrId — only remove plans
+    // that are solely about this zikr; multi-zikr plans just lose one entry.
+    // Group plans reference zikrs by name and are never touched here.
+    const owners = await db.planOwners.toArray();
+    const userPlanIds = new Set(
+      owners.filter(o => o.ownerKind === 'user').map(o => o.planId)
+    );
+    const soleZikrPlanIds: string[] = [];
+    for (const plan of await db.plans.toArray()) {
+      if (!userPlanIds.has(plan.id)) continue;
+      const entries = plan.zikrs ?? [];
+      if (!entries.some(z => z.zikrId === id)) continue;
+      if (entries.length === 1) {
+        soleZikrPlanIds.push(plan.id);
       } else {
-        await db.goals.update(goal.id!, {
-          zikrIds: ids.filter(z => z !== id),
+        await db.plans.update(plan.id, {
+          zikrs: entries.filter(z => z.zikrId !== id),
         });
       }
     }
-    await db.goals.bulkDelete(soleZikrGoalIds);
+    if (soleZikrPlanIds.length > 0) {
+      await db.plans.bulkDelete(soleZikrPlanIds);
+      await db.planOwners.where('planId').anyOf(soleZikrPlanIds).delete();
+    }
     await db.streaks.delete(id);
   });
 }

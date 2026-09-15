@@ -1,7 +1,7 @@
 import { db } from '../db/db';
 import { SessionInput, BulkResult, Session } from '../db/types';
 import { updateStreak } from './streakService';
-import { recalculateGoalForSession } from './goalService';
+import { recalculatePlansForSession } from './planService';
 
 const CHUNK_SIZE = 10;
 
@@ -148,7 +148,7 @@ async function batchUpdateGoalsAndStreaks(sessions: SessionInput[]): Promise<voi
 
     try {
       await updateStreak(Number(zikrId), latestSession.timestamp);
-      await recalculateGoalForSession(
+      await recalculatePlansForSession(
         { ...latestSession, source: 'manual', editableUntil: addDays(latestSession.timestamp, 3), createdAt: new Date(), updatedAt: new Date() } as Session,
         'add'
       );

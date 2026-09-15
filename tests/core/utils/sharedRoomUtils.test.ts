@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   normalizeRoomCode,
   isValidDelta,
-  getRoomPhase,
-  canSubmit,
   progressPercent,
   formatTimeRemaining,
   backoffDelayMs,
@@ -46,38 +44,6 @@ describe('isValidDelta', () => {
     expect(isValidDelta(10001)).toBe(false);
     expect(isValidDelta(3.5)).toBe(false);
     expect(isValidDelta(NaN)).toBe(false);
-  });
-});
-
-describe('getRoomPhase / canSubmit', () => {
-  const now = new Date('2026-09-11T12:00:00');
-  const base = { status: 'active' as const };
-
-  it('classifies upcoming / active / ended', () => {
-    expect(
-      getRoomPhase({ ...base, startsAt: new Date('2026-09-12'), endsAt: new Date('2026-09-20') }, now)
-    ).toBe('upcoming');
-    expect(
-      getRoomPhase({ ...base, startsAt: new Date('2026-09-10'), endsAt: new Date('2026-09-20') }, now)
-    ).toBe('active');
-    expect(
-      getRoomPhase({ ...base, startsAt: new Date('2026-09-01'), endsAt: new Date('2026-09-10') }, now)
-    ).toBe('ended');
-  });
-
-  it('closed rooms are always ended and never submittable', () => {
-    const room = { status: 'closed' as const, startsAt: new Date('2026-09-01'), endsAt: new Date('2026-12-01') };
-    expect(getRoomPhase(room, now)).toBe('ended');
-    expect(canSubmit(room, now)).toBe(false);
-  });
-
-  it('only active rooms accept submissions', () => {
-    expect(
-      canSubmit({ ...base, startsAt: new Date('2026-09-10'), endsAt: new Date('2026-09-20') }, now)
-    ).toBe(true);
-    expect(
-      canSubmit({ ...base, startsAt: new Date('2026-09-12'), endsAt: new Date('2026-09-20') }, now)
-    ).toBe(false);
   });
 });
 

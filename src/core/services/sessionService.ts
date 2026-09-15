@@ -2,17 +2,17 @@ import { db } from '../db/db';
 import { Session, SessionInput, SessionUpdate, BulkResult } from '../db/types';
 import { formatDate } from '../utils/dateUtils';
 import { updateStreak } from './streakService';
-import { recalculateGoalForSession } from './goalService';
+import { recalculatePlansForSession } from './planService';
 
 // === EXISTING (enhanced for v2) ===
 export async function add(session: Omit<Session, 'id'>): Promise<number> {
   // NEW (design review feedback): Wrap in transaction for data integrity
-  return await db.transaction('rw', db.sessions, db.streaks, db.goals, async () => {
+  return await db.transaction('rw', db.sessions, db.streaks, db.plans, db.planOwners, async () => {
     const id = await db.sessions.add(session);
 
     // Automatically update streak and goals within same transaction
     await updateStreak(session.zikrId, session.date);
-    await recalculateGoalForSession(session as Session, 'add');
+    await recalculatePlansForSession(session as Session, 'add');
 
     return typeof id === 'number' ? id : parseInt(id as string, 10);
   });
@@ -47,7 +47,7 @@ export async function updateSession(
   sessionUpdate: SessionUpdate
 ): Promise<number> {
   // NEW (design review feedback): Wrap in transaction for data integrity
-  return await db.transaction('rw', db.sessions, db.streaks, db.goals, async () => {
+  return await db.transaction('rw', db.sessions, db.streaks, db.plans, db.planOwners, async () => {
     const existing = await getSessionById(id);
     if (!existing) {
       throw new Error('Session not found');
@@ -66,7 +66,7 @@ export async function updateSession(
     // Recalculate goals and streaks within same transaction
     const updatedSession = { ...existing, ...sessionUpdate, updatedAt: new Date() } as Session;
     await updateStreak(updatedSession.zikrId, updatedSession.date);
-    await recalculateGoalForSession(updatedSession, 'update', existing);
+    await recalculatePlansForSession(updatedSession, 'update', existing);
 
     return updated;
   });
@@ -74,7 +74,7 @@ export async function updateSession(
 
 export async function deleteSession(id: number): Promise<void> {
   // NEW (design review feedback): Wrap in transaction for data integrity
-  return await db.transaction('rw', db.sessions, db.streaks, db.goals, async () => {
+  return await db.transaction('rw', db.sessions, db.streaks, db.plans, db.planOwners, async () => {
     const existing = await getSessionById(id);
     if (!existing) {
       throw new Error('Session not found');
@@ -88,7 +88,7 @@ export async function deleteSession(id: number): Promise<void> {
 
     // Recalculate goals and streaks within same transaction
     await updateStreak(existing.zikrId, existing.date);
-    await recalculateGoalForSession(existing, 'delete');
+    await recalculatePlansForSession(existing, 'delete');
   });
 }
 
@@ -149,7 +149,7 @@ export async function addBulkSessions(sessions: SessionInput[], onProgress?: (pr
   // Save valid sessions in transaction
   try {
     // NEW (design review feedback): Wrap in transaction for data integrity
-    await db.transaction('rw', db.sessions, db.zikrLastCount, db.streaks, db.goals, async () => {
+    await db.transaction('rw', db.sessions, db.zikrLastCount, db.streaks, db.plans, db.planOwners, async () => {
       for (const session of validSessions) {
         const timestamp = session.timestamp;
         await db.sessions.add({
@@ -202,7 +202,7 @@ async function batchUpdateGoalsAndStreaks(sessions: SessionInput[]): Promise<voi
 
     try {
       await updateStreak(Number(zikrId), latestSession.timestamp);
-      await recalculateGoalForSession(
+      await recalculatePlansForSession(
         { ...latestSession, source: 'manual', editableUntil: addDays(latestSession.timestamp, 3), createdAt: new Date(), updatedAt: new Date() } as Session,
         'add'
       );

@@ -1,6 +1,6 @@
 // Database: zikr-db
-// Stores: zikrs, sessions, goals, streaks, settings, sessionFormState, zikrLastCount,
-//         sharedRooms, sharedSubmissions, syncOutbox, identity
+// Stores: zikrs, sessions, plans, planOwners, streaks, settings, sessionFormState,
+//         zikrLastCount, sharedRooms, sharedSubmissions, syncOutbox, identity
 
 export interface Zikr {
   id?: number;
@@ -40,11 +40,13 @@ export interface Session {
   countsToGoals?: boolean;
 }
 
+/**
+ * LEGACY (pre-v6 personal goal). Superseded by Plan below; the Dexie table
+ * survives only so historical v1→v2 upgrade code keeps working. Never write.
+ */
 export interface Goal {
   id?: number;
-  /** Zikrs this goal covers (v4+). Multi-zikr goals track combined counts. */
   zikrIds: number[];
-  /** Optional user-set goal name; falls back to the covered zikrs' names. */
   name?: string;
   target: number;
   period: 'daily' | 'weekly' | 'monthly' | 'custom';
@@ -53,6 +55,69 @@ export interface Goal {
   status: 'active' | 'completed' | 'paused';
   createdAt: Date;
   completedAt?: Date;
+}
+
+// ============================================================
+// NEW (v6): Plans — one entity for personal and group targets.
+// A Plan wraps 1..5 zikrs with targets; ownership is a relation
+// (planOwners): ('user', 'me') = personal plan on this device,
+// ('group', roomCode) = server-mirrored plan inside a group.
+// ============================================================
+
+export type PlanMode = 'combined' | 'per-zikr';
+export type PlanPeriod = 'daily' | 'weekly' | 'monthly' | 'one-time';
+export type PlanStatus = 'active' | 'paused' | 'completed' | 'ended';
+
+export interface PlanZikr {
+  /** Catalog name or custom text — the group-wide key (personal plans also bind zikrId). */
+  name: string;
+  arabic?: string | null;
+  /** Local Zikr binding (personal plans). */
+  zikrId?: number;
+  /** Per-zikr target (mode 'per-zikr' only). */
+  target?: number;
+  /** Server mirror only: lifetime per-zikr total. */
+  total?: number;
+  /** Server mirror only: current-period per-zikr total (recurring plans). */
+  periodTotal?: number;
+}
+
+export interface Plan {
+  /** uuid — stable if a plan is later promoted/shared to a group. */
+  id: string;
+  title?: string;
+  mode: PlanMode;
+  period: PlanPeriod;
+  /** Combined target (mode 'combined' only). */
+  target?: number;
+  /** 1..5 zikrs; embedded (Dexie document model). */
+  zikrs: PlanZikr[];
+  /** One-time window (period 'one-time'). */
+  startDate?: Date;
+  endDate?: Date;
+  /** Shared recurring plans: the creator's IANA timezone (all members reset together). */
+  timeZone?: string;
+  status: PlanStatus;
+  createdAt: Date;
+  completedAt?: Date;
+  endedAt?: Date;
+
+  // ----- Server mirror only (group-owned plans) -----
+  /** Convenience denormalization of the ('group', roomCode) owner row. */
+  roomCode?: string;
+  /** Lifetime combined total (one-time progress; all-time stat for recurring). */
+  total?: number;
+  /** Combined total within the current period (recurring plans). */
+  periodTotal?: number;
+  fetchedAt?: Date;
+}
+
+/** Ownership relation: who a plan belongs to ('user' → local, 'group' → a room). */
+export interface PlanOwner {
+  planId: string;
+  ownerKind: 'user' | 'group';
+  /** 'me' (device user) or a room code. */
+  ownerId: string;
 }
 
 export interface Streak {
@@ -128,16 +193,15 @@ export interface ZikrLastCount {
 // See docs/SharedGoals-Design.md
 // ============================================================
 
+/**
+ * A persistent group (v6+). The room no longer carries a goal: targets live
+ * on Plan rows owned by ('group', roomCode) — the group keeps its code,
+ * members, and plan history forever; only owner `close_room` retires it.
+ */
 export interface SharedRoom {
   code: string;                     // 6-char room code (local primary key)
   id: string;                       // server uuid
   title: string;
-  zikrName: string;
-  zikrArabic?: string | null;
-  target: number;
-  total: number;                    // combined contribution (authoritative from server)
-  startsAt: Date;
-  endsAt: Date;
   ownerId: string;
   status: 'active' | 'closed';
   joinedAt: Date;                   // when I created/joined (local)
@@ -158,6 +222,10 @@ export type SharedSubmissionSyncState = 'pending' | 'synced' | 'failed';
 export interface SharedSubmission {
   id?: number;
   roomCode: string;
+  /** Which group plan the contribution targets (v6+). */
+  planId: string;
+  /** Which zikr of the plan it counts towards (plans may hold several). */
+  zikrName: string;
   delta: number;
   submittedAt: Date;                // when the user made it
   eventId: string;                  // UUID sent to the server (idempotency)
@@ -169,6 +237,8 @@ export interface SyncOutboxItem {
   id?: number;
   eventId: string;                  // matches the SharedSubmission event
   roomCode: string;
+  planId: string;                   // v6+: target plan (was implicit in the room)
+  zikrName: string;                 // v6+: target zikr within the plan
   delta: number;
   attempts: number;
   nextAttemptAt: Date;

@@ -12,7 +12,12 @@ export { SharedRoomError } from './contract';
 export type {
   SharedRoomErrorCode,
   SharedRoomBackend,
+  CreatePlanInput,
   CreateRoomInput,
+  PlanSummary,
+  PlanZikrSummary,
+  PlanModeDTO,
+  PlanPeriodDTO,
   RoomStatePayload,
   RoomSummary,
   RoomMemberPayload,

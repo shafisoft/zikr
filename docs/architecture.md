@@ -88,55 +88,51 @@ User opens "Add Session" screen
 
 ## Data Schema (IndexedDB)
 
+Source of truth: `src/core/db/types.ts` + `src/core/db/db.ts` (versioned Dexie schema, currently v6). Sketch:
+
 ```javascript
-// Database: zikr-db, Version: 1
-// Stores: zikrs, sessions, goals, settings
+// Database: zikr-db, Version: 6
+// Stores: zikrs, sessions, plans, planOwners, streaks, settings,
+//         sessionFormState, zikrLastCount, sharedRooms, sharedSubmissions,
+//         syncOutbox, identity, zikrShareOutbox
+// (goals is legacy-emptied but stays declared for the historical v1→v2 upgrade)
 
-// Store: zikrs (keyPath: id, autoIncrement: true)
-Zikr {
-  id: string (auto)
-  name: string
-  custom: boolean  // true = user-created, false = predefined
-  createdAt: Date
-  deletedAt?: Date  // soft delete
+// Store: plans (keyPath: id) — ONE entity for personal and group targets
+Plan {
+  id: string (uuid)
+  title?: string
+  mode: 'combined' | 'per-zikr'      // one shared target, or a target per zikr
+  period: 'daily' | 'weekly' | 'monthly' | 'one-time'
+  target?: number                    // combined mode
+  zikrs: PlanZikr[]                  // 1..5; personal plans bind zikrId,
+                                     // group plans bind by NAME
+    { name, arabic?, zikrId?, target?, total?, periodTotal? }
+  startDate?, endDate?: Date         // one-time window
+  timeZone?: string                  // group recurring plans (shared reset moment)
+  status: 'active' | 'paused' | 'completed' | 'ended'
+  createdAt: Date; completedAt?; endedAt?
+  // mirror-only fields on group plans:
+  roomCode?, total?, periodTotal?, fetchedAt?
 }
 
-// Store: sessions (keyPath: id, autoIncrement: true, indexes: [zikrId, date])
-Session {
-  id: string (auto)
-  zikrId: string  // foreign key to zikrs
-  count: number
-  source: 'app' | 'manual' | 'physical'
-  timestamp: Date
-  date: Date  // denormalized for querying (YYYY-MM-DD format)
-}
+// Store: planOwners (keyPath: [planId+ ownerId]) — the ownership relation
+PlanOwner { planId, ownerKind: 'user' | 'group', ownerId }
+//   ('user', 'me')        → personal plan (device-only, never synced)
+//   ('group', roomCode)   → server-mirrored plan inside a group
 
-// Store: goals (keyPath: id, autoIncrement: true, indexes: [zikrId, status])
-Goal {
-  id: string (auto)
-  zikrId: string  // foreign key to zikrs
-  targetCount: number
-  period: 'daily' | 'weekly' | 'monthly' | 'custom'
-  startDate: Date
-  endDate?: Date  // null for ongoing
-  status: 'active' | 'completed' | 'paused'
-  createdAt: Date
-}
+// Store: sharedRooms (keyPath: code) — a PERSISTENT GROUP
+SharedRoom { code, id, title, ownerId, status: 'active' | 'closed',
+             joinedAt, joinedWithUserId?, fetchedAt }
+//   The group keeps its code, members, and plan history forever; only the
+//   owner closes it. Targets live on plans (see above).
 
-// Store: settings (keyPath: key)
-Settings {
-  key: string
-  value: any
-}
+// Store: sharedSubmissions (local-only, never synced)
+SharedSubmission { roomCode, planId, zikrName, delta, submittedAt,
+                   eventId, syncState: 'pending' | 'synced' | 'failed', note? }
 
-// Store: streaks (keyPath: zikrId)
-Streak {
-  zikrId: string
-  currentStreak: number
-  longestStreak: number
-  lastSessionDate: Date
-}
+// Store: zikrs / sessions / settings / streaks — unchanged (see types.ts)
 ```
+
 
 ## Notification Architecture
 

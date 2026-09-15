@@ -32,7 +32,7 @@ export { InputField } from './components/forms/InputField';
 // Pages
 export { default as Counter } from './pages/Counter';
 export { default as Home } from './pages/Home';
-export { default as Goals } from './pages/Goals';
+export { default as Plans } from './pages/Plans';
 export { default as Progress } from './pages/Progress';
 export { default as Settings } from './pages/Settings';
 export { default as Welcome } from './components/Welcome';

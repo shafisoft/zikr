@@ -108,8 +108,12 @@ async function deduplicateZikrs(database: ZikrDatabase): Promise<void> {
   }
   for (const id of duplicates) {
     const hasSessions = await database.sessions.where('zikrId').equals(id).limit(1).count();
-    const hasGoals = await database.goals.where('zikrId').equals(id).limit(1).count();
-    if (hasSessions > 0 || hasGoals > 0) continue;
+    // Plans reference zikrs via the embedded zikrs array (no index) — a tiny
+    // in-memory scan replaces the legacy goal-zikrId lookup.
+    const hasPlans = (await database.plans.toArray()).some(p =>
+      p.zikrs?.some(z => z.zikrId === id)
+    );
+    if (hasSessions > 0 || hasPlans) continue;
     await database.zikrs.delete(id);
   }
 }

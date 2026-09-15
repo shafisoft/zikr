@@ -12,7 +12,7 @@ import { useSharedRoomStore } from '../../../core/stores/sharedRoomStore';
 
 const BASE_ITEMS: NavItem[] = [
   { id: 'home', label: 'nav.home', icon: 'home', path: '/' },
-  { id: 'goals', label: 'nav.goals', icon: 'target', path: '/goals' },
+  { id: 'plans', label: 'nav.plans', icon: 'target', path: '/plans' },
   { id: 'group', label: 'nav.group', icon: 'groups', path: '/group' },
   { id: 'progress', label: 'nav.progress', icon: 'trending_up', path: '/progress' },
 ];
