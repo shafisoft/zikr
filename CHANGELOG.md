@@ -7,6 +7,10 @@ user-facing change and date it when it ships.
 
 ## Unreleased
 
+_(nothing yet)_
+
+## 1.2.0 — 2026-09-17
+
 ### Added
 - **Install nudge.** When the app runs in a browser tab (not installed),
   a small banner offers to install it: a one-tap "Install" button on
