@@ -5,6 +5,11 @@
  *
  * Zikrs are picked from the predefined catalog or entered as custom text
  * (members' local libraries differ, so plans bind zikrs by name).
+ * Group plans are always PER-ZIKR: each zikr gets its own target, so the
+ * room's progress rows and contribution attribution stay unambiguous.
+ * (The backend still accepts combined plans — personal plans use them and
+ * any legacy group plan keeps rendering — the creation UI just no longer
+ * offers the mode.)
  */
 
 import React, { useMemo, useState } from 'react';
@@ -19,10 +24,7 @@ export type PlanPreset = 'today' | 'week' | 'custom';
 
 export interface GroupPlanDraft {
   title: string;
-  mode: 'combined' | 'per-zikr';
   zikrs: Array<{ name: string; arabic?: string; target?: number }>;
-  /** Combined target as text input state (mode 'combined'). */
-  target: string;
   period: 'daily' | 'weekly' | 'monthly' | 'one-time';
   preset: PlanPreset;
   startDate: string;
@@ -32,9 +34,7 @@ export interface GroupPlanDraft {
 export function emptyGroupPlanDraft(): GroupPlanDraft {
   return {
     title: '',
-    mode: 'combined',
-    zikrs: [{ name: 'SubhanAllah' }],
-    target: '1000',
+    zikrs: [],
     period: 'one-time',
     preset: 'week',
     startDate: '',
@@ -164,62 +164,33 @@ const GroupPlanBuilder: React.FC<GroupPlanBuilderProps> = ({ draft, onChange, hi
         </div>
       </div>
 
-      {/* Target mode */}
+      {/* Targets — group plans are per-zikr: every zikr needs its own */}
       <div className="flex flex-col gap-2">
         <span className="font-caption text-caption text-on-surface-variant">
-          {t('plan.targetMode')}
+          {t('plan.perZikrTargets')}
         </span>
-        <div className="flex gap-2 bg-surface-container-low p-1 rounded-xl">
-          {(['combined', 'per-zikr'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => onChange({ ...draft, mode })}
-              className={`flex-1 py-2.5 px-3 rounded-lg font-caption text-caption transition-all ${
-                draft.mode === mode
-                  ? 'bg-surface text-on-surface shadow-sm'
-                  : 'text-on-surface-variant hover:bg-surface-variant/50'
-              }`}
-            >
-              {mode === 'combined' ? t('plan.modeCombined') : t('plan.modePerZikr')}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Targets */}
-      {draft.mode === 'combined' ? (
-        <InputField
-          label={t('createRoom.target')}
-          type="number"
-          placeholder={t('createRoom.targetPlaceholder')}
-          value={draft.target}
-          onChange={(v) => onChange({ ...draft, target: String(v) })}
-          icon="track_changes"
-        />
-      ) : (
-        <div className="flex flex-col gap-2">
-          <span className="font-caption text-caption text-on-surface-variant">
-            {t('plan.perZikrTargets')}
+        {draft.zikrs.length === 0 && (
+          <span className="font-caption text-caption text-on-surface-variant/60">
+            {t('createRoom.chooseZikrHint')}
           </span>
-          {draft.zikrs.map(z => (
-            <div key={z.name} className="flex items-center gap-3">
-              <span className="flex-1 min-w-0 truncate font-body-md text-body-md text-on-surface">
-                {z.name}
-              </span>
-              <input
-                type="number"
-                value={z.target ?? ''}
-                onChange={(e) => setZikrTarget(z.name, e.target.value)}
-                min={1}
-                max={100000000}
-                placeholder="e.g., 1000"
-                className="w-32 bg-surface-container-lowest border border-outline-variant/50 rounded-xl px-3 h-touch-target-min font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
-              />
-            </div>
-          ))}
-        </div>
-      )}
+        )}
+        {draft.zikrs.map(z => (
+          <div key={z.name} className="flex items-center gap-3">
+            <span className="flex-1 min-w-0 truncate font-body-md text-body-md text-on-surface">
+              {z.name}
+            </span>
+            <input
+              type="number"
+              value={z.target ?? ''}
+              onChange={(e) => setZikrTarget(z.name, e.target.value)}
+              min={1}
+              max={100000000}
+              placeholder="e.g., 1000"
+              className="w-32 bg-surface-container-lowest border border-outline-variant/50 rounded-xl px-3 h-touch-target-min font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+            />
+          </div>
+        ))}
+      </div>
 
       {/* Period */}
       <div className="flex flex-col gap-2">
@@ -303,16 +274,11 @@ const GroupPlanBuilder: React.FC<GroupPlanBuilderProps> = ({ draft, onChange, hi
 /** Validate a draft; returns an i18n key (error) or null when valid. */
 export function validateGroupPlanDraft(draft: GroupPlanDraft): string | null {
   if (draft.zikrs.length === 0) return 'createRoom.chooseZikr';
-  if (draft.mode === 'combined') {
-    const target = parseInt(draft.target, 10);
-    if (isNaN(target) || target < 1 || target > 100000000) return 'createRoom.invalidTarget';
-  } else {
-    const invalid = draft.zikrs.some(z => {
-      const num = z.target;
-      return num == null || isNaN(num) || num < 1 || num > 100000000;
-    });
-    if (invalid) return 'createRoom.invalidTarget';
-  }
+  const invalid = draft.zikrs.some(z => {
+    const num = z.target;
+    return num == null || isNaN(num) || num < 1 || num > 100000000;
+  });
+  if (invalid) return 'createRoom.invalidTarget';
   if (draft.period === 'one-time') {
     const win = groupPlanWindow(draft);
     if (!win) return 'createRoom.endInFuture';
@@ -327,14 +293,13 @@ export function groupPlanToInput(draft: GroupPlanDraft): CreatePlanInput {
   const win = groupPlanWindow(draft);
   return {
     title: draft.title.trim() || undefined,
-    mode: draft.mode,
+    mode: 'per-zikr',
     period: draft.period,
     timeZone: draft.period === 'one-time' ? undefined : deviceTimeZone(),
-    target: draft.mode === 'combined' ? parseInt(draft.target, 10) : undefined,
     zikrs: draft.zikrs.map(z => ({
       name: z.name,
       arabic: z.arabic || undefined,
-      target: draft.mode === 'per-zikr' ? z.target : undefined,
+      target: z.target,
     })),
     startsAt: win?.startsAt,
     endsAt: win?.endsAt,

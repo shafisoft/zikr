@@ -8,6 +8,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import GlassCard from '../components/cards/GlassCard';
 import InputField from '../components/forms/InputField';
 import MaterialIcon from '../components/MaterialIcon';
+import { showAlert } from '../components/ConfirmDialog';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavActions } from '../components/navigation/navActions';
 import WeeklyChart from '../components/progress/WeeklyChart';
@@ -69,7 +70,7 @@ const Progress: React.FC = () => {
 
     const count = parseInt(logCount, 10);
     if (isNaN(count) || count <= 0 || count > 10000) {
-      alert(t('progress.validCount'));
+      await showAlert({ message: t('progress.validCount') });
       return;
     }
 
@@ -95,10 +96,10 @@ const Progress: React.FC = () => {
       setLogDate(formatDate(getToday()));
 
       // Show success feedback
-      alert(t('progress.saved'));
+      await showAlert({ message: t('progress.saved'), icon: 'check_circle' });
     } catch (error) {
       console.error('Failed to save progress:', error);
-      alert(t('bulk.saveFailed'));
+      await showAlert({ message: t('bulk.saveFailed'), icon: 'error_outline' });
     } finally {
       setIsSaving(false);
     }

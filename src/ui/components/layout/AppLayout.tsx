@@ -10,6 +10,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import TopAppBar from '../navigation/TopAppBar';
 import BottomNav from '../navigation/BottomNav';
+import ConfirmDialogHost from '../ConfirmDialog';
 import { HeaderAction } from '../../types/components';
 
 export interface AppLayoutTopBar {
@@ -74,6 +75,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       </div>
 
       {bottomNav && <BottomNav />}
+
+      {/* Promise-based confirm/alert dialog — every page gets one host. */}
+      <ConfirmDialogHost />
     </div>
   );
 };

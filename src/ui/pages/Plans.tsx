@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import GlassCard from '../components/cards/GlassCard';
 import ToggleSwitch from '../components/forms/ToggleSwitch';
 import MaterialIcon from '../components/MaterialIcon';
+import { showConfirm } from '../components/ConfirmDialog';
 import PlanFormModal from '../components/PlanFormModal';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavActions } from '../components/navigation/navActions';
@@ -124,7 +125,11 @@ const Plans: React.FC = () => {
   };
 
   const handleDeletePlan = async (planId: string) => {
-    if (!confirm('Are you sure you want to delete this plan?')) return;
+    if (!(await showConfirm({
+      message: t('plans.deleteConfirm'),
+      danger: true,
+      confirmLabel: t('common.delete'),
+    }))) return;
 
     try {
       await deletePlan(planId);

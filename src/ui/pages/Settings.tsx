@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import ToggleSwitch from '../components/forms/ToggleSwitch';
 import MaterialIcon from '../components/MaterialIcon';
+import { showAlert, showConfirm } from '../components/ConfirmDialog';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
 import { useSettingsStore } from '../../core/stores/settingsStore';
 import { useSharedRoomStore } from '../../core/stores/sharedRoomStore';
@@ -81,7 +82,7 @@ const Settings: React.FC = () => {
       await exportData();
     } catch (error) {
       console.error('Failed to export data:', error);
-      alert(t('settings.exportFailed'));
+      await showAlert({ message: t('settings.exportFailed'), icon: 'error_outline' });
     } finally {
       setIsExporting(false);
     }
@@ -95,18 +96,22 @@ const Settings: React.FC = () => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
 
-      const confirmed = confirm(t('settings.importConfirm'));
+      const confirmed = await showConfirm({
+        message: t('settings.importConfirm'),
+        danger: true,
+        confirmLabel: t('common.delete'),
+      });
 
       if (!confirmed) return;
 
       setIsImporting(true);
       try {
         await importData(file);
-        alert(t('settings.importSuccess'));
+        await showAlert({ message: t('settings.importSuccess'), icon: 'check_circle' });
         window.location.reload();
       } catch (error) {
         console.error('Failed to import data:', error);
-        alert(t('settings.importFailed'));
+        await showAlert({ message: t('settings.importFailed'), icon: 'error_outline' });
       } finally {
         setIsImporting(false);
       }
@@ -115,19 +120,27 @@ const Settings: React.FC = () => {
   };
 
   const handleClearAllData = async () => {
-    const confirmed1 = confirm(t('settings.clearConfirm1'));
+    const confirmed1 = await showConfirm({
+      message: t('settings.clearConfirm1'),
+      danger: true,
+      confirmLabel: t('common.delete'),
+    });
     if (!confirmed1) return;
 
-    const confirmed2 = confirm(t('settings.clearConfirm2'));
+    const confirmed2 = await showConfirm({
+      message: t('settings.clearConfirm2'),
+      danger: true,
+      confirmLabel: t('common.delete'),
+    });
     if (!confirmed2) return;
 
     try {
       await clearAllData();
-      alert(t('settings.cleared'));
+      await showAlert({ message: t('settings.cleared'), icon: 'check_circle' });
       window.location.reload();
     } catch (error) {
       console.error('Failed to clear data:', error);
-      alert(t('settings.clearFailed'));
+      await showAlert({ message: t('settings.clearFailed'), icon: 'error_outline' });
     }
   };
 
@@ -156,8 +169,12 @@ const Settings: React.FC = () => {
             {t('settings.preferences')}
           </h2>
           <div className="flex flex-col gap-2">
-            {/* Dark Mode Toggle */}
-            <div className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-4 flex items-center justify-between">
+            {/* Dark Mode Toggle — the label wraps the row, so tapping anywhere
+                toggles the switch natively (keyboard included, no JS needed) */}
+            <label
+              htmlFor="settings-dark-toggle"
+              className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-4 flex items-center justify-between cursor-pointer select-none active-scale-98 transition-transform"
+            >
               <div className="flex items-center gap-4">
                 <div className="bg-surface-container-high p-2 rounded-lg">
                   <MaterialIcon icon="dark_mode" className="text-primary text-[20px]" />
@@ -169,11 +186,14 @@ const Settings: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <ToggleSwitch checked={darkMode} onChange={handleDarkModeToggle} />
-            </div>
+              <ToggleSwitch inputId="settings-dark-toggle" checked={darkMode} onChange={handleDarkModeToggle} />
+            </label>
 
-            {/* Haptics Toggle */}
-            <div className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-4 flex items-center justify-between">
+            {/* Haptics Toggle — label-wrapped row (see above) */}
+            <label
+              htmlFor="settings-haptics-toggle"
+              className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-4 flex items-center justify-between cursor-pointer select-none active-scale-98 transition-transform"
+            >
               <div className="flex items-center gap-4">
                 <div className="bg-surface-container-high p-2 rounded-lg">
                   <MaterialIcon icon="vibration" className="text-primary text-[20px]" />
@@ -185,11 +205,14 @@ const Settings: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <ToggleSwitch checked={hapticsEnabled} onChange={handleHapticsToggle} />
-            </div>
+              <ToggleSwitch inputId="settings-haptics-toggle" checked={hapticsEnabled} onChange={handleHapticsToggle} />
+            </label>
 
-            {/* Count towards goals & groups */}
-            <div className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-4 flex items-center justify-between">
+            {/* Count towards goals & groups — label-wrapped row (see above) */}
+            <label
+              htmlFor="settings-count-goals-toggle"
+              className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-4 flex items-center justify-between cursor-pointer select-none active-scale-98 transition-transform"
+            >
               <div className="flex items-center gap-4">
                 <div className="bg-surface-container-high p-2 rounded-lg">
                   <MaterialIcon icon="track_changes" className="text-primary text-[20px]" />
@@ -201,8 +224,8 @@ const Settings: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <ToggleSwitch checked={countToGoals} onChange={handleCountToGoalsToggle} />
-            </div>
+              <ToggleSwitch inputId="settings-count-goals-toggle" checked={countToGoals} onChange={handleCountToGoalsToggle} />
+            </label>
           </div>
         </section>
 
@@ -442,7 +465,7 @@ const Settings: React.FC = () => {
             {t('settings.builtFor')}
           </p>
           <p className="font-caption text-caption text-on-surface-variant">
-            © 2024 Zikr
+            © {new Date().getFullYear()} Zikr
           </p>
         </section>
     </AppLayout>

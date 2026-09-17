@@ -75,6 +75,8 @@ export interface ToggleSwitchProps {
   onChange: (checked: boolean) => void;
   label?: string;
   disabled?: boolean;
+  /** Stable input id so a wrapping <label htmlFor> can toggle the whole row. */
+  inputId?: string;
 }
 
 // Feedback

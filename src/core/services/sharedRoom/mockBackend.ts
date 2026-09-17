@@ -77,6 +77,7 @@ interface PersistedState {
   currentUserId: string | null;
   userCounter: number;
   roomCounter: number;
+  planCounter: number;
 }
 
 export class MockSharedRoomBackend implements SharedRoomBackend {
@@ -110,6 +111,9 @@ export class MockSharedRoomBackend implements SharedRoomBackend {
       this.currentUserId = parsed.currentUserId;
       this.userCounter = parsed.userCounter;
       this.roomCounter = parsed.roomCounter;
+      // planCounter must round-trip too: resetting to 0 after a reload makes
+      // the next insert reuse `mock-plan-1` and overwrite the existing plan.
+      this.planCounter = parsed.planCounter || 0;
     } catch {
       // corrupted state — start fresh
     }
@@ -128,6 +132,7 @@ export class MockSharedRoomBackend implements SharedRoomBackend {
         currentUserId: this.currentUserId,
         userCounter: this.userCounter,
         roomCounter: this.roomCounter,
+        planCounter: this.planCounter,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch {

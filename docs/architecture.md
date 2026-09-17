@@ -102,6 +102,9 @@ Plan {
   id: string (uuid)
   title?: string
   mode: 'combined' | 'per-zikr'      // one shared target, or a target per zikr
+                                     // (new GROUP plans are always per-zikr;
+                                     //  combined remains for personal plans
+                                     //  and legacy group plans)
   period: 'daily' | 'weekly' | 'monthly' | 'one-time'
   target?: number                    // combined mode
   zikrs: PlanZikr[]                  // 1..5; personal plans bind zikrId,

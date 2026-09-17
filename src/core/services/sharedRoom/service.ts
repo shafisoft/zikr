@@ -197,6 +197,11 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
     async trackAppOpen(): Promise<void> {
       if (appOpenTracked) return;
       appOpenTracked = true;
+      // Cold-start heartbeat: skip when this device has no identity yet.
+      // Creating one here would pull the CAPTCHA-gated anonymous sign-in
+      // onto the welcome screen; identity arrives with the first group action.
+      const identity = (await db.identity.toArray())[0];
+      if (!identity?.token) return;
       await this.track('app_opened');
     },
 

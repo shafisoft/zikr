@@ -28,12 +28,19 @@ const Group: React.FC = () => {
     rooms,
     plans,
     error,
+    identity,
     init,
     clearError,
   } = useSharedRoomStore();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
+
+  // "Signed in" means the backend device identity exists. Creating a group
+  // requires it; when init could not establish one (offline, security
+  // check failed), the create button is disabled instead of failing at
+  // submit time. Joining self-heals: it re-attempts sign-in on tap.
+  const signedOut = initialized && !identity;
 
   useEffect(() => {
     void init();
@@ -90,7 +97,9 @@ const Group: React.FC = () => {
             <div className="flex flex-col gap-3 mb-8">
               <button
                 onClick={() => setIsCreateOpen(true)}
-                className="w-full bg-primary-container text-on-primary rounded-xl h-touch-target-min flex items-center justify-center gap-2 font-label-md text-label-md hover:opacity-90 active-scale-98 duration-200 shadow-sm"
+                disabled={signedOut}
+                aria-disabled={signedOut}
+                className="w-full bg-primary-container text-on-primary rounded-xl h-touch-target-min flex items-center justify-center gap-2 font-label-md text-label-md hover:opacity-90 active-scale-98 duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:active-scale-100"
               >
                 <MaterialIcon icon="add" className="text-[20px]" />
                 {t('group.new')}
@@ -102,6 +111,12 @@ const Group: React.FC = () => {
                 <MaterialIcon icon="group_add" className="text-[20px]" />
                 {t('group.join')}
               </button>
+              {signedOut && (
+                <p className="font-caption text-caption text-on-surface-variant flex items-center justify-center gap-1 -mt-1">
+                  <MaterialIcon icon="wifi_off" className="text-[14px]" />
+                  {t('group.connectFirst')}
+                </p>
+              )}
             </div>
 
             {error && (
@@ -109,10 +124,24 @@ const Group: React.FC = () => {
                 className="mb-6 bg-error/10 border border-error/20 rounded-xl p-4 flex items-center justify-between gap-3"
                 role="alert"
               >
-                <p className="font-caption text-caption text-error">{error ? t(`errors.${error}`) : null}</p>
-                <button onClick={clearError} aria-label="Dismiss" className="text-error shrink-0">
-                  <MaterialIcon icon="close" className="text-[18px]" />
-                </button>
+                <p className="font-caption text-caption text-error">{t(`errors.${error}`)}</p>
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Sign-in can fail transiently (security check, network) —
+                      offer an in-place retry instead of a dead end. */}
+                  <button
+                    onClick={() => {
+                      clearError();
+                      void init();
+                    }}
+                    className="h-8 px-3 rounded-lg bg-error/10 border border-error/30 text-error font-label-md text-label-md flex items-center gap-1 hover:bg-error/20 active-scale-95 transition-all"
+                  >
+                    <MaterialIcon icon="refresh" className="text-[16px]" />
+                    {t('common.retry')}
+                  </button>
+                  <button onClick={clearError} aria-label="Dismiss" className="text-error shrink-0">
+                    <MaterialIcon icon="close" className="text-[18px]" />
+                  </button>
+                </div>
               </div>
             )}
 

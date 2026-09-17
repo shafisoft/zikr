@@ -11,6 +11,42 @@ interface CurrentSession {
   count: number;
 }
 
+// The unsaved round survives full reloads and app kills, not just in-app
+// navigation — memory alone loses it whenever the OS discards the tab.
+// A round abandoned longer than 48 hours is treated as finished.
+const UNSAVED_ROUND_KEY = 'zikr-unsaved-round';
+const UNSAVED_ROUND_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+
+interface PersistedUnsavedRound extends CurrentSession {
+  savedAt: number;
+}
+
+function loadUnsavedRound(): CurrentSession {
+  try {
+    const raw = localStorage.getItem(UNSAVED_ROUND_KEY);
+    if (!raw) return { zikrId: null, count: 0 };
+    const parsed = JSON.parse(raw) as Partial<PersistedUnsavedRound>;
+    const fresh =
+      typeof parsed.savedAt === 'number' &&
+      Date.now() - parsed.savedAt <= UNSAVED_ROUND_MAX_AGE_MS;
+    if (!fresh || typeof parsed.count !== 'number' || parsed.count < 0) {
+      return { zikrId: null, count: 0 };
+    }
+    return { zikrId: parsed.zikrId ?? null, count: parsed.count };
+  } catch {
+    return { zikrId: null, count: 0 };
+  }
+}
+
+function saveUnsavedRound(session: CurrentSession): void {
+  try {
+    const persisted: PersistedUnsavedRound = { ...session, savedAt: Date.now() };
+    localStorage.setItem(UNSAVED_ROUND_KEY, JSON.stringify(persisted));
+  } catch {
+    // Storage unavailable — the in-memory resume path still works.
+  }
+}
+
 interface SessionState {
   sessions: Session[];
   currentSession: CurrentSession;
@@ -33,7 +69,7 @@ interface SessionState {
 
 export const useSessionStore = create<SessionState>((set) => ({
   sessions: [],
-  currentSession: { zikrId: null, count: 0 },
+  currentSession: loadUnsavedRound(),
   loading: true,
   error: null,
 
@@ -42,7 +78,8 @@ export const useSessionStore = create<SessionState>((set) => ({
       () => db.sessions.toArray(),
       (sessions) => set({ sessions, loading: false, error: null }),
       (_error) => set({
-        error: 'Failed to load sessions. Please check browser storage permissions.',
+        // Error CODE, not localized copy — translation happens at render.
+        error: 'load-failed',
         loading: false
       })
     );
@@ -50,9 +87,15 @@ export const useSessionStore = create<SessionState>((set) => ({
     return unsubscribe;
   },
 
-  setCurrentSession: (session) => set({ currentSession: session }),
+  setCurrentSession: (session) => {
+    saveUnsavedRound(session);
+    set({ currentSession: session });
+  },
 
-  clearCurrentSession: () => set({ currentSession: { zikrId: null, count: 0 } }),
+  clearCurrentSession: () => {
+    saveUnsavedRound({ zikrId: null, count: 0 });
+    set({ currentSession: { zikrId: null, count: 0 } });
+  },
 
   saveSession: (session) => sessionService.add(session),
 

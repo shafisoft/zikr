@@ -29,15 +29,16 @@ export function createRetryableSubscription<T>(
         onNext(data);
       },
       error: (error) => {
-        console.warn(`liveQuery failed (attempt ${retryCount + 1}/${config.maxRetries}):`, error);
-
         if (retryCount < config.maxRetries) {
+          console.warn(`liveQuery failed — retry ${retryCount + 1}/${config.maxRetries}:`, error);
+
           const delay = config.backoffMs[retryCount] || config.backoffMs[config.backoffMs.length - 1];
           retryCount++;
           currentTimeout = window.setTimeout(() => {
             attemptQuery();
           }, delay);
         } else {
+          console.warn(`liveQuery failed — giving up after ${config.maxRetries} retries:`, error);
           onError(error as Error);
         }
       }

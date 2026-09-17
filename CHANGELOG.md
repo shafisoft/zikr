@@ -7,7 +7,26 @@ user-facing change and date it when it ships.
 
 ## Unreleased
 
+### Added
+- **Install nudge.** When the app runs in a browser tab (not installed),
+  a small banner offers to install it: a one-tap "Install" button on
+  Chrome and other Chromium browsers, and manual "Share → Add to Home
+  Screen" instructions on iOS. The banner auto-closes after a few
+  seconds, shows at most once per session, and stays hidden for a week
+  if closed by hand. Installed-app users never see it.
+
 ### Changed
+- **Creating a group requires connecting first.** If the Groups sign-in
+  hasn't completed (offline, security check failed), the "New Group"
+  button is disabled with an explanation and a "Try again" action;
+  joining with a code still retries sign-in on tap.
+- **Group plans count per zikr.** New group plans always give each zikr
+  its own target — the "Combined" (single shared goal) option is gone from
+  group plan creation, so progress rows and per-zikr attribution are
+  unambiguous. Already-created combined plans keep working and rendering.
+- **Plan creation starts with no zikr pre-selected** (group and personal):
+  the first zikr used to be silently checked, which created plans counting
+  zikrs the user never intended.
 - **Groups are forever.** A shared-goals room no longer dies with its time
   window (and is no longer auto-deleted 60 days later): a group keeps its
   code, members, and history, and ended plans stay visible under "Past
@@ -28,6 +47,36 @@ user-facing change and date it when it ships.
 _(nothing yet)_
 
 ### Fixed
+- **Practice History works again.** The history list required a database
+  index that never existed, so it failed silently and showed "No practice
+  yet" even with sessions recorded (and its edit/delete entries were
+  unreachable). Sessions now load with an in-memory sort, and a failed load
+  shows an honest error with a retry button instead of an empty state.
+- **The Weekly Progress chart now shows bars.** Bar heights were computed
+  as percentages against an auto-height container and always rendered at
+  0px; today's bar now fills the chart as expected.
+- **New devices no longer run a CAPTCHA challenge on the welcome screen.**
+  The startup usage ping used to create a device identity (and its
+  Cloudflare Turnstile sign-in) on every cold start for first-time users;
+  it now reports only when an identity already exists. The Groups tab still
+  signs in when you actually use it.
+- An unfinished counter round now survives a full reload or the app being
+  killed (previously only in-app navigation kept it). Rounds older than
+  48 hours are considered finished and no longer resume.
+- Settings toggle rows (Dark Mode, Vibration, Count towards goals) respond
+  to taps anywhere on the row, not just the small switch.
+- Library search no longer returns "0 zikrs found" for queries with leading
+  or trailing spaces.
+- Deleting a plan asks for confirmation in the active language (was
+  hardcoded English), and the Welcome screen shows the real app version.
+- All browser-native `confirm()`/`alert()` popups are replaced with styled
+  in-app dialogs that follow the theme and translate to the active language
+  (plan deletion, session edit/delete, zikr deletion, data import/clear,
+  room end-plan/remove-member/close/leave, and every error/success notice).
+- If the Groups sign-in security check fails, the error now offers a
+  "Try again" button instead of a dead end, and the Cloudflare widget —
+  when it needs interaction — appears above the bottom bar instead of
+  covering on-screen buttons.
 - Rescue for installed PWAs stuck on an old version: the service worker now
   activates new deploys by itself (`skipWaiting` + `clientsClaim`) instead of
   waiting for a tap on the update banner. Devices running a build whose

@@ -20,23 +20,26 @@ export const WeeklyChart: React.FC<WeeklyChartProps> = ({
         const isToday = point.isToday;
 
         return (
-          <div key={index} className="flex flex-col items-center gap-2 flex-1">
-            {/* Bar */}
-            <div
-              className={`
-                w-8 rounded-full transition-all duration-500
-                ${isToday
-                  ? 'bg-tertiary-container'
-                  : point.value > 0
-                    ? 'bg-primary-container/70'
-                    : 'bg-surface-container-highest'
-                }
-              `}
-              style={{
-                height: `${Math.max(height, 8)}%`, // Min height for visibility
-                opacity: isToday ? 1 : point.value > 0 ? 0.55 + (point.value / chartMax) * 0.45 : 0.6,
-              }}
-            />
+          <div key={index} className="flex flex-col items-center gap-2 flex-1 h-full">
+            {/* Bar lives in a definite-height wrapper: a percentage height
+                resolves to 0 against an auto-height parent. */}
+            <div className="flex-1 w-full min-h-0 flex items-end justify-center">
+              <div
+                className={`
+                  w-8 rounded-full transition-all duration-500
+                  ${isToday
+                    ? 'bg-tertiary-container'
+                    : point.value > 0
+                      ? 'bg-primary-container/70'
+                      : 'bg-surface-container-highest'
+                  }
+                `}
+                style={{
+                  height: `${Math.max(height, 8)}%`, // Min height for visibility
+                  opacity: isToday ? 1 : point.value > 0 ? 0.55 + (point.value / chartMax) * 0.45 : 0.6,
+                }}
+              />
+            </div>
 
             {/* Day label */}
             <span

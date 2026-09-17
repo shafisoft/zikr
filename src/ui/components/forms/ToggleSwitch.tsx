@@ -11,8 +11,9 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
   onChange,
   label,
   disabled = false,
+  inputId: inputIdProp,
 }) => {
-  const id = React.useId();
+  const id = inputIdProp ?? React.useId();
 
   return (
     <div className="flex items-center gap-3">

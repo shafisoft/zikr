@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import MaterialIcon from './MaterialIcon';
+import { showAlert } from './ConfirmDialog';
 import { Plan, PlanMode, PlanPeriod, PlanZikr } from '../../core/db/types';
 import { usePlanStore } from '../../core/stores/planStore';
 import { useZikrStore } from '../../core/stores/zikrStore';
@@ -67,14 +68,10 @@ const PlanFormModal: React.FC<PlanFormModalProps> = ({
         setStartDate(editPlan.startDate ? formatDate(editPlan.startDate) : '');
         setEndDate(editPlan.endDate ? formatDate(editPlan.endDate) : '');
       } else {
-        // Default to first zikr if available
-        const first = zikrs.length > 0 ? zikrs[0] : null;
+        // Start with nothing selected — a silent default zikr here has
+        // created plans counting zikrs the user never intended.
         setPlanTitle('');
-        setSelectedZikrs(
-          first && first.id != null
-            ? [{ zikrId: first.id, name: first.name, arabic: first.arabicText ?? null }]
-            : []
-        );
+        setSelectedZikrs([]);
         setMode('combined');
         setTarget('33');
         setPeriod('daily');
@@ -83,7 +80,7 @@ const PlanFormModal: React.FC<PlanFormModalProps> = ({
       }
       setErrors({});
     }
-  }, [isOpen, editPlan, zikrs]);
+  }, [isOpen, editPlan]);
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -201,7 +198,7 @@ const PlanFormModal: React.FC<PlanFormModalProps> = ({
       onClose();
     } catch (error) {
       console.error('Failed to save plan:', error);
-      alert(t('planForm.saveFailed'));
+      await showAlert({ message: t('planForm.saveFailed'), icon: 'error_outline' });
     } finally {
       setIsSaving(false);
     }

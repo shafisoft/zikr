@@ -40,16 +40,19 @@ export const useSessionHistoryStore = create<SessionHistoryState>((set, get) => 
     }
 
     const unsubscribe = createRetryableSubscription(
-      () => db.sessions
-        .orderBy('timestamp')
-        .reverse()
-        .toArray(),
+      // No orderBy('timestamp') here — the schema has no timestamp index, so
+      // ordering must happen in memory after the plain toArray().
+      () => db.sessions.toArray(),
       (sessions) => {
+        sessions.sort(
+          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
         set({ sessions, loading: false, error: null });
         get().groupByDate();
       },
       (_error) => set({
-        error: 'Failed to load sessions. Please check browser storage permissions.',
+        // Error CODE, not localized copy — the component translates it.
+        error: 'load-failed',
         loading: false
       })
     );

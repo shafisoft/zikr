@@ -9,6 +9,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import MaterialIcon from '../components/MaterialIcon';
+import { showConfirm } from '../components/ConfirmDialog';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavActions } from '../components/navigation/navActions';
 import CircularProgress from '../components/progress/CircularProgress';
@@ -286,8 +287,13 @@ const Room: React.FC = () => {
                     onOpenCounter={(zikrName) => openCounter(plan, zikrName)}
                     onEnd={
                       isOwner && roomActive
-                        ? () => {
-                            if (confirm(t('plan.endConfirm'))) void endPlan(room.code, plan.id);
+                        ? async () => {
+                            const ok = await showConfirm({
+                              message: t('plan.endConfirm'),
+                              danger: true,
+                              confirmLabel: t('common.delete'),
+                            });
+                            if (ok) void endPlan(room.code, plan.id);
                           }
                         : undefined
                     }
@@ -477,10 +483,13 @@ const Room: React.FC = () => {
                       {isSelf && <span className="text-tertiary font-semibold">(you)</span>}
                       {isOwner && !isSelf && m.userId && (
                         <button
-                          onClick={() => {
-                            if (confirm(t('room.removeConfirm', { name: m.name }))) {
-                              void removeMember(room.code, m.userId!);
-                            }
+                          onClick={async () => {
+                            const ok = await showConfirm({
+                              message: t('room.removeConfirm', { name: m.name }),
+                              danger: true,
+                              confirmLabel: t('common.delete'),
+                            });
+                            if (ok) void removeMember(room.code, m.userId!);
                           }}
                           className="text-on-surface-variant hover:text-error transition-colors -mr-1"
                           aria-label={`Remove ${m.name}`}
@@ -546,10 +555,13 @@ const Room: React.FC = () => {
             {/* Owner / member management */}
             {isOwner && roomActive && (
               <button
-                onClick={() => {
-                  if (confirm(t('room.closeConfirm'))) {
-                    void closeRoom(room.code);
-                  }
+                onClick={async () => {
+                  const ok = await showConfirm({
+                    message: t('room.closeConfirm'),
+                    danger: true,
+                    confirmLabel: t('common.delete'),
+                  });
+                  if (ok) void closeRoom(room.code);
                 }}
                 className="w-full h-14 rounded-xl bg-error/5 border border-error/20 text-error font-label-md text-label-md flex items-center justify-center gap-2 hover:bg-error/10 transition-colors"
               >
@@ -559,8 +571,12 @@ const Room: React.FC = () => {
             )}
             {!isOwner && (
               <button
-                onClick={() => {
-                  if (confirm(t('room.leaveConfirm'))) {
+                onClick={async () => {
+                  const ok = await showConfirm({
+                    message: t('room.leaveConfirm'),
+                    danger: true,
+                  });
+                  if (ok) {
                     void leaveRoom(room.code).then(() => navigate('/group'));
                   }
                 }}

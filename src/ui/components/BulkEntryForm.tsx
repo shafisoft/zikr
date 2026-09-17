@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import MaterialIcon from './MaterialIcon';
+import { showAlert } from './ConfirmDialog';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { useSettingsStore } from '../../core/stores/settingsStore';
@@ -120,7 +121,7 @@ const BulkEntryForm: React.FC<BulkEntryFormProps> = ({ onSuccess, onCancel }) =>
     const entriesWithCounts = entries.filter(e => e.count && parseInt(e.count, 10) > 0);
 
     if (entriesWithCounts.length === 0) {
-      alert(t('bulk.noneSelected'));
+      await showAlert({ message: t('bulk.noneSelected') });
       return;
     }
 
@@ -150,12 +151,15 @@ const BulkEntryForm: React.FC<BulkEntryFormProps> = ({ onSuccess, onCancel }) =>
       setEntries(prev => prev.map(entry => ({ ...entry, count: '' })));
 
       // Show success
-      alert(t('bulk.saved', { count: entriesWithCounts.length }));
+      await showAlert({
+        message: t('bulk.saved', { count: entriesWithCounts.length }),
+        icon: 'check_circle',
+      });
 
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error('Failed to save bulk entries:', error);
-      alert(t('bulk.saveFailed'));
+      await showAlert({ message: t('bulk.saveFailed'), icon: 'error_outline' });
     } finally {
       setIsSaving(false);
     }

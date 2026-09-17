@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import AppLayout from '../components/layout/AppLayout';
 import MaterialIcon from '../components/MaterialIcon';
+import { showAlert, showConfirm } from '../components/ConfirmDialog';
 import ZikrFormModal from '../components/ZikrFormModal';
 import { Zikr } from '../../core/db/types';
 import { useZikrStore } from '../../core/stores/zikrStore';
@@ -45,21 +46,25 @@ const Library: React.FC = () => {
   }, [syncStatus]);
 
   const filteredZikrs = zikrs.filter(zikr => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
     return zikr.name.toLowerCase().includes(query);
   });
 
   const handleDeleteZikr = async (zikr: Zikr) => {
-    const confirmed = confirm(t('library.deleteConfirm', { name: zikr.name }));
+    const confirmed = await showConfirm({
+      message: t('library.deleteConfirm', { name: zikr.name }),
+      danger: true,
+      confirmLabel: t('common.delete'),
+    });
     if (!confirmed) return;
 
     try {
       await softDeleteZikr(zikr.id!);
-      alert(t('library.deleted'));
+      await showAlert({ message: t('library.deleted'), icon: 'check_circle' });
     } catch (error) {
       console.error('Failed to delete zikr:', error);
-      alert(t('zikrForm.saveFailed'));
+      await showAlert({ message: t('zikrForm.saveFailed'), icon: 'error_outline' });
     }
   };
 

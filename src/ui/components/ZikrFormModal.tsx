@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import MaterialIcon from './MaterialIcon';
+import { showAlert } from './ConfirmDialog';
 import { ToggleSwitch } from './forms/ToggleSwitch';
 import { Zikr } from '../../core/db/types';
 import { useZikrStore } from '../../core/stores/zikrStore';
@@ -156,7 +157,7 @@ const ZikrFormModal: React.FC<ZikrFormModalProps> = ({
         setErrors({ name: t('zikrForm.duplicateName') });
       } else {
         console.error('Failed to save zikr:', error);
-        alert(t('zikrForm.saveFailed'));
+        await showAlert({ message: t('zikrForm.saveFailed'), icon: 'error_outline' });
       }
     } finally {
       setIsSaving(false);

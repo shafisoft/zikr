@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import MaterialIcon from './MaterialIcon';
+import { showAlert, showConfirm } from './ConfirmDialog';
 import { useSessionHistoryStore } from '../../core/stores/sessionHistoryStore';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
@@ -20,7 +21,7 @@ interface SessionHistoryProps {
 
 const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
   const { lang, t } = useI18n();
-  const { groupedByDate, loading, sessions, loadSessions, toggleGroup } = useSessionHistoryStore();
+  const { groupedByDate, loading, error, sessions, loadSessions, toggleGroup } = useSessionHistoryStore();
   const zikrs = useZikrStore(state => state.zikrs);
 
   const [editingSession, setEditingSession] = useState<Session | null>(null);
@@ -37,8 +38,11 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
     return now <= editableUntil;
   };
 
-  const handleEdit = (session: Session) => {
-    if (!canEditSession(session)) return;
+  const handleEdit = async (session: Session) => {
+    if (!canEditSession(session)) {
+      await showAlert({ message: t('history.notEditable'), icon: 'lock' });
+      return;
+    }
     setEditingSession(session);
     setEditCount(session.count.toString());
   };
@@ -48,7 +52,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
 
     const newCount = parseInt(editCount, 10);
     if (isNaN(newCount) || newCount < 1 || newCount > 10000) {
-      alert(t('progress.validCount'));
+      await showAlert({ message: t('progress.validCount') });
       return;
     }
 
@@ -66,7 +70,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Failed to update session:', error);
-      alert(t('history.updateFailed'));
+      await showAlert({ message: t('history.updateFailed'), icon: 'error_outline' });
     } finally {
       setIsSaving(false);
     }
@@ -79,20 +83,22 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
 
   const handleDelete = async (session: Session) => {
     if (!canEditSession(session)) {
-      alert(t('history.notEditable'));
+      await showAlert({ message: t('history.notEditable'), icon: 'lock' });
       return;
     }
 
     const zikr = zikrs.find(z => z.id === session.zikrId);
     const zikrName = zikr?.name || t('history.unknownZikr');
 
-    const confirmed = confirm(
-      t('history.deleteConfirm', {
+    const confirmed = await showConfirm({
+      message: t('history.deleteConfirm', {
         zikr: zikrName,
         count: session.count,
         date: formatDate(session.date),
-      })
-    );
+      }),
+      danger: true,
+      confirmLabel: t('common.delete'),
+    });
 
     if (!confirmed) return;
 
@@ -104,7 +110,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Failed to delete session:', error);
-      alert(t('history.deleteFailed'));
+      await showAlert({ message: t('history.deleteFailed'), icon: 'error_outline' });
     } finally {
       setIsSaving(false);
     }
@@ -138,6 +144,29 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-on-surface-variant">{t('history.loading')}</div>
+      </div>
+    );
+  }
+
+  // Distinguish "nothing recorded yet" from "we could not read your data" —
+  // showing the empty state here would read as if practice data was lost.
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <MaterialIcon icon="cloud_off" className="text-6xl text-surface-variant mb-4 mx-auto" />
+        <h3 className="font-headline-md text-headline-md text-primary mb-2">
+          {t('history.loadFailedTitle')}
+        </h3>
+        <p className="font-body-md text-body-md text-on-surface-variant mb-4">
+          {error === 'load-failed' ? t('history.loadFailed') : null}
+        </p>
+        <button
+          onClick={() => loadSessions()}
+          className="h-touch-target-min px-6 rounded-xl bg-primary-container text-on-primary font-label-md text-label-md flex items-center gap-2 mx-auto hover:opacity-90 active-scale-95 transition-all"
+        >
+          <MaterialIcon icon="refresh" className="text-[18px]" />
+          {t('common.retry')}
+        </button>
       </div>
     );
   }

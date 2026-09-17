@@ -74,9 +74,11 @@ function ensureWidget(): string {
   if (widgetId !== null) return widgetId;
 
   const host = document.createElement('div');
-  // Visible enough for Turnstile to run, tucked into the corner so the
-  // rare interactive challenge doesn't disrupt the UI.
-  host.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:40;';
+  // Visible enough for Turnstile to run when it demands interaction. Parked
+  // ABOVE the bottom tab bar (~64px) and at a z-index above page modals
+  // (z-50), so the challenge is reachable even when sign-in is re-attempted
+  // from inside the create-group modal.
+  host.style.cssText = 'position:fixed;left:12px;bottom:84px;z-index:70;';
   document.body.appendChild(host);
   widgetHost = host;
 
