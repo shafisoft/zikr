@@ -7,6 +7,10 @@ user-facing change and date it when it ships.
 
 ## Unreleased
 
+_(nothing yet)_
+
+## 1.2.1 — 2026-09-18
+
 ### Fixed
 - The Groups security check now follows the official Turnstile pattern:
   sign-in shows a small "Security check" card with a live verification —
