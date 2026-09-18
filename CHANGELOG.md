@@ -9,11 +9,13 @@ user-facing change and date it when it ships.
 
 ### Fixed
 - The Groups security check now follows the official Turnstile pattern:
-  a visible verification widget appears at the point of sign-in and its
-  token is used immediately. The previous invisible background widget
-  could demand an unnoticed checkbox (timing out after a minute) and
-  submitted stale tokens that Cloudflare rejected — the likely cause of
-  persistent "Security check failed" errors.
+  sign-in shows a small "Security check" card with a live verification —
+  invisible while Cloudflare passes you passively, showing a solvable
+  checkbox inside the card only when Cloudflare demands interaction. The
+  previous invisible background widget could demand an unnoticed checkbox
+  (timing out after a minute) and submitted stale tokens that Cloudflare
+  rejected — the likely cause of persistent "Security check failed"
+  errors.
 
 ## 1.2.0 — 2026-09-17
 

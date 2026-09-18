@@ -94,8 +94,9 @@ async function renderAndCapture(): Promise<string> {
             <span class="material-symbols-outlined text-[18px] text-tertiary">shield</span>
             Security check
           </p>
-          <p class="font-caption text-caption text-on-surface-variant mb-3">
-            Quick verification to protect Zikr Groups.
+          <p class="font-caption text-caption text-on-surface-variant mb-3 flex items-center gap-2" data-verifying>
+            <span class="inline-block w-3.5 h-3.5 border-2 border-tertiary border-t-transparent rounded-full animate-spin shrink-0"></span>
+            Verifying your browser — this takes just a moment…
           </p>
           <div data-widget-mount></div>
           <button data-cancel class="mt-3 h-touch-target-min w-full rounded-xl border border-outline-variant/40 text-on-surface-variant font-label-md text-label-md hover:bg-surface-container transition-colors">
@@ -136,6 +137,12 @@ async function renderAndCapture(): Promise<string> {
 
     widgetId = window.turnstile!.render(mount, {
       sitekey: SITE_KEY!,
+      // Happy path stays invisible: passive verification never shows the
+      // widget, so the card reads as a brief "verifying" moment. When
+      // Cloudflare demands interaction, the checkbox appears in the mount
+      // below the spinner — visible, in context, solvable. Appearance only
+      // controls visibility, never the pass/fail decision.
+      appearance: 'interaction-only',
       callback: (token) => finish(() => resolve(token)),
       'error-callback': (code) => finish(() => reject(new Error(`turnstile error: ${code}`))),
       'expired-callback': () => finish(() => reject(new Error('captcha token expired'))),
