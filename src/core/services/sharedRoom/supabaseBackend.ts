@@ -96,11 +96,25 @@ function planToPayload(input: CreatePlanInput): Record<string, unknown> {
 export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   readonly name = 'supabase';
 
+  /** In-flight sign-in, so concurrent callers share one widget/token. */
+  private ensureUserIdPromise: Promise<string> | null = null;
+
   isConfigured(): boolean {
     return isSupabaseConfigured();
   }
 
-  async ensureUserId(): Promise<string> {
+  ensureUserId(): Promise<string> {
+    // Two concurrent callers (e.g. StrictMode double-mount of the Group
+    // page) must not render two widgets or burn two one-use tokens.
+    if (!this.ensureUserIdPromise) {
+      this.ensureUserIdPromise = this.doEnsureUserId().finally(() => {
+        this.ensureUserIdPromise = null;
+      });
+    }
+    return this.ensureUserIdPromise;
+  }
+
+  private async doEnsureUserId(): Promise<string> {
     const sb = await getClient();
 
     const { data: sessionData } = await sb.auth.getSession();

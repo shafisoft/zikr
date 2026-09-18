@@ -1,29 +1,36 @@
 /**
- * Cloudflare Turnstile CAPTCHA support for anonymous sign-in.
+ * Cloudflare Turnstile CAPTCHA for Supabase anonymous sign-in.
  *
- * Supabase's captcha protection guards the signup endpoint — which is
- * exactly what `signInAnonymously()` uses — so once captcha is enabled on
- * the project, every sign-in needs a fresh one-time token from the client.
+ * Follows the official integration pattern (supabase.com/docs/guides/auth/auth-captcha,
+ * Turnstile): a FRESH widget renders VISIBLE at each sign-in attempt and the
+ * token arrives through the widget's `callback`. It is deliberately NOT a
+ * long-lived hidden widget with a polled response field — Turnstile tokens
+ * are single-use and expire in ~5 minutes, so parked tokens fail
+ * verification as stale.
  *
  * The SITE key is public and ships in the bundle (VITE_TURNSTILE_SITE_KEY);
  * the SECRET key belongs in the Supabase dashboard, never in the app.
  * When the env var is absent this module is inert and sign-in proceeds
  * without a token (a project with captcha disabled ignores tokens anyway).
- *
- * Token acquisition is field-polling based: Turnstile writes every solved
- * token into the widget's hidden `.cf-turnstile-response` input, so we
- * consume that field instead of racing the render/callback timing. Tokens
- * are single-use — the field is cleared after hand-off and reset before
- * re-solving.
  */
 
 const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-const TOKEN_TIMEOUT_MS = 60_000;
+// Long enough for a human to notice the visible widget and solve it; the
+// widget's own error/timeout callbacks usually settle things sooner.
+const TOKEN_TIMEOUT_MS = 120_000;
+
+interface TurnstileRenderParams {
+  sitekey: string;
+  callback: (token: string) => void;
+  'error-callback'?: (code: string) => void;
+  'expired-callback'?: () => void;
+  'timeout-callback'?: () => void;
+}
 
 interface TurnstileApi {
-  render(el: HTMLElement, params: Record<string, unknown>): string;
-  reset(id?: string): void;
+  render(el: HTMLElement, params: TurnstileRenderParams): string;
+  remove(id: string): void;
 }
 
 declare global {
@@ -33,8 +40,6 @@ declare global {
 }
 
 let scriptLoaded: Promise<void> | null = null;
-let widgetId: string | null = null;
-let widgetHost: HTMLElement | null = null;
 
 export function isCaptchaEnabled(): boolean {
   return Boolean(SITE_KEY);
@@ -58,63 +63,82 @@ function loadTurnstileScript(): Promise<void> {
   return scriptLoaded;
 }
 
-function currentResponse(): string {
-  return (
-    widgetHost?.querySelector<HTMLInputElement>('input[name="cf-turnstile-response"], .cf-turnstile-response')
-      ?.value ?? ''
-  );
-}
-
-function clearResponseField(): void {
-  const input = widgetHost?.querySelector<HTMLInputElement>('input[name="cf-turnstile-response"]');
-  if (input) input.value = '';
-}
-
-function ensureWidget(): string {
-  if (widgetId !== null) return widgetId;
-
-  const host = document.createElement('div');
-  // Visible enough for Turnstile to run when it demands interaction. Parked
-  // ABOVE the bottom tab bar (~64px) and at a z-index above page modals
-  // (z-50), so the challenge is reachable even when sign-in is re-attempted
-  // from inside the create-group modal.
-  host.style.cssText = 'position:fixed;left:12px;bottom:84px;z-index:70;';
-  document.body.appendChild(host);
-  widgetHost = host;
-
-  widgetId = window.turnstile!.render(host, {
-    sitekey: SITE_KEY,
-    // Keeps the widget out of sight unless interaction is required.
-    appearance: 'interaction-only',
-    action: 'signup',
-  });
-  return widgetId;
-}
-
 /**
- * One token per call: consume the auto-solved token when present, otherwise
- * reset (re-solve) and poll the response field until Turnstile fills it.
- * Deterministic — no dependence on callback ordering.
+ * One visible, one-use widget per call. Renders a small themed card, resolves
+ * with the token through the widget's `callback`, and removes the widget —
+ * no token is ever parked or reused across attempts.
+ *
+ * Concurrent callers share the in-flight attempt (one widget, one token):
+ * a second card popping over the first would be nonsense.
  */
-export async function getCaptchaToken(): Promise<string> {
+let pendingToken: Promise<string> | null = null;
+
+export function getCaptchaToken(): Promise<string> {
+  if (!pendingToken) {
+    pendingToken = renderAndCapture().finally(() => {
+      pendingToken = null;
+    });
+  }
+  return pendingToken;
+}
+
+async function renderAndCapture(): Promise<string> {
   await loadTurnstileScript();
-  ensureWidget();
 
-  const existing = currentResponse();
-  if (existing) {
-    clearResponseField();
-    return existing;
-  }
+  return new Promise<string>((resolve, reject) => {
+    const host = document.createElement('div');
+    host.innerHTML = `
+      <div class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div class="relative bg-surface rounded-2xl shadow-xl border border-outline-variant/20 p-5 w-full max-w-sm">
+          <p class="font-label-md text-label-md text-primary mb-1 flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px] text-tertiary">shield</span>
+            Security check
+          </p>
+          <p class="font-caption text-caption text-on-surface-variant mb-3">
+            Quick verification to protect Zikr Groups.
+          </p>
+          <div data-widget-mount></div>
+          <button data-cancel class="mt-3 h-touch-target-min w-full rounded-xl border border-outline-variant/40 text-on-surface-variant font-label-md text-label-md hover:bg-surface-container transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(host);
 
-  window.turnstile!.reset(widgetId!);
-  const deadline = Date.now() + TOKEN_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 250));
-    const token = currentResponse();
-    if (token) {
-      clearResponseField();
-      return token;
-    }
-  }
-  throw new Error('captcha token timeout');
+    const mount = host.querySelector<HTMLElement>('[data-widget-mount]')!;
+    let widgetId: string | null = null;
+    let settled = false;
+
+    const cleanup = () => {
+      window.clearTimeout(deadline);
+      if (widgetId !== null) {
+        try {
+          window.turnstile!.remove(widgetId);
+        } catch {
+          // widget already gone — nothing to clean
+        }
+      }
+      host.remove();
+    };
+    const finish = (settle: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      settle();
+    };
+
+    const cancelBtn = host.querySelector<HTMLButtonElement>('[data-cancel]')!;
+    cancelBtn.onclick = () => finish(() => reject(new Error('captcha cancelled')));
+
+    const deadline = window.setTimeout(() => {
+      finish(() => reject(new Error('captcha token timeout')));
+    }, TOKEN_TIMEOUT_MS);
+
+    widgetId = window.turnstile!.render(mount, {
+      sitekey: SITE_KEY!,
+      callback: (token) => finish(() => resolve(token)),
+      'error-callback': (code) => finish(() => reject(new Error(`turnstile error: ${code}`))),
+      'expired-callback': () => finish(() => reject(new Error('captcha token expired'))),
+    });
+  });
 }
