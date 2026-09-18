@@ -22,6 +22,7 @@ const TOKEN_TIMEOUT_MS = 120_000;
 
 interface TurnstileRenderParams {
   sitekey: string;
+  appearance?: 'always' | 'execute' | 'interaction-only';
   callback: (token: string) => void;
   'error-callback'?: (code: string) => void;
   'expired-callback'?: () => void;
