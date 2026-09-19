@@ -40,9 +40,13 @@ create index if not exists shared_zikrs_updated_idx
 alter table zikr_app.shared_zikrs enable row level security;
 
 -- Definitions are public once verified; inserts are self-attributed.
+-- Restated with drop-if-exists: the shared_zikrs table predates this
+-- migration on the production database (v1 era), policies included.
+drop policy if exists "verified zikrs readable" on zikr_app.shared_zikrs;
 create policy "verified zikrs readable" on zikr_app.shared_zikrs
   for select using (true);
 
+drop policy if exists "users submit as themselves" on zikr_app.shared_zikrs;
 create policy "users submit as themselves" on zikr_app.shared_zikrs
   for insert with check (submitted_by = auth.uid());
 
