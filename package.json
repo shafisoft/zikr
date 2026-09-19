@@ -7,14 +7,15 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "size-check": "bundlesize",
-    "lint": "node scripts/check-layers.mjs && eslint src --ext ts,tsx",
+    "lint": "node scripts/check-layers.mjs && node scripts/check-migrations.mjs && eslint src --ext ts,tsx",
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
     "predev": "node scripts/check-node.js",
     "prebuild": "node scripts/check-node.js",
     "pretest": "node scripts/check-node.js",
-    "lint:layers": "node scripts/check-layers.mjs"
+    "lint:layers": "node scripts/check-layers.mjs",
+    "check:migrations": "node scripts/check-migrations.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

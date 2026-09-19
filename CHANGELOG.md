@@ -13,15 +13,27 @@ user-facing change and date it when it ships.
   functions the Groups feature calls (including the device-identity call
   that runs right after sign-in) did not exist there, and the v2
   migration silently rolled back on its first run because it referenced
-  functions only a fresh database would have. The migration is now
-  self-sufficient (it creates what it needs instead of assuming it) and
-  upgrades the existing database in place, carrying the legacy test
-  group over to the new plan model. Requires running the updated
-  `supabase/migrations/0002_group_plans.sql` and
-  `0002_shared_zikrs.sql` on the server — until then the Groups tab and
-  the shared-Zikr Library sync stay down, now with an honest
-  "server did not recognize this request" message instead of a generic
-  failure, and the raw cause logged to the browser console.
+  functions only a fresh database would have. The migration now upgrades
+  the existing database in place and carries the legacy groups over to
+  the new plan model. Also requires the Supabase "Exposed schemas"
+  setting to be `public` only (see below) — until both are applied the
+  Groups tab and the shared-Zikr Library sync stay down, now with an
+  honest "server did not recognize this request" message instead of a
+  generic failure, and the raw cause logged to the browser console.
+
+### Changed
+- **The server surface commits to group terminology.** The v1 "room"
+  naming is gone from the database: `get_room_state`, `join_room`,
+  `leave_room`, `close_room` and the `rooms` table are now
+  `get_group_state`, `join_group`, `leave_group`, `close_group` and
+  `groups`. Fresh-install and upgrade migrations define the same
+  canonical surface, guarded by a new `npm run check:migrations` drift
+  check. The database agreement (tables API-invisible in `zikr_app`,
+  callable functions in `public`, Exposed schemas = `public` only) is
+  now documented in AGENTS.md.
+- Requires running the updated `supabase/migrations/0002_group_plans.sql`
+  and `0002_shared_zikrs.sql` on the server (the latter once more after
+  its policy fix), and setting Supabase "Exposed schemas" to `public`.
 
 ## 1.2.1 — 2026-09-18
 

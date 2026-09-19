@@ -45,15 +45,15 @@ async function getClient(): Promise<any> {
 /** Map Postgres RPC error messages (our `raise exception` codes) to app codes. */
 function mapServerError(rawMessage: string): SharedRoomError {
   const msg = (rawMessage || '').toLowerCase();
-  if (msg.includes('room_not_found')) return new SharedRoomError('room-not-found');
+  if (msg.includes('group_not_found')) return new SharedRoomError('room-not-found');
   if (msg.includes('plan_not_found')) return new SharedRoomError('plan-not-found');
   if (msg.includes('plan_ended')) return new SharedRoomError('plan-ended');
   if (msg.includes('zikr_not_in_plan')) return new SharedRoomError('zikr-not-in-plan');
   if (msg.includes('window_ended') || msg.includes('window_already_ended'))
     return new SharedRoomError('window-ended');
   if (msg.includes('window_not_started')) return new SharedRoomError('window-not-started');
-  if (msg.includes('room_closed')) return new SharedRoomError('room-closed');
-  if (msg.includes('room_full')) return new SharedRoomError('room-full');
+  if (msg.includes('group_closed')) return new SharedRoomError('room-closed');
+  if (msg.includes('group_full')) return new SharedRoomError('room-full');
   if (msg.includes('not_a_member')) return new SharedRoomError('not-a-member');
   if (msg.includes('not_owner')) return new SharedRoomError('not-owner');
   if (msg.includes('invalid_delta')) return new SharedRoomError('invalid-delta');
@@ -168,7 +168,7 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   }
 
   joinRoom(code: string, displayName: string): Promise<RoomStatePayload> {
-    return rpc<RoomStatePayload>('join_room', { p_code: code, p_name: displayName });
+    return rpc<RoomStatePayload>('join_group', { p_code: code, p_name: displayName });
   }
 
   createPlan(code: string, input: CreatePlanInput): Promise<RoomStatePayload> {
@@ -199,7 +199,7 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   }
 
   getRoomState(code: string): Promise<RoomStatePayload> {
-    return rpc<RoomStatePayload>('get_room_state', { p_code: code });
+    return rpc<RoomStatePayload>('get_group_state', { p_code: code });
   }
 
   removeMember(code: string, userId: string): Promise<void> {
@@ -207,11 +207,11 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   }
 
   leaveRoom(code: string): Promise<void> {
-    return rpc('leave_room', { p_code: code });
+    return rpc('leave_group', { p_code: code });
   }
 
   closeRoom(code: string): Promise<void> {
-    return rpc('close_room', { p_code: code });
+    return rpc('close_group', { p_code: code });
   }
 
   // ---------- Usage metrics (best-effort; see contract) ----------
