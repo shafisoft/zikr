@@ -179,12 +179,7 @@ $$;
 grant execute on function public.share_zikr(text, text, text) to anon, authenticated;
 grant execute on function public.pull_verified_zikrs(timestamptz, uuid) to anon, authenticated;
 
--- Housekeeping: purge unverified submissions never reviewed.
-create or replace function public.purge_expired()
-returns void
-language sql security definer set search_path = public as $$
-  delete from zikr_app.applied_event_ids where applied_at < now() - interval '7 days';
-  delete from zikr_app.analytics_events where created_at < now() - interval '90 days';
-  delete from zikr_app.rooms where ends_at < now() - interval '60 days';
-  delete from zikr_app.shared_zikrs where not verified and submitted_at < now() - interval '180 days';
-$$;
+-- Housekeeping (purging stale unverified submissions) is merged into
+-- the single public.purge_expired() defined by 0002_group_plans.sql.
+-- Do NOT define purge_expired here: a second create-or-replace would
+-- silently replace the group-plans body depending on migration order.

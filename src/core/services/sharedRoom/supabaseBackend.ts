@@ -59,6 +59,20 @@ function mapServerError(rawMessage: string): SharedRoomError {
   if (msg.includes('invalid_delta')) return new SharedRoomError('invalid-delta');
   if (msg.includes('not_authenticated')) return new SharedRoomError('not-authenticated');
   if (msg.includes('invalid_')) return new SharedRoomError('invalid-input');
+  // The server doesn't know the function (missing migration, stale
+  // schema cache, revoked execute). Retryable, but never self-heals on
+  // the client — call it out instead of a generic "something went
+  // wrong".
+  if (
+    msg.includes('could not find the function') ||
+    msg.includes('schema cache') ||
+    msg.includes('permission denied')
+  ) {
+    return new SharedRoomError('server-mismatch', rawMessage);
+  }
+  // Keep the raw message reachable in devtools — unmapped Postgres
+  // errors are otherwise indistinguishable from each other.
+  console.error('[sharedRoom] unmapped server error:', rawMessage);
   return new SharedRoomError('unknown', rawMessage);
 }
 

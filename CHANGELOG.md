@@ -7,7 +7,21 @@ user-facing change and date it when it ships.
 
 ## Unreleased
 
-_(nothing yet)_
+### Fixed
+- **Groups failed with "Something went wrong" for everyone.** The
+  production database was still on the original v1 schema — the server
+  functions the Groups feature calls (including the device-identity call
+  that runs right after sign-in) did not exist there, and the v2
+  migration silently rolled back on its first run because it referenced
+  functions only a fresh database would have. The migration is now
+  self-sufficient (it creates what it needs instead of assuming it) and
+  upgrades the existing database in place, carrying the legacy test
+  group over to the new plan model. Requires running the updated
+  `supabase/migrations/0002_group_plans.sql` and
+  `0002_shared_zikrs.sql` on the server — until then the Groups tab and
+  the shared-Zikr Library sync stay down, now with an honest
+  "server did not recognize this request" message instead of a generic
+  failure, and the raw cause logged to the browser console.
 
 ## 1.2.1 — 2026-09-18
 

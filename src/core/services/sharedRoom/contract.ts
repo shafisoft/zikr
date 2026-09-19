@@ -34,18 +34,23 @@ export type SharedRoomErrorCode =
   | 'not-owner'
   | 'invalid-delta'
   | 'invalid-input'
+  | 'server-mismatch'
   | 'unknown';
 
 export class SharedRoomError extends Error {
   readonly code: SharedRoomErrorCode;
-  /** Permanent errors will never succeed on retry — dropped from the outbox. */
+  /**
+   * Permanent errors will never succeed on retry — dropped from the
+   * outbox. server-mismatch stays retryable: the server may be updated
+   * under a running client at any time.
+   */
   readonly permanent: boolean;
 
   constructor(code: SharedRoomErrorCode, message?: string) {
     super(message || code);
     this.name = 'SharedRoomError';
     this.code = code;
-    this.permanent = !['network', 'unknown', 'not-authenticated'].includes(code);
+    this.permanent = !['network', 'unknown', 'not-authenticated', 'server-mismatch'].includes(code);
   }
 }
 

@@ -708,6 +708,149 @@ end;
 $$;
 
 -- ============================================================
+-- 7b. Restated 0001 surface — device identity & moderation.
+--
+-- The production database predates the greenfield 0001 rewrite: it
+-- carries the ORIGINAL v1 SQL (functions in zikr_app, devices and
+-- analytics untouched). This migration's EXECUTE grants therefore
+-- reference functions a v1-era database has never heard of — one
+-- failed grant aborts the whole script. Restating them here makes the
+-- migration self-sufficient: fresh databases get a harmless
+-- create-or-replace, v1 databases get the functions they were missing.
+-- ============================================================
+
+grant usage on schema zikr_app to anon, authenticated;
+
+create or replace function zikr_app.random_device_token() returns text
+language sql volatile as $$
+  select array_to_string(
+    array(
+      select substr('ABCDEFGHJKMNPQRSTUVWXYZ23456789', floor(random() * 31)::int + 1, 1)
+      from generate_series(1, 12)
+    ),
+    ''
+  );
+$$;
+
+create or replace function public.remove_member(p_code text, p_user_id uuid)
+returns void
+language plpgsql volatile security invoker set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_room zikr_app.rooms;
+begin
+  select * into v_room from zikr_app.rooms where code = upper(btrim(coalesce(p_code, '')));
+  if not found then raise exception 'room_not_found' using errcode = 'P0002'; end if;
+  if v_room.owner_id <> v_uid then raise exception 'not_owner'; end if;
+
+  update zikr_app.members set removed_at = now()
+  where room_id = v_room.id and user_id = p_user_id and removed_at is null;
+end;
+$$;
+
+create or replace function public.leave_room(p_code text)
+returns void
+language plpgsql volatile security invoker set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then raise exception 'not_authenticated'; end if;
+  update zikr_app.members set removed_at = now()
+  where user_id = v_uid and removed_at is null
+    and room_id = (select id from zikr_app.rooms where code = upper(btrim(coalesce(p_code, ''))));
+end;
+$$;
+
+create or replace function public.close_room(p_code text)
+returns void
+language plpgsql volatile security invoker set search_path = public as $$
+begin
+  update zikr_app.rooms set status = 'closed'
+  where code = upper(btrim(coalesce(p_code, '')))
+    and owner_id = auth.uid()
+    and status = 'active';
+  if not found then raise exception 'not_owner_or_not_found'; end if;
+end;
+$$;
+
+-- Issued once per device (anon user), refreshed on every call. The client
+-- stores the token in IndexedDB and treats it as its stable device key.
+create or replace function public.get_or_create_device_token()
+returns text
+language plpgsql volatile security invoker set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_token text;
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  select token into v_token from zikr_app.devices where user_id = v_uid;
+  if found then
+    update zikr_app.devices set last_seen_at = now() where user_id = v_uid;
+    return v_token;
+  end if;
+
+  loop
+    v_token := zikr_app.random_device_token();
+    begin
+      insert into zikr_app.devices (token, user_id) values (v_token, v_uid);
+      return v_token;
+    exception when unique_violation then
+      continue;
+    end;
+  end loop;
+end;
+$$;
+
+-- Best-effort usage event. Never raises: metrics must not break the app.
+create or replace function public.track_event(p_name text, p_properties jsonb default '{}')
+returns void
+language plpgsql volatile security invoker set search_path = public as $$
+declare
+  v_token text;
+begin
+  if auth.uid() is null then
+    return;
+  end if;
+
+  select token into v_token from zikr_app.devices where user_id = auth.uid();
+  if found then
+    update zikr_app.devices set last_seen_at = now() where user_id = auth.uid();
+  else
+    v_token := public.get_or_create_device_token();
+  end if;
+
+  insert into zikr_app.analytics_events (device_token, name, properties)
+  values (v_token, left(p_name, 40), p_properties);
+end;
+$$;
+
+-- v1-era databases may predate these policies and grants (the old
+-- surface wrote analytics through definer functions). Restate them so
+-- the invoker RPCs above can actually touch their tables. The rooms
+-- grant keeps only post-migration columns — total/starts_at/ends_at
+-- were dropped in section 2.
+drop policy if exists "own device row" on zikr_app.devices;
+create policy "own device row" on zikr_app.devices
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists "own device inserts events" on zikr_app.analytics_events;
+create policy "own device inserts events" on zikr_app.analytics_events
+  for insert with check (
+    exists (
+      select 1 from zikr_app.devices d
+      where d.token = device_token and d.user_id = auth.uid()
+    )
+  );
+
+grant select, insert, update (status) on zikr_app.rooms to anon, authenticated;
+grant select, insert, update (name, joined_at, removed_at) on zikr_app.members to anon, authenticated;
+grant select, insert, update (last_seen_at) on zikr_app.devices to anon, authenticated;
+grant insert on zikr_app.analytics_events to anon, authenticated;
+
+-- ============================================================
 -- 8. Housekeeping
 -- ============================================================
 
@@ -729,6 +872,12 @@ begin
     do update set total = zikr_app.plan_daily_totals.total + excluded.total;
 
   delete from zikr_app.plan_contributions where created_at < now() - interval '90 days';
+
+  -- Shared-library housekeeping lives HERE (not in the shared-zikrs
+  -- migration) so exactly one purge_expired definition exists — two
+  -- create-or-replace definitions would make the surviving body depend
+  -- on migration order.
+  delete from zikr_app.shared_zikrs where not verified and submitted_at < now() - interval '180 days';
 end;
 $$;
 
@@ -755,3 +904,15 @@ grant execute on function public.track_event(text, jsonb) to anon, authenticated
 grant execute on function public.create_room(text, text, text, integer, timestamptz, timestamptz, text) to anon, authenticated;
 
 grant execute on function public.purge_expired() to service_role;
+
+-- The revoke above wipes EVERY public function, including the
+-- shared-zikr RPCs when this migration runs after 0002_shared_zikrs.
+-- Re-grant them (no-op when that migration hasn't run yet — its own
+-- grant block covers the other order).
+do $$
+begin
+  grant execute on function public.share_zikr(text, text, text) to anon, authenticated;
+  grant execute on function public.pull_verified_zikrs(timestamptz, uuid) to anon, authenticated;
+exception
+  when undefined_object or undefined_function then null; -- shared-zikrs not applied yet
+end $$;

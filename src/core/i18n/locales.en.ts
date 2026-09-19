@@ -409,6 +409,7 @@ export const en = {
   'errors.network': 'You appear to be offline. Your counts are saved and will sync.',
   'errors.not-authenticated': 'Could not verify this device. Try again.',
   'errors.captcha-failed': 'Security check failed. Please try again in a moment.',
+  'errors.server-mismatch': 'The server did not recognize this request. An app update is probably on its way — try again later.',
   'errors.unknown': 'Something went wrong. Please try again.',
 };
 
