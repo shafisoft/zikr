@@ -1,62 +1,12 @@
-import { db } from '../db/db';
-import { seedZikrs } from '../db/seed';
-import { Session } from '../db/types';
 import type { Transaction } from 'dexie';
+import { Session } from '../db/types';
 
-export interface MigrationProgress {
-  currentVersion: number;
-  targetVersion: number;
-  progress: number;
-  status: 'running' | 'complete' | 'failed';
-}
-
-// NEW (v2): v1 → v2 migration progress tracking
-export interface V2MigrationProgress {
-  current: number;
-  total: number;
-  phase: string;
-}
-
-export async function runMigrations(): Promise<MigrationProgress> {
-  const progress: MigrationProgress = {
-    currentVersion: 0,
-    targetVersion: 1,
-    progress: 0,
-    status: 'running'
-  };
-
-  try {
-    const startTime = Date.now();
-
-    await db.transaction('rw', db.zikrs, db.sessions, db.goals, db.streaks, db.settings, async () => {
-      progress.currentVersion = 1;
-      progress.progress = 50;
-
-      const count = await db.zikrs.count();
-      if (count === 0) {
-        await seedZikrs(db);
-        progress.progress = 75;
-      }
-
-      progress.progress = 100;
-      progress.status = 'complete';
-    });
-
-    const elapsed = Date.now() - startTime;
-    if (elapsed > 100) {
-      console.log(`Migration completed in ${elapsed}ms`);
-    }
-
-  } catch (error) {
-    progress.status = 'failed';
-    console.error('Migration failed, rolled back to previous version:', error);
-    throw new Error('Migration failed. Please refresh the app to try again.');
-  }
-
-  return progress;
-}
-
-// NEW (v2): Migrate database from v1 to v2
+/**
+ * v1 → v2 data move, run inside db.ts's Dexie upgrade transaction
+ * (the only live piece of the old migration surface — `runMigrations`,
+ * `needsMigration` and `getMigrationProgress` had no callers and were
+ * removed; schema versioning itself lives in db.ts's `.version().upgrade()`).
+ */
 export async function migrateToV2(
   transaction: Transaction
 ): Promise<void> {
@@ -103,27 +53,6 @@ export async function migrateToV2(
   console.log(`Migration v1→v2 complete: ${migrated} succeeded, ${errors} failed`);
 }
 
-// NEW (v2): Check if migration is needed
-export async function needsMigration(): Promise<boolean> {
-  const version = await db.verno;
-  return version < 2;
-}
-
-// NEW (v2): Get migration progress for UI display
-export async function getMigrationProgress(): Promise<V2MigrationProgress> {
-  const version = await db.verno;
-  if (version >= 2) {
-    return { current: 0, total: 0, phase: 'complete' };
-  }
-
-  const sessions = await db.sessions.toArray();
-  return {
-    current: 0,
-    total: sessions.length,
-    phase: 'pending'
-  };
-}
-
 // Helper function for date arithmetic
 function addDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -133,8 +62,5 @@ function addDays(date: Date, days: number): Date {
 
 // Export migration service
 export const migrationService = {
-  runMigrations,
-  migrateToV2,
-  needsMigration,
-  getMigrationProgress
+  migrateToV2
 };

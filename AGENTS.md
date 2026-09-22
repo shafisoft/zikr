@@ -55,7 +55,7 @@ npm run size-check      # Verify bundle size against 200KB limit
 
 **Type definitions:** `src/core/db/types.ts` - defines all interfaces
 
-**Migrations:** versioned `.upgrade()` hooks in `src/core/db/db.ts` (+ `src/core/db/migrations.ts` for v2 data moves)
+**Migrations:** versioned `.upgrade()` hooks in `src/core/db/db.ts` (+ `src/core/services/migrationService.ts` for the v1→v2 data move, run inside the upgrade transaction)
 
 **Predefined library:** `src/core/data/zikrCatalog.ts` is the single source for the predefined zikr library (Arabic, en/bn names & meanings, default targets, Quick Start flag). The seeder writes these onto Zikr records and backfills older rows; `src/ui/utils/zikrMapping.ts` is a thin record-first display adapter. Custom zikrs carry user-entered `arabicText`/`translation` on the record. Duplicate (case/whitespace-insensitive) zikr names are rejected at creation.
 
@@ -86,8 +86,7 @@ await db.transaction('rw', db.sessions, db.streaks, db.plans, db.planOwners, asy
 - `sessionService.ts` - Session CRUD with auto-updating streaks/goals
 - `streakService.ts` - Streak calculation and recalculation
 - `planService.ts` - Personal plan CRUD (owner `('user','me')`), progress for combined AND per-zikr target modes, auto complete/reactivate on session changes
-- `migrationService.ts` - Database version migrations
-- `progressiveSaveService.ts` - Chunked bulk operations
+- `migrationService.ts` - v1→v2 data move (inside db.ts's upgrade transaction)
 - `exportService.ts` - JSON backup/restore
 - `errorRecovery.ts` - Retryable subscriptions with exponential backoff
 
@@ -114,12 +113,10 @@ const unsubscribe = createRetryableSubscription(
 **Stores:**
 - `zikrStore.ts` - Zikr list
 - `sessionStore.ts` - Active session state
-- `sessionHistoryStore.ts` - Session list with filters
-- `sessionFormStore.ts` - Manual entry form state
+- `sessionHistoryStore.ts` - Session list (raw data; bucketing is a pure util)
 - `planStore.ts` - Personal plan list (user-owned view of the plans/planOwners join)
-- `streakStore.ts` - Streak data
 - `settingsStore.ts` - App settings
-- `uiStore.ts` - Modal states
+- `sharedRoomStore.ts` - Groups: identity, joined groups, mirrored group plans
 
 **Error recovery:** All liveQuery subscriptions use `createRetryableSubscription()` with configurable retry logic.
 
@@ -133,8 +130,7 @@ src/
 │   ├── services/   # Domain services (+ sharedRoom/ backend abstraction)
 │   ├── stores/     # Zustand state
 │   ├── i18n/       # Locales (en/bn) + useI18n hook
-│   ├── utils/      # Core utilities (date formatting, shared-room rules)
-│   └── components/ # Shared UI components (ErrorBoundary, etc.)
+│   └── utils/      # Core utilities (date formatting, plan rules, grouping)
 ├── ui/             # Everything that renders (the Noor design system)
 │   ├── components/ # navigation/, cards/, decor/, forms/, progress/, modals
 │   ├── layout/     # AppLayout — sole owner of the shell, top bar, bottom nav, bar-clearance spacing
@@ -142,7 +138,6 @@ src/
 │   ├── hooks/      # useRipple, useHaptic
 │   ├── types/      # Component prop types
 │   └── utils/      # Display helpers (zikrMapping: record-first adapter over the catalog)
-└── utils/          # V1-era utils (goalUtils, validation) — used by core + tests
 docs/design/        # Static HTML design mockups (reference only, not built)
 ```
 

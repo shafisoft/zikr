@@ -8,7 +8,6 @@ import {
   PlanOwner,
   Streak,
   Setting,
-  SessionFormState,
   ZikrLastCount,
   SharedRoom,
   SharedSubmission,
@@ -16,6 +15,19 @@ import {
   SharedIdentity,
   ZikrShareOutboxItem,
 } from './types';
+
+/**
+ * LEGACY — the chunked bulk-save feature was removed; this shape remains
+ * only to keep the historical `sessionFormState` table (schema v2–v6)
+ * typed. Nothing reads or writes it in live code.
+ */
+interface SessionFormState {
+  id?: number;
+  sessions: Array<{ zikrId: number; count: number; timestamp: Date }>;
+  currentIndex: number;
+  createdAt: Date;
+  totalSessions: number;
+}
 
 export class ZikrDatabase extends Dexie {
   zikrs!: Table<Zikr>;

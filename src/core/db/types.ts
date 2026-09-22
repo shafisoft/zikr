@@ -132,50 +132,12 @@ export interface Setting {
   value: any;
 }
 
-// NEW (v2): Session input for create operations
-export interface SessionInput {
-  zikrId: number;
-  count: number;
-  timestamp: Date;
-}
-
 // NEW (v2): Session update for edit operations
 export interface SessionUpdate {
   zikrId?: number;
   count?: number;
   timestamp?: Date;
   updatedAt: Date;
-}
-
-// NEW (v2): Session row for form state management
-export interface SessionRow {
-  zikrId: string;                   // String for form binding (converted to number on save)
-  count: number;
-  timestamp: Date;
-  valid: boolean;                   // Validation state
-  errors: Record<string, string>;   // Field-level errors
-}
-
-// NEW (v2): Bulk save result
-export interface BulkResult {
-  success: number;                  // Successfully saved sessions
-  failed: number;                   // Failed sessions
-  errors: Array<{                  // Error details for failed sessions
-    index: number;
-    session: SessionInput;
-    error: string;
-  }>;
-  stateId?: number;                 // State ID for interrupted saves
-  completed: boolean;               // Save completion status
-}
-
-// NEW (v2): Progressive save state management
-export interface SessionFormState {
-  id?: number;                      // Auto-increment primary key
-  sessions: SessionInput[];         // Array of sessions to save
-  currentIndex: number;             // Current chunk position
-  createdAt: Date;                  // State creation timestamp
-  totalSessions: number;            // Total sessions to save
 }
 
 // NEW (v2): Smart defaults - last count per zikr
