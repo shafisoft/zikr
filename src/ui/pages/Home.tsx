@@ -4,7 +4,7 @@
  * INTEGRATED WITH ZUSTAND STORES
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavActions } from '../components/navigation/navActions';
@@ -17,12 +17,16 @@ import OrnamentDivider from '../components/decor/OrnamentDivider';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { usePlanStore } from '../../core/stores/planStore';
+import { useSharedRoomStore } from '../../core/stores/sharedRoomStore';
 
 import { useI18n } from '../../core/i18n';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
+import { counterUrl } from '../utils/counterLink';
+import GoalRowCard from '../components/cards/GoalRowCard';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
 import { calculateOverallStreak } from '../../core/utils/overallStreak';
 import { todayTotal as metricsTodayTotal, planRingProgress } from '../../core/utils/metrics';
+import { buildGoalRows, GoalZikrRow } from '../../core/utils/planUtils';
 import { Zikr } from '../../core/db/types';
 
 /** Rotating hero phrases — one per day, rooted in dhikr itself (i18n keys). */
@@ -45,6 +49,19 @@ const Home: React.FC = () => {
   const sessions = useSessionStore(state => state.sessions);
   const sessionsLoading = useSessionStore(state => state.loading);
   const plans = usePlanStore(state => state.plans);
+  const computePlanProgress = usePlanStore(state => state.computePlanProgress);
+  // Mirrored group plans — the same store the Group/Room pages read, fed
+  // from local mirrors so the rows survive offline.
+  const groupPlans = useSharedRoomStore(state => state.plans);
+  const groupRooms = useSharedRoomStore(state => state.rooms);
+
+  // Fill the group mirror store the same guarded way the Room page does;
+  // unconfigured builds end with empty rooms/plans and no group rows.
+  useEffect(() => {
+    if (!useSharedRoomStore.getState().initialized) {
+      void useSharedRoomStore.getState().init();
+    }
+  }, []);
 
   // Modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -60,6 +77,22 @@ const Home: React.FC = () => {
   const dailyGoalProgress = useMemo(
     () => planRingProgress(plans, sessions).percent,
     [plans, sessions]
+  );
+
+  // "Your Goals" rows: every zikr the user's countable plans cover — the
+  // selection, targets, and name-binding rules live in planUtils so the
+  // page stays composition.
+  const goalRows = useMemo<GoalZikrRow[]>(
+    () =>
+      buildGoalRows({
+        personalPlans: plans,
+        groupPlans,
+        rooms: groupRooms,
+        zikrs,
+        sessions,
+        progressOf: computePlanProgress,
+      }),
+    [plans, groupPlans, groupRooms, zikrs, sessions, computePlanProgress]
   );
 
   // Quick Start rail: curated library zikrs (isQuickStarter) first — most
@@ -98,7 +131,14 @@ const Home: React.FC = () => {
   }, [zikrs, sessions, lang]);
 
   const handleStartZikr = (zikrId: number) => {
-    navigate(`/counter?zikrId=${zikrId}`);
+    navigate(counterUrl({ zikrId }));
+  };
+
+  // Open the counter on a goal row: the plan's own target travels, and for
+  // personal per-zikr plans so does the plan id (the counter's continue-next
+  // sequence). Group rows propagate to the group on save.
+  const startGoal = (row: GoalZikrRow) => {
+    navigate(counterUrl({ zikrId: row.zikrId, target: row.target, planId: row.planId }));
   };
 
   // Loading state
@@ -191,6 +231,19 @@ const Home: React.FC = () => {
                 </div>
               </CircularProgress>
               <OrnamentDivider className="w-32" />
+            </div>
+          </section>
+        )}
+
+        {/* Your Goals — the zikrs the countable plans and groups cover, each
+            toward its own target; tapping starts the counter on it */}
+        {goalRows.length > 0 && (
+          <section className="flex flex-col gap-4 w-full">
+            <h3 className="font-headline-md text-headline-md text-primary">{t('home.yourGoals')}</h3>
+            <div className="flex flex-col gap-2">
+              {goalRows.map(row => (
+                <GoalRowCard key={row.key} row={row} onPress={startGoal} />
+              ))}
             </div>
           </section>
         )}

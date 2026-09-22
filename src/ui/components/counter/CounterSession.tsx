@@ -42,6 +42,11 @@ interface CounterSessionProps {
    */
   onFinish: (savedCount: number) => void;
   /**
+   * Present when another zikr follows in the plan the counter was opened
+   * from — after a saved round, offers jumping straight to it.
+   */
+  onContinueNext?: () => void;
+  /**
    * 'page' pins the action area to the viewport bottom (full-screen use);
    * 'modal' keeps it inline at the end of the content (dialog use).
    */
@@ -56,6 +61,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   target,
   onCount,
   onFinish,
+  onContinueNext,
   variant = 'page',
   escapeResets = true,
 }) => {
@@ -238,6 +244,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
             onAnotherRound={handleAnotherRound}
             onFinish={onFinish}
             onComplete={handleComplete}
+            onContinueNext={onContinueNext}
           />
         </div>
       ) : (
@@ -249,6 +256,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
             onAnotherRound={handleAnotherRound}
             onFinish={onFinish}
             onComplete={handleComplete}
+            onContinueNext={onContinueNext}
           />
         </div>
       )}
@@ -256,7 +264,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   );
 };
 
-/** Round flow actions: saved → Another Round / Done; counting → Finish & Save. */
+/** Round flow actions: saved → (Continue next) Another Round / Done; counting → Finish & Save. */
 const RoundActions: React.FC<{
   isRoundSaved: boolean;
   canSave: boolean;
@@ -264,7 +272,8 @@ const RoundActions: React.FC<{
   onAnotherRound: () => void;
   onFinish: (savedCount: number) => void;
   onComplete: () => void;
-}> = ({ isRoundSaved, canSave, savedCount, onAnotherRound, onFinish, onComplete }) => {
+  onContinueNext?: () => void;
+}> = ({ isRoundSaved, canSave, savedCount, onAnotherRound, onFinish, onComplete, onContinueNext }) => {
   const { t } = useI18n();
 
   if (isRoundSaved) {
@@ -275,6 +284,23 @@ const RoundActions: React.FC<{
           <MaterialIcon icon="check_circle" filled className="text-[20px]" />
           <span>{t('counter.roundSaved')}</span>
         </div>
+        {/* The plan's next zikr is the suggested path, so it takes the
+            primary slot and demotes Another Round to a secondary action. */}
+        {onContinueNext && (
+          <button
+            onClick={onContinueNext}
+            className="
+              w-full h-touch-target-min
+              bg-primary-container text-on-primary
+              rounded-xl font-label-md text-label-md
+              flex items-center justify-center gap-2
+              hover:opacity-90 active:scale-[0.98] transition-all shadow-sm
+            "
+          >
+            <MaterialIcon icon="skip_next" className="text-[20px]" />
+            {t('counter.continueNext')}
+          </button>
+        )}
         <div className="w-full flex gap-3">
           <button
             onClick={() => onFinish(savedCount)}
@@ -291,13 +317,16 @@ const RoundActions: React.FC<{
           </button>
           <button
             onClick={onAnotherRound}
-            className="
-              flex-1 h-touch-target-min
-              bg-primary-container text-on-primary
-              rounded-xl font-label-md text-label-md
+            className={`
+              flex-1 h-touch-target-min rounded-xl font-label-md text-label-md
               flex items-center justify-center gap-2
-              hover:opacity-90 active:scale-[0.98] transition-all shadow-sm
-            "
+              active:scale-[0.98] transition-all
+              ${
+                onContinueNext
+                  ? 'border border-outline-variant/40 text-on-surface hover:bg-surface-variant/40'
+                  : 'bg-primary-container text-on-primary hover:opacity-90 shadow-sm'
+              }
+            `}
           >
             <MaterialIcon icon="replay" className="text-[18px]" />
             {t('counter.anotherRound')}

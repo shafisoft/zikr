@@ -30,7 +30,9 @@ import {
 import {
   formatResetsIn,
   getPlanPhase,
+  matchLocalZikr,
   sharedPlanProgress,
+  sharedZikrTotal,
 } from '../../core/utils/planUtils';
 import { useI18n } from '../../core/i18n';
 import useShare from '../hooks/useShare';
@@ -115,7 +117,7 @@ const Room: React.FC = () => {
   // The local zikr record matching a plan zikr name — lets members open
   // the counter pre-filled with the same dhikr the plan is counting.
   const localZikrByName = (name: string): Zikr | null =>
-    zikrs.find(z => z.name === name) ?? null;
+    matchLocalZikr(zikrs, { name }) ?? null;
 
   const shareLink = room
     ? `${window.location.origin}${import.meta.env.BASE_URL}join/${room.code}`
@@ -167,9 +169,7 @@ const Room: React.FC = () => {
     const base =
       plan.mode === 'combined'
         ? progress.combined
-        : plan.period !== 'one-time'
-          ? zEntry?.periodTotal ?? 0
-          : zEntry?.total ?? 0;
+        : sharedZikrTotal(zEntry, plan.period !== 'one-time');
     setCounterContext({ plan, zikr, base });
     setLiveCount(null);
     setIsCounterOpen(true);

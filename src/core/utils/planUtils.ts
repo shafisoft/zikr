@@ -4,7 +4,7 @@
  * rules stay trivially testable.
  */
 
-import { Plan, PlanPeriod, PlanZikr } from '../db/types';
+import { Plan, PlanPeriod, PlanZikr, Session, SharedRoom, Zikr } from '../db/types';
 import { formatTimeRemaining, progressPercent } from './sharedRoomUtils';
 
 /** uuid for new plan rows (works without crypto.randomUUID). */
@@ -55,6 +55,187 @@ export function planTargetTotal(plan: Pick<Plan, 'mode' | 'target' | 'zikrs'>): 
   return plan.target ?? 0;
 }
 
+/** Display name for a plan: its title, else the covered zikrs' names. */
+export function planDisplayName(plan: Pick<Plan, 'title' | 'zikrs'>): string {
+  return plan.title?.trim() || plan.zikrs.map(z => z.name).join(' · ');
+}
+
+/**
+ * The local zikr a plan-zikr entry counts on. Personal plans bind by id;
+ * group plans bind by exact name (members' libraries differ — duplicate
+ * names are rejected at creation, so the match is unambiguous).
+ */
+export function matchLocalZikr(
+  zikrs: Zikr[],
+  zp: Pick<PlanZikr, 'name' | 'zikrId'>
+): Zikr | undefined {
+  if (zp.zikrId != null) return zikrs.find(z => z.id === zp.zikrId);
+  return zikrs.find(z => z.name === zp.name);
+}
+
+/**
+ * Mirror-field total for a group-plan zikr: lifetime total on one-time
+ * plans, current-period total on recurring ones. Undefined entry → 0.
+ */
+export function sharedZikrTotal(
+  zp: Pick<PlanZikr, 'total' | 'periodTotal'> | undefined,
+  recurring: boolean
+): number {
+  if (!zp) return 0;
+  return recurring ? zp.periodTotal ?? 0 : zp.total ?? 0;
+}
+
+/**
+ * The number a counter opened for this plan's zikr should aim at: the
+ * zikr's per-zikr target, or the combined target. Undefined → the caller
+ * falls back (the zikr's library default).
+ */
+export function planZikrTarget(plan: Plan, zikrId?: number): number | undefined {
+  if (plan.mode === 'combined') return plan.target;
+  const entry = zikrId != null ? plan.zikrs.find(z => z.zikrId === zikrId) : undefined;
+  return entry?.target;
+}
+
+/** One step of a per-zikr plan's counter sequence. */
+export interface PlanStep {
+  target?: number;
+  zikr: Zikr;
+}
+
+/**
+ * A per-zikr plan's countable zikr sequence, in plan order — only zikrs
+ * with a local record, since a plan row without one cannot be counted.
+ * Combined plans do not sequence: they count every zikr toward one number.
+ */
+export function planSequence(plan: Plan | undefined, zikrs: Zikr[]): PlanStep[] {
+  if (!plan || plan.mode !== 'per-zikr') return [];
+  const steps: PlanStep[] = [];
+  for (const zp of plan.zikrs) {
+    const zikr = matchLocalZikr(zikrs, zp);
+    if (zikr?.id != null) steps.push({ target: zp.target, zikr });
+  }
+  return steps;
+}
+
+/** One countable row for "your goals"-style surfaces. */
+export interface GoalZikrRow {
+  key: string;
+  zikrId: number;
+  title: string;
+  /** Group name, for group targets. */
+  subtitle?: string;
+  current: number;
+  target: number;
+  /** Personal plan id — lets the counter continue through the plan's zikrs. */
+  planId?: string;
+}
+
+/** Structural slice of the personal-plan progress the plan store exposes. */
+interface PersonalPlanProgressLike {
+  currentCount: number;
+  perZikr: ReadonlyArray<{
+    name: string;
+    zikrId?: number;
+    currentCount: number;
+    target: number;
+  }>;
+}
+
+/**
+ * The "Your Goals" rows: every zikr the user's countable plans cover —
+ * personal plans first, then group targets — each with its live progress.
+ * Personal rows require status 'active' (paused/completed plans are not
+ * something to count toward; getPlanPhase alone only reads the window).
+ * Group rows additionally require an active room: propagation skips
+ * closed rooms, so their rows must not offer counting either. Group rows
+ * need a local zikr sharing the plan zikr's name — that match is also
+ * what lets a count from here propagate to the group.
+ */
+export function buildGoalRows(input: {
+  personalPlans: Plan[];
+  groupPlans: Plan[];
+  rooms: ReadonlyArray<Pick<SharedRoom, 'code' | 'title' | 'status'>>;
+  zikrs: Zikr[];
+  sessions: Session[];
+  progressOf: (plan: Plan, sessions: Session[]) => PersonalPlanProgressLike;
+  now?: Date;
+}): GoalZikrRow[] {
+  const { personalPlans, groupPlans, rooms, zikrs, sessions, progressOf } = input;
+  const now = input.now ?? new Date();
+  const rows: GoalZikrRow[] = [];
+
+  for (const plan of personalPlans) {
+    if (plan.status !== 'active' || getPlanPhase(plan, now) !== 'active') continue;
+    const progress = progressOf(plan, sessions);
+    if (plan.mode === 'per-zikr') {
+      for (const pz of progress.perZikr) {
+        const zikr = pz.zikrId != null ? zikrs.find(z => z.id === pz.zikrId) : undefined;
+        if (zikr?.id == null || pz.target <= 0) continue;
+        rows.push({
+          key: `p:${plan.id}:${zikr.id}`,
+          zikrId: zikr.id,
+          title: pz.name,
+          current: pz.currentCount,
+          target: pz.target,
+          planId: plan.id,
+        });
+      }
+    } else {
+      const target = plan.target ?? 0;
+      if (target <= 0) continue;
+      const first = plan.zikrs.find(z => z.zikrId != null);
+      const zikr = first ? matchLocalZikr(zikrs, first) : undefined;
+      if (zikr?.id == null) continue;
+      rows.push({
+        key: `p:${plan.id}`,
+        zikrId: zikr.id,
+        title: planDisplayName(plan),
+        current: progress.currentCount,
+        target,
+        planId: plan.id,
+      });
+    }
+  }
+
+  for (const plan of groupPlans) {
+    if (getPlanPhase(plan, now) !== 'active') continue;
+    const room = plan.roomCode ? rooms.find(r => r.code === plan.roomCode) : undefined;
+    if (room?.status !== 'active') continue;
+    if (plan.mode === 'per-zikr') {
+      for (const zp of plan.zikrs) {
+        const zikr = matchLocalZikr(zikrs, zp);
+        const target = zp.target ?? 0;
+        if (zikr?.id == null || target <= 0) continue;
+        rows.push({
+          key: `g:${plan.id}:${zp.name}`,
+          zikrId: zikr.id,
+          title: zp.name,
+          subtitle: room.title,
+          current: sharedZikrTotal(zp, plan.period !== 'one-time'),
+          target,
+        });
+      }
+    } else {
+      const target = plan.target ?? 0;
+      if (target <= 0) continue;
+      const zikr = plan.zikrs
+        .map(zp => matchLocalZikr(zikrs, zp))
+        .find(z => z?.id != null);
+      if (zikr?.id == null) continue;
+      rows.push({
+        key: `g:${plan.id}`,
+        zikrId: zikr.id,
+        title: planDisplayName(plan),
+        subtitle: room.title,
+        current: sharedPlanProgress(plan).combined,
+        target,
+      });
+    }
+  }
+
+  return rows;
+}
+
 export interface SharedPlanProgress {
   percent: number;
   /** Target(s) reached in the current scope (window for one-time, period for recurring). */
@@ -70,7 +251,7 @@ export interface SharedPlanProgress {
  */
 export function sharedPlanProgress(plan: Plan): SharedPlanProgress {
   const recurring = plan.period !== 'one-time';
-  const zTotal = (z: PlanZikr) => (recurring ? z.periodTotal ?? 0 : z.total ?? 0);
+  const zTotal = (z: PlanZikr) => sharedZikrTotal(z, recurring);
 
   if (plan.mode === 'per-zikr') {
     const zikrs = plan.zikrs || [];

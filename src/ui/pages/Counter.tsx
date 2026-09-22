@@ -2,13 +2,15 @@
  * Counter Screen (V2)
  * Full-screen route around the shared CounterSession. As the counter's
  * caller it owns the inputs: startCount resumes an unsaved personal round
- * from the session store, and target comes from the zikr's default. Each
- * count is mirrored back to the session store via onCount so an unfinished
- * round survives navigation. The same CounterSession is embedded by
- * CounterModal (e.g. from a room).
+ * from the session store, and target comes from the plan step when the
+ * route carries a plan (?planId=, per-zikr plans — which also enables the
+ * "continue next zikr" flow), else a plan's ?target=, else the zikr's
+ * default. Each count is mirrored back to the session store via onCount so
+ * an unfinished round survives navigation. The same CounterSession is
+ * embedded by CounterModal (e.g. from a room).
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavActions } from '../components/navigation/navActions';
@@ -18,6 +20,8 @@ import { useI18n } from '../../core/i18n';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { useSettingsStore } from '../../core/stores/settingsStore';
+import { usePlanStore } from '../../core/stores/planStore';
+import { planSequence } from '../../core/utils/planUtils';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
 import { Zikr } from '../../core/db/types';
 
@@ -28,10 +32,17 @@ const Counter: React.FC = () => {
   const { lang, t } = useI18n();
   const [searchParams] = useSearchParams();
   const zikrIdParam = searchParams.get('zikrId');
+  // Plans start the counter toward their own number (?target=N); plain
+  // entries (Home, the nav tab) omit it and the zikr's default applies.
+  const targetParam = Number(searchParams.get('target'));
+  // A per-zikr plan turns the counter into a sequence: after a saved round
+  // the user can continue straight to the plan's next zikr.
+  const planIdParam = searchParams.get('planId');
 
   // Store integrations
   const zikrs = useZikrStore(state => state.zikrs);
   const zikrsLoading = useZikrStore(state => state.loading);
+  const plans = usePlanStore(state => state.plans);
   const currentSession = useSessionStore(state => state.currentSession);
   const setCurrentSession = useSessionStore(state => state.setCurrentSession);
   const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
@@ -45,14 +56,44 @@ const Counter: React.FC = () => {
   // True after the first onCount — freezes the snapshot so store updates
   // mirrored FROM the counter never feed back into startCount.
   const interactedRef = useRef(false);
+  // True once the user continues to the plan's next zikr — the URL param
+  // must stop overriding the in-page selection from then on.
+  const selectionLockedRef = useRef(false);
+
+  // The plan behind ?planId= and its countable zikr sequence (per-zikr
+  // plans only — see planSequence). Empty until the stores hydrate; the
+  // resolution effect below re-runs when they do.
+  const plan = useMemo(
+    () => (planIdParam ? plans.find(p => p.id === planIdParam) : undefined),
+    [plans, planIdParam]
+  );
+  const planSteps = useMemo(() => planSequence(plan, zikrs), [plan, zikrs]);
+
+  const currentStepIndex =
+    selectedZikr && planSteps.length > 0
+      ? planSteps.findIndex(step => step.zikr.id === selectedZikr.id)
+      : -1;
+  const nextStep = currentStepIndex >= 0 ? planSteps[currentStepIndex + 1] : undefined;
 
   // Load settings (haptics toggle reads/writes the store directly)
   useEffect(() => {
     useSettingsStore.getState().loadSettings();
   }, []);
 
-  // Resolve the zikr to practice: URL param → active session → first zikr.
+  // Resolve the zikr to practice: plan step ← URL param → active session →
+  // first zikr. Skipped once the user continued to the next plan zikr —
+  // the params describe where the counter started, not where it is now.
   useEffect(() => {
+    if (selectionLockedRef.current) return;
+
+    if (planSteps.length > 0) {
+      const initial = zikrIdParam
+        ? planSteps.find(step => step.zikr.id === Number(zikrIdParam))
+        : undefined;
+      setSelectedZikr((initial ?? planSteps[0]).zikr);
+      return;
+    }
+
     if (zikrs.length === 0) return;
 
     let zikrToUse: Zikr | undefined;
@@ -68,7 +109,7 @@ const Counter: React.FC = () => {
     }
 
     setSelectedZikr(zikrToUse ?? null);
-  }, [zikrs, zikrIdParam, currentSession.zikrId]);
+  }, [zikrs, zikrIdParam, currentSession.zikrId, planSteps]);
 
   // Snapshot the resume count when the zikr selection settles. Re-runs when
   // the session store hydrates from IndexedDB (its first load can land after
@@ -80,10 +121,30 @@ const Counter: React.FC = () => {
     );
   }, [selectedZikr, currentSession]);
 
-  // The page's target is the zikr's default.
+  // The page's target: the plan step's target when counting a plan, else a
+  // plan-provided ?target= when valid, else the zikr's default.
+  const stepTarget = currentStepIndex >= 0 ? planSteps[currentStepIndex].target : undefined;
   const target = selectedZikr
-    ? getZikrDisplayInfoFromZikr(selectedZikr, lang)?.defaultTarget || 33
+    ? stepTarget && stepTarget > 0
+      ? stepTarget
+      : Number.isFinite(targetParam) && targetParam > 0
+        ? targetParam
+        : getZikrDisplayInfoFromZikr(selectedZikr, lang)?.defaultTarget || 33
     : 0;
+
+  // Jump to the plan's next zikr. The resume snapshot is captured here
+  // synchronously — a remounted session must never paint this zikr with
+  // the previous zikr's base count while the snapshot effect settles.
+  const handleContinueNext = () => {
+    if (!nextStep) return;
+    selectionLockedRef.current = true;
+    const unsaved = useSessionStore.getState().currentSession;
+    setStartCount(
+      unsaved.zikrId != null && unsaved.zikrId === nextStep.zikr.id ? unsaved.count : 0
+    );
+    interactedRef.current = true;
+    setSelectedZikr(nextStep.zikr);
+  };
 
   const handleToggleHaptics = () => {
     void saveSetting('hapticsEnabled', !hapticsEnabled);
@@ -145,6 +206,7 @@ const Counter: React.FC = () => {
       contentClassName="px-container-padding-mobile"
     >
       <CounterSession
+        key={selectedZikr.id}
         zikr={selectedZikr}
         startCount={startCount}
         target={target}
@@ -152,6 +214,7 @@ const Counter: React.FC = () => {
           interactedRef.current = true;
           setCurrentSession({ zikrId: selectedZikr.id || null, count });
         }}
+        onContinueNext={nextStep ? handleContinueNext : undefined}
         variant="page"
         onFinish={leaveCounter}
       />

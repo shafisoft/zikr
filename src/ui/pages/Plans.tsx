@@ -18,6 +18,8 @@ import { usePlanStore } from '../../core/stores/planStore';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
+import { counterUrl } from '../utils/counterLink';
+import { planZikrTarget } from '../../core/utils/planUtils';
 import { Plan } from '../../core/db/types';
 import type { PlanProgress } from '../../core/stores/planStore';
 import { localeTag, useI18n } from '../../core/i18n';
@@ -162,9 +164,12 @@ const Plans: React.FC = () => {
     return t('plans.oneTime');
   };
 
-  // Jump straight into the counter for the plan's zikr
-  const handleStartZikr = (zikrId: number) => {
-    navigate(`/counter?zikrId=${zikrId}`);
+  // Jump straight into the counter for the plan's zikr, counting toward the
+  // plan's number (planZikrTarget — the per-zikr target or the combined
+  // one). The plan id enables the counter's continue-next sequence for
+  // per-zikr plans.
+  const handleStartZikr = (plan: Plan, zikrId: number) => {
+    navigate(counterUrl({ zikrId, target: planZikrTarget(plan, zikrId), planId: plan.id }));
   };
 
   // Loading state
@@ -234,7 +239,7 @@ const Plans: React.FC = () => {
                             <button
                               key={`${d.zikrId ?? d.name}`}
                               type="button"
-                              onClick={() => d.zikrId != null && handleStartZikr(d.zikrId)}
+                              onClick={() => d.zikrId != null && handleStartZikr(plan, d.zikrId)}
                               className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-surface-variant/60 text-on-surface-variant font-caption text-caption hover:text-primary hover:bg-surface-variant transition-colors"
                               aria-label={t('plans.startAria', { name: d.name })}
                             >
@@ -341,7 +346,7 @@ const Plans: React.FC = () => {
                 {/* Start the counter for this plan's zikr (first one when several) */}
                 {plan.zikrDisplays.some(d => d.zikrId != null) && (
                   <button
-                    onClick={() => handleStartZikr(plan.zikrDisplays.find(d => d.zikrId != null)!.zikrId!)}
+                    onClick={() => handleStartZikr(plan, plan.zikrDisplays.find(d => d.zikrId != null)!.zikrId!)}
                     className="
                       mt-4 w-full h-touch-target-min
                       rounded-xl border border-tertiary-container/40 bg-tertiary-container/10
