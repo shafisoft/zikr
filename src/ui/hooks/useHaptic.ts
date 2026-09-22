@@ -3,7 +3,7 @@
  * Provides haptic feedback patterns for mobile interactions
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 
 type HapticType = 'light' | 'medium' | 'heavy' | 'success' | 'warning';
 
@@ -24,7 +24,10 @@ const DEFAULT_PATTERNS: HapticPatterns = {
 };
 
 export const useHaptic = (enabled: boolean = true) => {
-  const [isEnabled, setIsEnabled] = useState(enabled);
+  // Derived, never a useState copy — the setting can change while a screen
+  // is mounted (the toggle lives on the counter itself), and a value
+  // captured at mount time would silently ignore it.
+  const isEnabled = enabled;
 
   // Check if vibration is supported
   const isSupported = useCallback(() => {
@@ -47,7 +50,6 @@ export const useHaptic = (enabled: boolean = true) => {
     trigger,
     test,
     isEnabled,
-    setIsEnabled,
     isSupported: isSupported(),
   };
 };

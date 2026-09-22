@@ -39,7 +39,8 @@ export const useZikrStore = create<ZikrState>((set) => ({
       () => db.zikrs.filter(zikr => !zikr.deletedAt).toArray(),
       (zikrs) => set({ zikrs, loading: false, error: null }),
       (_error) => set({
-        error: 'Failed to load zikrs. Please check browser storage permissions.',
+        // Error CODE, not localized copy — the component translates it.
+        error: 'load-failed',
         loading: false
       })
     );

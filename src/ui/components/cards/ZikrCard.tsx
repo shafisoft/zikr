@@ -9,6 +9,7 @@ import MaterialIcon from '../MaterialIcon';
 import { ZikrCardProps } from '../../types/components';
 import useRipple from '../../hooks/useRipple';
 import useHaptic from '../../hooks/useHaptic';
+import { useSettingsStore } from '../../../core/stores/settingsStore';
 import { useI18n } from '../../../core/i18n';
 
 export const ZikrCard: React.FC<ZikrCardProps> = ({
@@ -24,7 +25,8 @@ export const ZikrCard: React.FC<ZikrCardProps> = ({
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   const { t } = useI18n();
   const { createRipple } = useRipple(buttonRef);
-  const { trigger: haptic } = useHaptic();
+  const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
+  const { trigger: haptic } = useHaptic(hapticsEnabled);
 
   const handleStart = () => {
     haptic('medium');

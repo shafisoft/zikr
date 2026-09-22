@@ -32,7 +32,11 @@ export interface PlanRing {
 /**
  * Home's daily ring: aggregate across ALL active personal plans (only
  * looking at the first one showed 0% whenever the day's practice belonged
- * to another plan). Overlapping zikrs between plans are counted once (Set).
+ * to another plan). Overlapping zikrs between plans are counted once (Set)
+ * and — for per-zikr plans — demanded once: the same round cannot fill two
+ * copies of a target, so a zikr listed by several plans contributes its
+ * largest per-zikr target, not their sum. Combined plans keep their
+ * whole-plan target (it has no per-zikr split to dedupe against).
  */
 export function planRingProgress(plans: Plan[], sessions: Session[]): PlanRing {
   const todayStr = formatDate(getToday());
@@ -46,7 +50,23 @@ export function planRingProgress(plans: Plan[], sessions: Session[]): PlanRing {
         .filter(s => coveredZikrIds.has(s.zikrId) && s.countsToGoals !== false)
         .reduce((sum, s) => sum + s.count, 0)
     : 0;
-  const target = activePlans.reduce((sum, p) => sum + planTargetTotal(p), 0);
+  const perZikrDemand = new Map<number, number>();
+  let target = 0;
+  for (const p of activePlans) {
+    if (p.mode === 'per-zikr') {
+      for (const z of p.zikrs) {
+        if (z.zikrId == null) continue;
+        const demand = Math.max(perZikrDemand.get(z.zikrId) ?? 0, z.target ?? 0);
+        const prev = perZikrDemand.get(z.zikrId) ?? 0;
+        if (demand > prev) {
+          target += demand - prev;
+          perZikrDemand.set(z.zikrId, demand);
+        }
+      }
+    } else {
+      target += planTargetTotal(p);
+    }
+  }
   const percent =
     target > 0 && todayCount > 0
       ? Math.min(Math.round((todayCount / target) * 100), 100)

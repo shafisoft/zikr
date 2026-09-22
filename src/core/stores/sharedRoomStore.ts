@@ -5,6 +5,7 @@
  */
 
 import { create } from 'zustand';
+import { db } from '../db/db';
 import {
   Plan,
   SharedIdentity,
@@ -13,12 +14,21 @@ import {
   SharedSubmission,
 } from '../db/types';
 import { isValidDelta, normalizeRoomCode } from '../utils/sharedRoomUtils';
+import { createRetryableSubscription } from '../services/errorRecovery';
 import sharedRoomService, {
   ensureSharedRoomSync,
   setActiveRoom,
   SharedRoomError,
 } from '../services/sharedRoom';
 import type { CreatePlanInput } from '../services/sharedRoom';
+
+/**
+ * Dexie is the group-plan mirror's source of truth — server fetches persist
+ * into it and counter propagation writes into it — so the store subscribes
+ * to it instead of holding a hand-merged copy that goes stale between
+ * syncs. Started once with init(); never torn down (app-lifetime).
+ */
+let plansSubscription: (() => void) | null = null;
 
 
 interface SharedRoomState {
@@ -110,6 +120,16 @@ export const useSharedRoomStore = create<SharedRoomState>((set, get) => ({
     }
 
     ensureSharedRoomSync();
+
+    // Keep the mirrored plans reactive: any write into Dexie (a server
+    // fetch, a counter round propagating) re-emits here.
+    if (!plansSubscription) {
+      plansSubscription = createRetryableSubscription(
+        () => db.plans.filter(p => p.roomCode != null).toArray(),
+        (plans) => set({ plans }),
+        () => {}
+      );
+    }
 
     try {
       const identity = await sharedRoomService.ensureIdentity(get().identity?.displayName);

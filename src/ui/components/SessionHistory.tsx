@@ -3,13 +3,14 @@
  * Displays grouped session history with edit/delete capabilities
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import MaterialIcon from './MaterialIcon';
 import { showAlert, showConfirm } from './ConfirmDialog';
 import { useSessionHistoryStore } from '../../core/stores/sessionHistoryStore';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { formatDate } from '../../core/utils/dateUtils';
+import { groupSessionsByDate } from '../../core/utils/historyGrouping';
 import { Session } from '../../core/db/types';
 import { useI18n, localeTag } from '../../core/i18n';
 
@@ -21,12 +22,22 @@ interface SessionHistoryProps {
 
 const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
   const { lang, t } = useI18n();
-  const { groupedByDate, loading, error, sessions, loadSessions, toggleGroup } = useSessionHistoryStore();
+  const { loading, error, sessions, loadSessions } = useSessionHistoryStore();
   const zikrs = useZikrStore(state => state.zikrs);
 
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editCount, setEditCount] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  // Component-owned UI state — a new session re-derives the buckets but
+  // never resets which groups the user expanded ('today' starts open).
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ today: true });
+
+  // Derived bucketing — pure util over the store's sessions (no store round-trip).
+  const groupedByDate = useMemo(() => groupSessionsByDate(sessions), [sessions]);
+
+  const isExpanded = (groupKey: string) => expanded[groupKey] ?? groupKey === 'today';
+  const toggleGroup = (groupKey: string) =>
+    setExpanded(e => ({ ...e, [groupKey]: !isExpanded(groupKey) }));
 
   useEffect(() => {
     loadSessions();
@@ -199,7 +210,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
             >
               <div className="flex items-center gap-3">
                 <MaterialIcon
-                  icon={group.expanded ? 'expand_more' : 'chevron_right'}
+                  icon={isExpanded(groupKey) ? 'expand_more' : 'chevron_right'}
                   className="text-on-surface-variant"
                 />
                 <span className="font-label-md text-label-md text-on-surface">
@@ -212,7 +223,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
             </button>
 
             {/* Sessions List */}
-            {group.expanded && (
+            {isExpanded(groupKey) && (
               <div className="divide-y divide-outline-variant/10">
                 {group.sessions.map((session) => {
                   const zikr = zikrs.find(z => z.id === session.zikrId);

@@ -14,6 +14,12 @@ export async function updateStreak(zikrId: number, sessionDate: Date): Promise<S
   const existing = await getStreak(zikrId);
   const sessionDateFormatted = formatDate(sessionDate);
 
+  // A backdated entry (manual entry accepts arbitrary past dates) must not
+  // rewind lastProcessedDate — the next session would read that rewind as a
+  // break and zero a real streak. Rebuild from all sessions instead.
+  if (existing && daysBetween(existing.lastProcessedDate, sessionDate) < 0) {
+    return recalculateStreak(zikrId);
+  }
   let currentStreak = existing?.currentStreak || 0;
   let longestStreak = existing?.longestStreak || 0;
   let lastProcessedDate = existing?.lastProcessedDate || new Date(0);
@@ -66,16 +72,23 @@ export async function updateForSession(
   }
 }
 
-// NEW (v2): Recalculate streak from all sessions (for delete operations)
-async function recalculateStreak(zikrId: number): Promise<void> {
+// NEW (v2): Recalculate streak from all sessions (for delete operations
+// and backdated entries) — returns the rebuilt streak.
+async function recalculateStreak(zikrId: number): Promise<Streak> {
   const sessions = await db.sessions
     .where('zikrId')
     .equals(zikrId)
     .toArray();
 
   if (sessions.length === 0) {
-    await resetStreak(zikrId);
-    return;
+    const empty: Streak = {
+      zikrId,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastProcessedDate: new Date(0)
+    };
+    await db.streaks.put(empty);
+    return empty;
   }
 
   // Sort sessions by date ascending
@@ -110,6 +123,7 @@ async function recalculateStreak(zikrId: number): Promise<void> {
   };
 
   await db.streaks.put(streak);
+  return streak;
 }
 
 export async function resetStreak(zikrId: number): Promise<void> {

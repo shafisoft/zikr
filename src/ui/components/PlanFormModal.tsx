@@ -11,6 +11,7 @@ import { Plan, PlanMode, PlanPeriod, PlanZikr } from '../../core/db/types';
 import { usePlanStore } from '../../core/stores/planStore';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
+import { formatDate } from '../../core/utils/dateUtils';
 import { useI18n } from '../../core/i18n';
 
 interface PlanFormModalProps {
@@ -96,10 +97,8 @@ const PlanFormModal: React.FC<PlanFormModalProps> = ({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose, isSaving]);
 
-  const formatDate = (date: Date): string => {
-    return new Date(date).toISOString().split('T')[0];
-  };
-
+  // Date inputs read the LOCAL calendar day — an ISO (UTC) split shows
+  // UTC+ users the previous day and silently shifts the plan window.
   const isZikrSelected = (zikrId: number) => selectedZikrs.some(z => z.zikrId === zikrId);
 
   const toggleZikr = (zikrId: number) => {

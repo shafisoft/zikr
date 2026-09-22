@@ -38,7 +38,8 @@ export const usePlanStore = create<PlanState>((set) => ({
       () => planService.getUserPlans(),
       (plans) => set({ plans, loading: false, error: null }),
       (_error) => set({
-        error: 'Failed to load plans. Please check browser storage permissions.',
+        // Error CODE, not localized copy — the component translates it.
+        error: 'load-failed',
         loading: false
       })
     );

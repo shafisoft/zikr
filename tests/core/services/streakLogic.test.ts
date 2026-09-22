@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { daysBetween } from '../../../src/core/utils/dateUtils';
 
 // The streak algorithm in streakService.updateStreak operates on these rules:
+//   - a session OLDER than lastProcessedDate never reaches this fold — it is
+//     routed to a full recalculation (see streakBackdate.test.ts)
 //   - same day (daysSince === 0):  no change to streak
 //   - consecutive day (daysSince === 1): streak++
 //   - gap > 1 day (daysSince > 1): streak resets to 0, then new session starts fresh

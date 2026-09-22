@@ -69,6 +69,32 @@ describe('metrics', () => {
     expect(ring.percent).toBe(63); // 125/200
   });
 
+  it('planRingProgress dedupes per-zikr targets shared across plans', () => {
+    const plans = [
+      plan({
+        id: 'plan-1',
+        mode: 'per-zikr',
+        target: undefined,
+        zikrs: [
+          { zikrId: 1, name: 'A', target: 33 },
+          { zikrId: 2, name: 'B', target: 50 },
+        ],
+      }),
+      plan({
+        id: 'plan-2',
+        mode: 'per-zikr',
+        target: undefined,
+        zikrs: [{ zikrId: 2, name: 'B', target: 33 }],
+      }),
+    ];
+    const ring = planRingProgress(plans, [session({ zikrId: 2, count: 50 })]);
+    // Zikr 1 demands 33; zikr 2 is listed twice and demands its LARGEST
+    // target (50), not the sum — one round of 50 cannot fill two targets.
+    expect(ring.target).toBe(83);
+    expect(ring.todayCount).toBe(50);
+    expect(ring.percent).toBe(60); // 50/83
+  });
+
   it('planRingProgress ignores sessions with countsToGoals false', () => {
     const sessions = [
       session({ count: 50 }),
