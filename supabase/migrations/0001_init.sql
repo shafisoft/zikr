@@ -404,6 +404,13 @@ create policy "own device inserts events" on zikr_app.analytics_events
 create policy "plans readable" on zikr_app.plans
   for select using (true);
 
+-- contribute() runs as the caller and bumps the denormalized total with a
+-- status-guarded update — column-scoped to `total` by the grant below, and
+-- row-scoped here to members of the owning group.
+create policy "plans total updatable by group members" on zikr_app.plans
+  for update to anon, authenticated
+  using (zikr_app.is_plan_group_member(id, auth.uid()));
+
 create policy "plan zikrs readable" on zikr_app.plan_zikrs
   for select using (true);
 
@@ -430,6 +437,11 @@ grant select, insert, update (name, joined_at, removed_at) on zikr_app.members t
 grant select, insert, update (last_seen_at) on zikr_app.devices to anon, authenticated;
 grant insert on zikr_app.analytics_events to anon, authenticated;
 grant select on zikr_app.plans to anon, authenticated;
+-- Heal databases where the missing update grant was hand-widened during
+-- an outage: revoke the table-level grant, then scope to the one column
+-- contribute() actually writes.
+revoke update on zikr_app.plans from anon, authenticated;
+grant update (total) on zikr_app.plans to anon, authenticated;
 grant select on zikr_app.plan_zikrs to anon, authenticated;
 grant select on zikr_app.plan_owners to anon, authenticated;
 grant select, insert on zikr_app.plan_contributions to anon, authenticated;

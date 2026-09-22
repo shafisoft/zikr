@@ -39,7 +39,21 @@
 -- ============================================================
 
 alter table if exists zikr_app.rooms rename to groups;
-alter table if exists zikr_app.members rename column if exists room_id to group_id;
+
+-- members.room_id → group_id. RENAME COLUMN has no IF EXISTS form (that
+-- syntax is invalid — the column guard must be a catalog check), and on a
+-- fresh install the column was already created under its canonical name.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'zikr_app'
+      and table_name = 'members'
+      and column_name = 'room_id'
+  ) then
+    alter table zikr_app.members rename column room_id to group_id;
+  end if;
+end $$;
 
 -- ============================================================
 -- 2. Plan model + legacy data migration
@@ -441,6 +455,14 @@ create policy "own device inserts events" on zikr_app.analytics_events
 drop policy if exists "plans readable" on zikr_app.plans;
 create policy "plans readable" on zikr_app.plans
   for select using (true);
+
+-- contribute() runs as the caller and bumps the denormalized total with a
+-- status-guarded update — column-scoped to `total` by the grant below, and
+-- row-scoped here to members of the owning group.
+drop policy if exists "plans total updatable by group members" on zikr_app.plans;
+create policy "plans total updatable by group members" on zikr_app.plans
+  for update to anon, authenticated
+  using (zikr_app.is_plan_group_member(id, auth.uid()));
 
 drop policy if exists "plan zikrs readable" on zikr_app.plan_zikrs;
 create policy "plan zikrs readable" on zikr_app.plan_zikrs
@@ -905,12 +927,14 @@ $$;
 -- The interim room-named RPC surface (a previous partial application of
 -- this migration) and the v1 backward-compat shims — no released client
 -- calls them. Exact signatures: the interim surface is fully known.
+-- NOTE: the canonical contribute(text, uuid, text, integer, uuid) and
+-- remove_member(text, uuid) are deliberately NOT dropped here — this file
+-- creates both above, and a drop would break the grants below (and the
+-- Groups/Library RPC surface).
 drop function if exists public.get_room_state(text);
 drop function if exists public.join_room(text, text);
 drop function if exists public.leave_room(text);
 drop function if exists public.close_room(text);
-drop function if exists public.remove_member(text, uuid);
-drop function if exists public.contribute(text, uuid, text, integer, uuid);
 drop function if exists public.contribute(text, integer, uuid);
 drop function if exists public.create_room(text, text, text, integer, timestamptz, timestamptz, text);
 
@@ -957,6 +981,11 @@ grant select, insert, update (name, joined_at, removed_at) on zikr_app.members t
 grant select, insert, update (last_seen_at) on zikr_app.devices to anon, authenticated;
 grant insert on zikr_app.analytics_events to anon, authenticated;
 grant select on zikr_app.plans to anon, authenticated;
+-- Heal databases where the missing update grant was hand-widened during
+-- an outage: revoke the table-level grant, then scope to the one column
+-- contribute() actually writes.
+revoke update on zikr_app.plans from anon, authenticated;
+grant update (total) on zikr_app.plans to anon, authenticated;
 grant select on zikr_app.plan_zikrs to anon, authenticated;
 grant select on zikr_app.plan_owners to anon, authenticated;
 grant select, insert on zikr_app.plan_contributions to anon, authenticated;

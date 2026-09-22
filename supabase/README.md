@@ -115,3 +115,22 @@ Crowdsourced zikr definitions with admin moderation:
 Rejected submissions: just delete the row (or leave it — `purge_expired()`
 removes unverified rows older than 180 days). Duplicate names are rejected
 case-insensitively by a unique index.
+
+## Troubleshooting "everything 404s"
+
+If Groups and Library sync fail at once with
+
+```
+404 {"code":"PGRST202","details":"Searched for the function zikr_app.…"}
+```
+
+the **Exposed schemas** setting drifted: the schema name in the error
+(`zikr_app.<fn>` instead of `public.<fn>`) is the giveaway. Fix:
+**Settings → API → Exposed schemas → `public` ONLY** (remove everything
+else; `Accept-Profile: public` cannot rescue a schema that is not
+exposed). This has regressed more than once — check it first.
+
+After restoring exposure, re-run the current `migrations/0002_shared_zikrs.sql`
+if Library sync fails with `42P01 relation "page" does not exist` (an
+older body of `pull_verified_zikrs` referenced its CTE outside the CTE's
+statement — fixed in the current file, which is idempotent).

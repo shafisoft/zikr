@@ -7,6 +7,19 @@ user-facing change and date it when it ships.
 
 ## Unreleased
 
+### Fixed
+- **Server: the shared-library pull function could never succeed.**
+  `pull_verified_zikrs` referenced its pagination CTE outside the CTE's
+  statement, so every call failed with `relation "page" does not exist`,
+  and its end-of-pages check would have stalled syncs even if it ran —
+  fixed and now exercised by the local migration harness. The upgrade
+  migration also carried three latent errors (an invalid `RENAME COLUMN
+  IF EXISTS`, cleanup drops that removed two live RPCs, and a missing
+  UPDATE grant that made `contribute` impossible) — all fixed; the
+  harness's full behavioral suite now passes from a fresh database.
+  Operators: see `supabase/README.md` (exposed-schemas check + re-run the
+  migration files).
+
 _(nothing yet)_
 
 ## 1.3.0 — 2026-09-22

@@ -120,10 +120,15 @@ declare
   v_page_size constant integer := 100;
   v_items json;
   v_count integer;
+  v_has_more boolean;
   v_last_updated timestamptz;
   v_last_id uuid;
-  v_has_more boolean;
 begin
+  -- ONE statement, deliberately: the `page` CTE (an over-fetch of +1 that
+  -- answers has_more) is only in scope for the statement it belongs to.
+  -- plpgsql resolves names per statement — touching `page` in a later
+  -- statement looks up a TABLE and fails at call time with
+  -- 42P01 relation "page" does not exist (this shipped broken once).
   with page as (
     select z.id, z.name, z.name_bn, z.arabic_text, z.translation, z.translation_bn, z.updated_at
     from zikr_app.shared_zikrs z
@@ -134,32 +139,27 @@ begin
       )
     order by z.updated_at asc, z.id asc
     limit v_page_size + 1
+  ),
+  kept as (
+    select * from page order by updated_at asc, id asc limit v_page_size
   )
   select
     coalesce(json_agg(json_build_object(
-      'id', p.id,
-      'name', p.name,
-      'nameBn', p.name_bn,
-      'arabicText', p.arabic_text,
-      'translation', p.translation,
-      'translationBn', p.translation_bn,
-      'updatedAt', p.updated_at
-    ) order by p.updated_at, p.id) filter (where p.updated_at is not null), '[]'::json),
-    count(*)
-  into v_items, v_count
-  from (
-    select * from page order by updated_at, id limit v_page_size
-  ) p;
+      'id', kept.id,
+      'name', kept.name,
+      'nameBn', kept.name_bn,
+      'arabicText', kept.arabic_text,
+      'translation', kept.translation,
+      'translationBn', kept.translation_bn,
+      'updatedAt', kept.updated_at
+    ) order by kept.updated_at, kept.id), '[]'::json),
+    count(*),
+    (select count(*) from page) > v_page_size
+  into v_items, v_count, v_has_more
+  from kept;
 
-  v_has_more := v_count = v_page_size and (
-    select exists (
-      select 1 from page
-      where (updated_at, id) > (
-        select (updated_at, id) from page order by updated_at desc, id desc limit 1
-      )
-    )
-  );
-
+  -- Position of the last returned row: also sent on the final page so
+  -- clients can advance their cursor past everything consumed.
   select (v_items -> v_count - 1 ->> 'updatedAt')::timestamptz,
          (v_items -> v_count - 1 ->> 'id')::uuid
   into v_last_updated, v_last_id
@@ -167,8 +167,6 @@ begin
 
   return json_build_object(
     'items', v_items,
-    -- Position of the last returned row: also sent on the final page so
-    -- clients can advance their cursor past everything consumed.
     'nextCursorUpdatedAt', v_last_updated,
     'nextCursorId', v_last_id,
     'hasMore', v_has_more
