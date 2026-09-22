@@ -7,7 +7,51 @@ user-facing change and date it when it ships.
 
 ## Unreleased
 
+_(nothing yet)_
+
+## 1.3.0 — 2026-09-22
+
 ### Fixed
+- **Logging a past date no longer zeroes your streak.** A backdated manual
+  entry used to rewind the streak's bookkeeping, so the next day's session
+  read as a break and reset a real streak to zero. Backdated entries now
+  rebuild the streak from history instead.
+- **Editing a one-time plan no longer shifts its dates a day earlier.** The
+  edit form read the stored dates as UTC, so users east of London saw —
+  and could silently save — the wrong day.
+- **The haptics toggle now applies everywhere, immediately.** Counter
+  screens ignored a setting change until reopened, and Quick Start cards
+  always vibrated regardless of the setting.
+- **Group rows in "Your Goals" stay fresh.** Counts shown on Home now come
+  from the local mirror reactively, so a round counted from the group or
+  the counter updates them immediately instead of at the next group visit.
+- **Session history keeps your expanded groups.** Recording a session no
+  longer collapses the buckets you had opened.
+
+### Added
+- **"Continue next zikr" on the counter.** When a counter is opened from a
+  per-zikr plan, completing a round now offers a button that jumps
+  straight to the plan's next zikr (with its own target), so a
+  multi-zikr plan runs as one flow instead of five separate trips.
+- **A "Your Goals" section on Home.** The zikrs counted by the user's
+  active personal plans and group targets now appear (with their live
+  progress) right before the quick-start rail; tapping one opens the
+  counter toward that plan's own number — group rows propagate to the
+  group on save. The quick-start rail itself was renamed "Remember for
+  Some Moments".
+
+### Fixed
+- **The counter ignored a plan's target.** Starting a zikr from a plan
+  card opened the counter toward the zikr's library default (or 33 for
+  custom zikrs) instead of the number the plan set — the round even
+  auto-completed at the wrong count. The plan's target (per-zikr or
+  combined) now carries into the counter; starting from Home keeps the
+  library default.
+- **App icons degraded to plain text when offline.** The Material Symbols
+  icon font is loaded from Google's CDN, and the service worker only
+  cached the font stylesheet — never the font files themselves. The font
+  binaries are now cached after the first online visit, so icons survive
+  offline like the rest of the app.
 - **Groups failed with "Something went wrong" for everyone.** The
   production database was still on the original v1 schema — the server
   functions the Groups feature calls (including the device-identity call
