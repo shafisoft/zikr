@@ -58,6 +58,23 @@ export default defineConfig({
             options: { cacheName: 'google-fonts-cache' }
           },
           {
+            // The font binaries live on gstatic, not googleapis — without this
+            // rule the CSS above gets cached but the woff2 never does, and
+            // offline every MaterialIcon ligature renders as raw text.
+            // Icon/text fonts arrive as many unicode-range slices (~50 across
+            // the five families), so cap the cache well above that count.
+            // gstatic URLs are immutable, so CacheFirst never goes stale.
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'gstatic-fonts-cache',
+              // Fonts load as cross-origin CSS requests; opaque responses
+              // report status 0 and must be cached too.
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 365 }
+            }
+          },
+          {
             // Shared-goals sync API: serve stale data offline, refresh online.
             urlPattern: /^https:\/\/[a-z0-9-]+\.supabase\.co\/rest\/v1\/.*/i,
             handler: 'NetworkFirst',
@@ -77,7 +94,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'state-vendor': ['zustand', 'dexie', 'dexie-react-hooks']
+          'state-vendor': ['zustand', 'dexie']
         }
       }
     }
