@@ -13,14 +13,15 @@ See `docs/SharedGoals-Design.md` for the full design.
    linking your project.
 4. Leave **Settings → API → Exposed schemas** at its default (`public`
    only). Do NOT add `zikr_app`: the tables live there and must have no REST
-   endpoints. All app calls go to the nine `public.*` RPC functions, which
-   the migration grants explicitly — every other function is private by
-   default.
+   endpoints. All app calls go to the thirteen `public.*` RPC functions,
+   which the migrations grant explicitly after revoking EXECUTE from
+   everything else in the schema (see `EXPOSURE-RULES.md` for the full
+   surface, its rules, and the tightening backlog).
 5. Optionally enable the `pg_cron` extension and uncomment the
-   `cron.schedule` line at the bottom of `0001_init.sql` to auto-purge
-   expired event ids and old rooms — or call `public.purge_expired()` from
-   your project's keep-alive job using the **service role key** (it also
-   prunes analytics events older than 90 days; app clients cannot call it).
+   `cron.schedule` line at the bottom of `0001_init.sql` to auto-purge — or
+   call `public.purge_expired()` from your project's keep-alive job using
+   the **service role key** (it also prunes analytics events older than 90
+   days and stale unverified submissions; app clients cannot call it).
 6. Copy the project URL and anon key into the app's environment:
 
 ```
@@ -79,13 +80,14 @@ docker compose exec -T db psql -U postgres -d zikr_local \
 
 ## Security model
 
-- Tables (rooms, members, applied_event_ids, devices, analytics_events) live
-  in `zikr_app` with RLS policies doing row-level authorization (ownership,
+- Tables (groups, members, plans, plan_zikrs, plan_owners,
+  plan_contributions, devices, analytics_events, shared_zikrs) live in
+  `zikr_app` with RLS policies doing row-level authorization (ownership,
   membership, own-device rows). The schema is not exposed to the API, so the
   tables have no REST endpoints.
 - The RPCs in `public` are `security invoker`: they run with the caller's
   privileges, so the migration's scoped table grants + RLS authorize every
-  statement. Functions also raise app-specific errors (`room_full`,
+  statement. Functions also raise app-specific errors (`group_full`,
   `window_ended`, `not_owner`, …) that the client maps to messages.
 - Cross-table helpers (membership checks, member counts) live in `zikr_app`
   as small `security definer` functions — invisible to the API, and immune
@@ -93,9 +95,10 @@ docker compose exec -T db psql -U postgres -d zikr_local \
 - `purge_expired()` is `security definer` and granted to `service_role`
   only.
 
-The anon key is safe to ship: it only works through the nine granted RPCs,
-and the backend never stores per-member contribution data (see the design
-doc).
+The anon key is safe to ship: it only works through the thirteen granted
+RPCs, and the backend never stores per-member contribution data (see the
+design doc). The complete exposure policy — what is exposed, what never is,
+and where it can be tightened — lives in `EXPOSURE-RULES.md`.
 
 ## Shared zikr library (0002_shared_zikrs.sql)
 
