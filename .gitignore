@@ -6,6 +6,9 @@ yarn-error.log*
 pnpm-debug.log*
 .pnpm-store/
 
+# supabase temp
+supabase/.temp
+
 # Build outputs
 dist/
 dist-ssr/
