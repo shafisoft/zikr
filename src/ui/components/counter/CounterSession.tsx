@@ -5,11 +5,18 @@
  * respect to callers: every use passes its own `startCount` and `target`,
  * and receives `onCount` for each count change to act on it.
  *
+ * progressMode disambiguates what startCount means:
+ * - 'personal' (default): startCount is the user's own unsaved progress
+ *   (mirrored unsaved round or the durable zikrLastCount checkpoint). The
+ *   session auto-saves that progress as it counts, saves the whole
+ *   displayed count at the target, and clears the durable checkpoint.
+ * - 'room': startCount is the room's already-saved total. Only THIS
+ *   session's taps are ever saved/contributed, and nothing checkpoints.
+ *
  * Saving always records what THIS session added:
- * - continuation (startCount > 0, e.g. a room's total): only the new taps
- *   are saved and contributed — never the base count.
- * - personal round (startCount = 0, possibly resumed from an unsaved
- *   round): the whole displayed count is unsaved, so it is saved in full.
+ * - room continuation: only the new taps are saved — never the base count.
+ * - personal round: the whole displayed count is unsaved, so it is saved
+ *   in full; afterwards a new round starts from zero.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -30,6 +37,11 @@ interface CounterSessionProps {
   startCount: number;
   /** Round target. Always required — the caller owns what the target is. */
   target: number;
+  /**
+   * What startCount represents — see the header comment. Defaults to
+   * 'personal'; the room modal passes 'room'.
+   */
+  progressMode?: 'personal' | 'room';
   /**
    * Called on every count change (each tap, reset, another round) with the
    * displayed count, so the caller can react to it.
@@ -59,6 +71,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   zikr,
   startCount,
   target,
+  progressMode = 'personal',
   onCount,
   onFinish,
   onContinueNext,
@@ -67,40 +80,58 @@ const CounterSession: React.FC<CounterSessionProps> = ({
 }) => {
   const { lang, t } = useI18n();
   const clearCurrentSession = useSessionStore(state => state.clearCurrentSession);
+  const clearProgressCheckpoint = useSessionStore(state => state.clearProgressCheckpoint);
+  const checkpointProgress = useSessionStore(state => state.checkpointProgress);
   const recordCount = useSessionStore(state => state.recordCount);
 
-  // Local state: taps added in THIS session. What the user sees is
-  // startCount + taps.
+  // What the board started from, and taps added in THIS session. A saved
+  // personal round consumed its base (it persisted with the round), so the
+  // base drops to zero then — "Another Round" starts from zero, not from
+  // an already-saved count. A room base stays: it lives on the room's books.
+  const [base, setBase] = useState(startCount);
   const [taps, setTaps] = useState(0);
   // Round flow: when the target is hit, the round saves itself and the UI
   // switches to "Another Round / Done" instead of the manual save button.
   const [isRoundSaved, setIsRoundSaved] = useState(false);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
+  // The completed round keeps its number on the board while base/taps reset
+  // underneath it; null while counting.
+  const [savedDisplay, setSavedDisplay] = useState<number | null>(null);
   const autoSaveTriggeredRef = useRef(false);
   // Sync mirror of isRoundSaved: guards that read it synchronously.
   const isRoundSavedRef = useRef(false);
 
   // Haptics come straight from settings so a toggle anywhere applies live.
   const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
-  const { trigger: haptic } = useHaptic(hapticsEnabled);
+  const { trigger: haptic, isSupported: hapticsSupported } = useHaptic(hapticsEnabled);
 
   const zikrDisplayInfo = getZikrDisplayInfoFromZikr(zikr, lang);
-  const displayCount = startCount + taps;
-  const isContinuation = startCount > 0;
-  // What completing a round persists: a continuation only ever contributes
-  // its own taps; a personal round's whole display is unsaved taps.
-  const saveAmount = isContinuation ? taps : displayCount;
+  const liveCount = base + taps;
+  const displayCount = isRoundSaved && savedDisplay !== null ? savedDisplay : liveCount;
+  const isRoomContinuation = progressMode === 'room';
+  // What completing a round persists: a room continuation only ever
+  // contributes its own taps; a personal round's whole display is unsaved
+  // taps.
+  const saveAmount = isRoomContinuation ? taps : displayCount;
   // A continuation auto-saves only while its target is still open; past the
   // target, "Finish & Save" records the taps instead.
   const canAutoSave = startCount < target;
 
+  // Durable auto-save of an in-progress personal round: countRecorder
+  // debounces the write per zikr, so a burst of taps is one IndexedDB put.
+  // Guarded on the sync ref — a completed round must not re-checkpoint its
+  // just-saved count after the base resets.
+  useEffect(() => {
+    if (progressMode !== 'personal' || isRoundSavedRef.current) return;
+    void checkpointProgress(zikr.id!, liveCount);
+  }, [progressMode, liveCount, zikr.id, checkpointProgress]);
+
   const handleIncrement = () => {
     // Personal rounds stop at the target (the round completes there);
     // a continuation keeps counting — every tap is real dhikr.
-    if (isContinuation || displayCount < target) {
-      const newCount = displayCount + 1;
+    if (isRoomContinuation || liveCount < target) {
       setTaps(taps + 1);
-      onCount(newCount);
+      onCount(liveCount + 1);
     }
   };
 
@@ -109,7 +140,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
     setIsRoundSaved(false);
     isRoundSavedRef.current = false;
     autoSaveTriggeredRef.current = false;
-    onCount(startCount);
+    onCount(base);
     haptic('light');
   };
 
@@ -118,6 +149,16 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   // recordCount/countRecorder, not here.
   const persistCount = (countToSave: number) =>
     recordCount({ zikrId: zikr.id!, zikrName: zikr.name, count: countToSave });
+
+  // Post-save bookkeeping for a personal round: the mirror and the durable
+  // checkpoint are consumed by the save, and the board freezes on the saved
+  // number while a fresh round starts from zero underneath.
+  const finishPersonalRound = (savedAmount: number) => {
+    clearCurrentSession();
+    void clearProgressCheckpoint(zikr.id!);
+    setBase(0);
+    setSavedDisplay(savedAmount);
+  };
 
   // When the target is hit the round saves itself — no save button needed.
   // autoSaveTriggeredRef keeps this to one attempt per round (manual
@@ -138,7 +179,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
           await persistCount(saveAmount);
           isRoundSavedRef.current = true;
           setIsRoundSaved(true);
-          if (!isContinuation) clearCurrentSession();
+          if (progressMode === 'personal') finishPersonalRound(saveAmount);
           haptic('success');
         } catch (error) {
           console.error('Failed to auto-save round:', error);
@@ -155,9 +196,10 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   const handleAnotherRound = () => {
     isRoundSavedRef.current = false;
     setIsRoundSaved(false);
+    setSavedDisplay(null);
     autoSaveTriggeredRef.current = false;
     setTaps(0);
-    onCount(startCount);
+    onCount(isRoomContinuation ? base : 0);
     haptic('light');
   };
 
@@ -166,7 +208,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
 
     try {
       await persistCount(saveAmount);
-      if (!isContinuation) clearCurrentSession();
+      if (progressMode === 'personal') finishPersonalRound(saveAmount);
       haptic('success');
       onFinish(saveAmount);
     } catch (error) {
@@ -232,6 +274,14 @@ const CounterSession: React.FC<CounterSessionProps> = ({
           <MaterialIcon icon="refresh" className="text-[18px]" />
           {t('counter.reset')}
         </button>
+      )}
+
+      {/* Haptics silently no-op on browsers without the Vibration API
+          (all iOS browsers) — say so instead of leaving a dead toggle. */}
+      {!hapticsSupported && hapticsEnabled && (
+        <p className="mt-3 text-center font-caption text-caption text-on-surface-variant/60 z-10 px-6">
+          {t('counter.hapticsUnsupported')}
+        </p>
       )}
 
       {/* Action area */}

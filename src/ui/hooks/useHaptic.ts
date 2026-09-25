@@ -38,7 +38,12 @@ export const useHaptic = (enabled: boolean = true) => {
     if (!isEnabled || !isSupported()) return;
 
     const pattern = DEFAULT_PATTERNS[type];
-    navigator.vibrate(pattern);
+    try {
+      navigator.vibrate(pattern);
+    } catch {
+      // Some WebViews throw instead of reporting unsupported — feedback
+      // must never break the interaction it decorates.
+    }
   }, [isEnabled, isSupported]);
 
   // Test haptic feedback

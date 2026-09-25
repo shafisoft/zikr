@@ -98,6 +98,7 @@ const CounterModal: React.FC<CounterModalProps> = ({ isOpen, onClose, zikr, star
           zikr={zikr}
           startCount={startCount}
           target={target}
+          progressMode="room"
           onCount={onCount}
           variant="modal"
           escapeResets={false}

@@ -66,6 +66,7 @@ export const bn: Dictionary = {
   'counter.noZikrsHint': 'শুরু করতে একটি জিকির তৈরি করুন।',
   'counter.goHome': 'হোমে ফিরুন',
   'counter.resetConfirm': 'কাউন্টার শূন্যে রিসেট করবেন?',
+  'counter.hapticsUnsupported': 'এই ডিভাইসে হ্যাপটিক ফিডব্যাক সমর্থিত নয় — কাউন্ট তবুও গণনা হবে।',
 
   'welcome.skip': 'এড়িয়ে যান',
   'welcome.next': 'পরবর্তী',

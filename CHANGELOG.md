@@ -25,6 +25,19 @@ user-facing change and date it when it ships.
   response (join, create, refresh) threw on the client after the RPC had
   already succeeded. The wire contract (`sharedRoom/contract.ts`), mock
   backend, and tests now all use the server's `group` key.
+- **The counter now resumes where you left off.** An unfinished round
+  used to live only in the tab's local storage — one zikr at a time,
+  dropped after 48 hours, and reset to zero whenever you counted a
+  different zikr in between. In-progress counts now auto-save durably
+  per zikr as you count, and the counter picks them back up.
+- **"Another Round" after a resumed round no longer re-counts saved
+  progress.** Completing a round that had been resumed from a partial
+  count used to seed the next round — and its save — with the already
+  persisted base.
+- **Haptic feedback no longer pretends to work where it can't.** iOS
+  browsers have no web vibration API, so the counter's toggle silently
+  did nothing on iPhones. The counter now says haptics aren't supported
+  on such devices (taps still count); Android behavior is unchanged.
 
 _(nothing yet)_
 

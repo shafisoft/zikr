@@ -67,6 +67,7 @@ export const en = {
   'counter.noZikrsHint': 'Create a zikr to start practicing.',
   'counter.goHome': 'Go to Home',
   'counter.resetConfirm': 'Reset counter to zero?',
+  'counter.hapticsUnsupported': 'Haptic feedback is not supported on this device — taps still count.',
 
   'welcome.skip': 'Skip',
   'welcome.next': 'Next',

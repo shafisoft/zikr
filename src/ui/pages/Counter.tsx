@@ -44,6 +44,7 @@ const Counter: React.FC = () => {
   const zikrsLoading = useZikrStore(state => state.loading);
   const plans = usePlanStore(state => state.plans);
   const currentSession = useSessionStore(state => state.currentSession);
+  const checkpoints = useSessionStore(state => state.checkpoints);
   const setCurrentSession = useSessionStore(state => state.setCurrentSession);
   const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
   const saveSetting = useSettingsStore(state => state.saveSetting);
@@ -111,15 +112,22 @@ const Counter: React.FC = () => {
     setSelectedZikr(zikrToUse ?? null);
   }, [zikrs, zikrIdParam, currentSession.zikrId, planSteps]);
 
-  // Snapshot the resume count when the zikr selection settles. Re-runs when
-  // the session store hydrates from IndexedDB (its first load can land after
-  // this effect's first run), but never after the user started counting.
+  // Snapshot the resume count when the zikr selection settles. Resume
+  // order: the in-flight round mirror first, then the durable progress
+  // checkpoint (auto-saved counts), then zero. Re-runs when the stores
+  // hydrate from IndexedDB (their first load can land after this effect's
+  // first run), but never after the user started counting.
   useEffect(() => {
     if (!selectedZikr || interactedRef.current) return;
+    const zikrKey = selectedZikr.id;
     setStartCount(
-      currentSession.zikrId === selectedZikr.id ? currentSession.count : 0
+      currentSession.zikrId === zikrKey
+        ? currentSession.count
+        : zikrKey != null
+          ? checkpoints[zikrKey] ?? 0
+          : 0
     );
-  }, [selectedZikr, currentSession]);
+  }, [selectedZikr, currentSession, checkpoints]);
 
   // The page's target: the plan step's target when counting a plan, else a
   // plan-provided ?target= when valid, else the zikr's default.
@@ -139,8 +147,13 @@ const Counter: React.FC = () => {
     if (!nextStep) return;
     selectionLockedRef.current = true;
     const unsaved = useSessionStore.getState().currentSession;
+    const nextZikrId = nextStep.zikr.id;
     setStartCount(
-      unsaved.zikrId != null && unsaved.zikrId === nextStep.zikr.id ? unsaved.count : 0
+      nextZikrId != null && unsaved.zikrId === nextZikrId
+        ? unsaved.count
+        : nextZikrId != null
+          ? checkpoints[nextZikrId] ?? 0
+          : 0
     );
     interactedRef.current = true;
     setSelectedZikr(nextStep.zikr);
