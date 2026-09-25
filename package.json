@@ -15,7 +15,8 @@
     "prebuild": "node scripts/check-node.js",
     "pretest": "node scripts/check-node.js",
     "lint:layers": "node scripts/check-layers.mjs",
-    "check:migrations": "node scripts/check-migrations.mjs"
+    "check:migrations": "node scripts/check-migrations.mjs",
+    "gen:db-types": "supabase gen types typescript --db-url postgresql://postgres:postgres@localhost:55433/zikr_local --schema=public,zikr_app > src/core/services/supabaseDatabase.generated.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

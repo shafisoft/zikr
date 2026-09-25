@@ -77,6 +77,13 @@ docker compose exec -T db psql -U postgres -d zikr_local \
   in sync with schema changes.
 - Init runs only on an empty volume — after changing a migration, reset
   with `down -v` first.
+- **Regenerate the client's DB mirror** after changing a migration: with
+  the stack up, run `npm run gen:db-types` — it reads this Postgres and
+  rewrites `src/core/services/supabaseDatabase.generated.ts`. The type
+  guards in `src/core/services/supabaseTypes.ts` compare the app's RPC
+  surface against that mirror, so a renamed parameter or a new/removed
+  function fails `tsc` (and `tests/core/services/supabaseRpcSurface.test.ts`
+  fails with a readable diff) instead of reaching production.
 
 ## Security model
 
