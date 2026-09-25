@@ -4,7 +4,11 @@
  * Mirrors the sharedRoom contract pattern: everything the app knows about
  * the library-sync backend lives here; concrete backends (Supabase adapter,
  * mock) implement it. Swapping backends = another adapter + factory entry.
+ * Wire shapes are hosted in ../supabaseTypes.ts (types only — the port
+ * stays backend-agnostic) and aliased here under port names.
  */
+
+import type { SupabaseSharedZikr } from '../supabaseTypes';
 
 // ---------- Error taxonomy ----------
 
@@ -32,15 +36,7 @@ export class ZikrSyncError extends Error {
 // ---------- Payload shapes (transport-agnostic; dates as ISO strings) ----------
 
 /** A verified zikr as delivered by the backend. */
-export interface RemoteZikr {
-  id: string;
-  name: string;
-  nameBn: string | null;
-  arabicText: string | null;
-  translation: string | null;
-  translationBn: string | null;
-  updatedAt: string;
-}
+export type RemoteZikr = SupabaseSharedZikr;
 
 /** Opaque pagination cursor — pass back what the last page returned. */
 export interface ZikrSyncCursor {

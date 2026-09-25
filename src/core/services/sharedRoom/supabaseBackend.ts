@@ -15,6 +15,7 @@ import type {
   RoomStatePayload,
   SharedRoomBackend,
 } from './contract';
+import type { SupabasePlanPayload, SupabaseRpc, SupabaseRpcName } from '../supabaseTypes';
 
 let clientPromise: Promise<any> | null = null;
 
@@ -76,12 +77,16 @@ function mapServerError(rawMessage: string): SharedRoomError {
   return new SharedRoomError('unknown', rawMessage);
 }
 
-async function rpc<T>(fn: string, params: Record<string, unknown>): Promise<T> {
+/** Typed against ../supabaseTypes.ts — wrong fn names, params, or returns are compile errors. */
+async function rpc<F extends SupabaseRpcName>(
+  fn: F,
+  params: SupabaseRpc[F]['params']
+): Promise<SupabaseRpc[F]['returns']> {
   try {
     const sb = await getClient();
     const { data, error } = await sb.rpc(fn, params);
     if (error) throw mapServerError(error.message);
-    return data as T;
+    return data as SupabaseRpc[F]['returns'];
   } catch (err) {
     if (err instanceof SharedRoomError) throw err;
     // fetch failures land here
@@ -90,7 +95,7 @@ async function rpc<T>(fn: string, params: Record<string, unknown>): Promise<T> {
 }
 
 /** CreatePlanInput → the jsonb payload shape the server functions expect. */
-function planToPayload(input: CreatePlanInput): Record<string, unknown> {
+function planToPayload(input: CreatePlanInput): SupabasePlanPayload {
   return {
     title: input.title || null,
     mode: input.mode,
@@ -160,7 +165,7 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   }
 
   createRoom(input: CreateRoomInput): Promise<RoomStatePayload> {
-    return rpc<RoomStatePayload>('create_group', {
+    return rpc('create_group', {
       p_title: input.title,
       p_name: input.displayName,
       p_plan: planToPayload(input.initialPlan),
@@ -168,11 +173,11 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   }
 
   joinRoom(code: string, displayName: string): Promise<RoomStatePayload> {
-    return rpc<RoomStatePayload>('join_group', { p_code: code, p_name: displayName });
+    return rpc('join_group', { p_code: code, p_name: displayName });
   }
 
   createPlan(code: string, input: CreatePlanInput): Promise<RoomStatePayload> {
-    return rpc<RoomStatePayload>('create_plan', {
+    return rpc('create_plan', {
       p_code: code,
       p_plan: planToPayload(input),
     });
@@ -189,7 +194,7 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
     delta: number,
     eventId: string
   ): Promise<{ total: number; periodTotal: number }> {
-    return rpc<{ total: number; periodTotal: number }>('contribute', {
+    return rpc('contribute', {
       p_code: code,
       p_plan_id: planId,
       p_zikr_name: zikrName,
@@ -199,7 +204,7 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   }
 
   getRoomState(code: string): Promise<RoomStatePayload> {
-    return rpc<RoomStatePayload>('get_group_state', { p_code: code });
+    return rpc('get_group_state', { p_code: code });
   }
 
   removeMember(code: string, userId: string): Promise<void> {
@@ -217,7 +222,7 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   // ---------- Usage metrics (best-effort; see contract) ----------
 
   async ensureDeviceToken(): Promise<string> {
-    return rpc<string>('get_or_create_device_token', {});
+    return rpc('get_or_create_device_token', {});
   }
 
   async trackEvent(name: string, properties: Record<string, unknown> = {}): Promise<void> {

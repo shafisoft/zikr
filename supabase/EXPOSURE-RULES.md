@@ -49,7 +49,10 @@ must not be enumerable.
 The mapping is 1:1 — every granted RPC has a client caller, every client
 call has a grant. The client makes **zero** table requests (no `.from()`
 anywhere) and uses no realtime, storage, or edge functions. Adding a
-fourteenth function requires a deliberate edit to this list.
+fourteenth function requires a deliberate edit to this list — and to the
+typed RPC surface in `src/core/services/supabaseTypes.ts`, whose
+`SupabaseRpc` map carries every function's parameter names and return
+shape, so client/backend drift fails the build instead of the user.
 
 ### Auth
 

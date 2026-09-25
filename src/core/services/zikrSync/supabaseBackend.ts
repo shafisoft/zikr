@@ -20,6 +20,7 @@ import type {
   ZikrSyncBackend,
   ZikrSyncCursor,
 } from './contract';
+import type { SupabaseRpc, SupabaseRpcName } from '../supabaseTypes';
 
 let clientPromise: Promise<any> | null = null;
 
@@ -54,23 +55,20 @@ function mapServerError(rawMessage: string): ZikrSyncError {
   return new ZikrSyncError('unknown', rawMessage);
 }
 
-async function rpc<T>(fn: string, params: Record<string, unknown>): Promise<T> {
+/** Typed against ../supabaseTypes.ts — wrong fn names, params, or returns are compile errors. */
+async function rpc<F extends SupabaseRpcName>(
+  fn: F,
+  params: SupabaseRpc[F]['params']
+): Promise<SupabaseRpc[F]['returns']> {
   try {
     const sb = await getClient();
     const { data, error } = await sb.rpc(fn, params);
     if (error) throw mapServerError(error.message);
-    return data as T;
+    return data as SupabaseRpc[F]['returns'];
   } catch (err) {
     if (err instanceof ZikrSyncError) throw err;
     throw new ZikrSyncError('network', (err as Error)?.message);
   }
-}
-
-interface RawPage {
-  items: Array<Record<string, any>>;
-  nextCursorUpdatedAt: string | null;
-  nextCursorId: string | null;
-  hasMore: boolean;
 }
 
 export class SupabaseZikrSyncBackend implements ZikrSyncBackend {
@@ -88,27 +86,22 @@ export class SupabaseZikrSyncBackend implements ZikrSyncBackend {
 
   async shareZikr(input: ShareZikrInput): Promise<{ id: string }> {
     await this.ensureUserId();
-    return rpc<{ id: string }>('share_zikr', {
+    const { id } = await rpc('share_zikr', {
       p_name: input.name,
       p_arabic_text: input.arabicText || null,
       p_translation: input.translation || null,
     });
+    return { id };
   }
 
   async pullVerifiedZikrs(cursor: ZikrSyncCursor | null): Promise<PullVerifiedPage> {
-    const page = await rpc<RawPage>('pull_verified_zikrs', {
+    const page = await rpc('pull_verified_zikrs', {
       p_cursor_updated_at: cursor?.updatedAt ?? null,
       p_cursor_id: cursor?.id ?? null,
     });
-    const items: RemoteZikr[] = (page.items || []).map(it => ({
-      id: it.id,
-      name: it.name,
-      nameBn: it.nameBn ?? null,
-      arabicText: it.arabicText ?? null,
-      translation: it.translation ?? null,
-      translationBn: it.translationBn ?? null,
-      updatedAt: it.updatedAt,
-    }));
+    // page.items is typed as the wire row (SupabaseSharedZikr) — same
+    // shape the port's RemoteZikr aliases, no per-field mapping needed.
+    const items: RemoteZikr[] = page.items ?? [];
     const nextCursor =
       page.nextCursorUpdatedAt && page.nextCursorId
         ? { updatedAt: page.nextCursorUpdatedAt, id: page.nextCursorId }

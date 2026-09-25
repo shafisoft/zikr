@@ -3,7 +3,10 @@
  *
  * This module defines EVERYTHING the rest of the app knows about the sync
  * backend: the callable surface, the payload shapes, and the error taxonomy.
- * It must never import a concrete backend (Supabase or otherwise).
+ * It must never import a concrete backend (Supabase or otherwise). The
+ * payload shapes are hosted in ../supabaseTypes.ts — the single wire
+ * contract mirrored from the SQL migrations — and aliased here under port
+ * names; that file is types only, so this remains backend-agnostic.
  *
  * Swapping backends = implementing `SharedRoomBackend` and returning it from
  * the factory in ./index.ts. `MockSharedRoomBackend` is the reference "dumb
@@ -14,6 +17,16 @@
  * targets live on PLANS owned by the group via the plan_owners relation.
  * Contributions target one zikr of one plan.
  */
+
+import type {
+  SupabaseGroupState,
+  SupabaseGroupSummary,
+  SupabaseMemberSummary,
+  SupabasePlanMode,
+  SupabasePlanPeriod,
+  SupabasePlanSummary,
+  SupabasePlanZikrSummary,
+} from '../supabaseTypes';
 
 // ---------- Error taxonomy ----------
 
@@ -54,67 +67,26 @@ export class SharedRoomError extends Error {
   }
 }
 
-// ---------- Payload shapes (transport-agnostic; dates as ISO strings) ----------
+// ---------- Payload shapes (hosted in ../supabaseTypes.ts; aliased under port names) ----------
 
 /** A persistent group: code, title, owner, status — no goal fields. */
-export interface RoomSummary {
-  id: string;
-  code: string;
-  title: string;
-  ownerId: string;
-  status: 'active' | 'closed';
-  createdAt: string;
-}
+export type RoomSummary = SupabaseGroupSummary;
 
 /** One zikr of a plan: its definition plus server-computed totals. */
-export interface PlanZikrSummary {
-  name: string;
-  arabic: string | null;
-  /** Per-zikr target (mode 'per-zikr' only). */
-  target: number | null;
-  /** Lifetime total for this zikr. */
-  total: number;
-  /** Current-period total (recurring plans; mirrors total for one-time). */
-  periodTotal: number;
-}
+export type PlanZikrSummary = SupabasePlanZikrSummary;
 
-export type PlanModeDTO = 'combined' | 'per-zikr';
-export type PlanPeriodDTO = 'one-time' | 'daily' | 'weekly' | 'monthly';
+export type PlanModeDTO = SupabasePlanMode;
+export type PlanPeriodDTO = SupabasePlanPeriod;
 
-export interface PlanSummary {
-  id: string;
-  title: string | null;
-  mode: PlanModeDTO;
-  period: PlanPeriodDTO;
-  timeZone: string | null;
-  /** Combined target (mode 'combined' only). */
-  target: number | null;
-  /** Lifetime combined total. */
-  total: number;
-  /** Combined total within the current period (recurring plans). */
-  periodTotal: number;
-  startsAt: string | null;
-  endsAt: string | null;
-  status: 'active' | 'ended';
-  createdAt: string;
-  endedAt: string | null;
-  zikrs: PlanZikrSummary[];
-}
+export type PlanSummary = SupabasePlanSummary;
 
-export interface RoomMemberPayload {
-  name: string;
-  joinedAt: string;
-  /** Server-side uid — needed for owner removal; carries no contribution data. */
-  userId?: string;
-}
+export type RoomMemberPayload = SupabaseMemberSummary;
 
-export interface RoomStatePayload {
-  /** Wire key is `group` — must match get_group_state's json_build_object. */
-  group: RoomSummary;
-  plans: PlanSummary[];
-  members: RoomMemberPayload[];
-  isMember: boolean;
-}
+/**
+ * What the group_* state-returning RPCs send back. The wire key for the
+ * summary is `group` — it must match get_group_state's json_build_object.
+ */
+export type RoomStatePayload = SupabaseGroupState;
 
 /** A plan definition to create (group variant — zikrs by name, no local ids). */
 export interface CreatePlanInput {
