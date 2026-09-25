@@ -38,6 +38,8 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+.env.dev
+.env.loop
 
 # Logs
 logs/

@@ -1,0 +1,125 @@
+# Feature delivery pipeline
+#
+# This is loop's flagship example: an idea goes in, and a reviewed
+# implementation plan comes out. Every stage writes its result into the
+# run context under `output`; later stages reference earlier results with
+# {{ }} templates (e.g. ${stages.requirements.output}).
+#
+# The approval is a gate: it understands "yes", "no", and free words
+# (one classification call reads your intent). A rejection never redoes
+# the whole pipeline — your words feed a revise stage and you are asked
+# again.
+#
+# Validate it:   loop validate .loop/pipelines/feature-delivery.yaml
+# Run it:        loop run .loop/pipelines/feature-delivery.yaml
+
+name: feature-delivery
+description: Turn an idea into a reviewed implementation plan
+
+# Inputs to the pipeline. Reference them in any prompt as {{ vars.idea }}.
+vars:
+  idea: add OAuth login to our web app
+
+# Personas are reusable agent identities. Pipeline agent stages reference
+# them by name; rooms define their own inline.
+personas:
+  - name: architect
+    role: Software architect
+    system: |
+      You are a pragmatic software architect. You design the simplest
+      system that satisfies the requirements, name concrete trade-offs,
+      and avoid resume-driven development. Be terse and concrete.
+    # Agent stages need a model somewhere — on the stage or, like here,
+    # on the persona. The model id is optional (ANTHROPIC_MODEL env or
+    # the built-in default applies). Switch to openai if that's your setup.
+    model:
+      provider: anthropic
+
+stages:
+  # A single LLM completion. The prompt is a template over the run context.
+  - id: requirements
+    type: llm
+    model:
+      provider: anthropic
+      model: claude-sonnet-4-5
+    prompt: |
+      Turn this product idea into a concise requirements document.
+      Include: problem, users, scope (in/out), and acceptance criteria.
+
+      Idea: {{ vars.idea }}
+    output: requirements_md
+
+  # An agent stage: a persona with tools, looping until done.
+  - id: architecture
+    type: agent
+    persona: architect
+    input: ${stages.requirements.output}
+    tools: [read_file, write_file, run_command]
+    max_iterations: 10
+    output: architecture_md
+
+  # A human gate: the run pauses and asks you in the terminal. The gate
+  # understands three kinds of answer — "yes", "no", or free words.
+  # Crisp yes/no is recognized directly (no model involved); free words
+  # get one classification call, so the router below branches on your
+  # actual intent, not on exact string matching. outputs.architecture_md
+  # is the shared, mutable slot — architecture and revise both write it,
+  # so this always shows the latest plan.
+  - id: approval
+    type: human
+    gate: true
+    prompt: |
+      Review the architecture below. Reply yes to approve, no to reject,
+      or describe what should change — free-form is understood.
+
+      ${outputs.architecture_md}
+    output: approval.answer
+
+  # Deterministic branching on the gate's intent label
+  # (stages.approval.intent: "yes" | "no" | "changes"). The last rule
+  # without an "if" is the default.
+  - id: quality
+    type: router
+    when:
+      - if: "${stages.approval.intent} == 'yes'"
+        next: build
+      - if: "${stages.approval.intent} == 'no'"
+        next: rejected
+      - next: revise
+
+  # Revision: your words go in, the same outputs.architecture_md slot
+  # comes out (overwritten), so approval always reviews the latest.
+  # Rework loops that ignore the reviewer's words just re-run frozen
+  # stages — this loop listens.
+  - id: revise
+    type: llm
+    prompt: |
+      The reviewer asked for changes to the architecture below. Apply
+      exactly these changes and return the full revised architecture —
+      same structure, nothing else.
+
+      Change requests:
+      ${stages.approval.answer}
+
+      Current architecture:
+      ${outputs.architecture_md}
+    output: architecture_md
+
+  # Back to the reviewer: revisions are never self-approved.
+  - id: back
+    type: router
+    when:
+      - next: approval
+
+  # The two endings are terminal stages: reaching one completes the
+  # run — no guard routers needed after them.
+  - id: rejected
+    type: tool
+    terminal: true
+    run: echo "rejected by the reviewer — nothing built"
+
+  # A deterministic local command. stdout is captured into the context.
+  - id: build
+    type: tool
+    terminal: true
+    run: echo "building..."
