@@ -109,7 +109,8 @@ export interface RoomMemberPayload {
 }
 
 export interface RoomStatePayload {
-  room: RoomSummary;
+  /** Wire key is `group` — must match get_group_state's json_build_object. */
+  group: RoomSummary;
   plans: PlanSummary[];
   members: RoomMemberPayload[];
   isMember: boolean;

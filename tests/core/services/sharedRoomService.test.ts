@@ -18,7 +18,7 @@ const PLAN_ID = 'plan-uuid-1';
 function makeRoomState(overrides: { planTotal?: number; planPeriodTotal?: number } = {}): RoomStatePayload {
   const now = Date.now();
   return {
-    room: {
+    group: {
       id: 'room-uuid-1',
       code: ROOM_CODE,
       title: 'Family Khatma',
@@ -137,11 +137,11 @@ function makeMockBackend(state: { total: number; periodTotal: number }) {
 async function seedRoom(extra: Partial<SharedRoom> = {}, planId: string = PLAN_ID) {
   const payload = makeRoomState();
   const room: SharedRoom = {
-    code: payload.room.code,
-    id: payload.room.id,
-    title: payload.room.title,
-    ownerId: payload.room.ownerId,
-    status: payload.room.status,
+    code: payload.group.code,
+    id: payload.group.id,
+    title: payload.group.title,
+    ownerId: payload.group.ownerId,
+    status: payload.group.status,
     joinedAt: new Date(),
     fetchedAt: new Date(),
     ...extra,

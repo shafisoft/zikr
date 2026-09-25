@@ -44,7 +44,7 @@ describe('MockSharedRoomBackend', () => {
       displayName: 'Owner',
       initialPlan: oneTimePlan(),
     });
-    roomCode = payload.room.code;
+    roomCode = payload.group.code;
   });
 
   it('creates a group with a 6-char code, the creator as first member, and one plan', async () => {
@@ -108,7 +108,7 @@ describe('MockSharedRoomBackend', () => {
     backend.actAs('mock-user-1'); // the creator
     await backend.closeRoom(roomCode);
     const state = await backend.getRoomState(roomCode);
-    expect(state.room.status).toBe('closed');
+    expect(state.group.status).toBe('closed');
   });
 
   it('rejects contributions outside a one-time window', async () => {
@@ -122,7 +122,7 @@ describe('MockSharedRoomBackend', () => {
     });
     const planId = payload.plans[0].id;
     await expect(
-      backend.contribute(payload.room.code, planId, 'SubhanAllah', 10, 'e1')
+      backend.contribute(payload.group.code, planId, 'SubhanAllah', 10, 'e1')
     ).rejects.toMatchObject({ code: 'window-not-started' });
   });
 
@@ -137,7 +137,7 @@ describe('MockSharedRoomBackend', () => {
     await backend.endPlan(roomCode, oneTime.id);
     state = await backend.getRoomState(roomCode);
     expect(state.plans.find((p) => p.status === 'ended')).toBeTruthy();
-    expect(state.room.status).toBe('active'); // the group itself lives on
+    expect(state.group.status).toBe('active'); // the group itself lives on
 
     // The recurring plan accepts contributions.
     const daily = state.plans.find((p) => p.period === 'daily')!;

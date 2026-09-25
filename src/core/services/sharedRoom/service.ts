@@ -105,8 +105,8 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
     joinedAt?: Date,
     joinedWithUserId?: string
   ): Promise<SharedRoom> {
-    const existing = await db.sharedRooms.get(payload.room.code);
-    const r = payload.room;
+    const existing = await db.sharedRooms.get(payload.group.code);
+    const r = payload.group;
     const room: SharedRoom = {
       code: r.code,
       id: r.id,
@@ -235,7 +235,7 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
       const payload = await backend.createPlan(code, input);
       await saveRoomState(payload);
       await this.track('plan_created', { mode: input.mode, period: input.period });
-      return payload.plans.map((p) => planFromSummary(p, payload.room.code));
+      return payload.plans.map((p) => planFromSummary(p, payload.group.code));
     },
 
     /** Owner retires a plan early. */
@@ -301,10 +301,10 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
       // Silent rejoin: this group is in the device's list (joined before), so
       // this device is a member — whatever the backend's current books say.
       // Rejoin with the saved name instead of nagging the user to join again.
-      if (!payload.isMember && payload.room.status === 'active') {
-        const cached = await db.sharedRooms.get(payload.room.code);
+      if (!payload.isMember && payload.group.status === 'active') {
+        const cached = await db.sharedRooms.get(payload.group.code);
         if (cached) {
-          payload = await backend.joinRoom(payload.room.code, identity.displayName);
+          payload = await backend.joinRoom(payload.group.code, identity.displayName);
         }
       }
 
@@ -316,7 +316,7 @@ export function createSharedRoomService(backend: SharedRoomBackend) {
       }));
       return {
         room,
-        plans: payload.plans.map((p) => planFromSummary(p, payload.room.code)),
+        plans: payload.plans.map((p) => planFromSummary(p, payload.group.code)),
         members,
         isMember: payload.isMember,
       };

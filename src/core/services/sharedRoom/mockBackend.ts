@@ -272,7 +272,7 @@ export class MockSharedRoomBackend implements SharedRoomBackend {
 
     const me = this.currentUserId;
     return {
-      room: { ...mock.room },
+      group: { ...mock.room },
       plans,
       members,
       isMember: Boolean(me && mock.members.get(me) && !mock.members.get(me)!.removed),

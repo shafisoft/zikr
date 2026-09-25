@@ -19,6 +19,12 @@ user-facing change and date it when it ships.
   harness's full behavioral suite now passes from a fresh database.
   Operators: see `supabase/README.md` (exposed-schemas check + re-run the
   migration files).
+- **Joining or creating a group no longer fails with "Something went
+  wrong".** The client read the group summary from the payload's `room`
+  key while the server sends `group`, so every Supabase-backed state
+  response (join, create, refresh) threw on the client after the RPC had
+  already succeeded. The wire contract (`sharedRoom/contract.ts`), mock
+  backend, and tests now all use the server's `group` key.
 
 _(nothing yet)_
 
