@@ -163,6 +163,21 @@ in `contentClassName` (Tailwind `p*-N` on one element would override, not add).
 Top-right actions come from `useNavActions()` (Library + Settings); `BottomNav`
 derives its active tab from the URL — pages never pass `activeId`.
 
+**Component hierarchy rule (strict, applies to all new/modified UI):** every
+page composes as `page → containers → components`.
+- **Page** — decides WHICH container shows and when (route/flow state); owns no
+  data access and no presentational detail.
+- **Container** — owns ONE part of the page and is the only place that touches
+  data: subscribes to stores (`core/stores`, per the layer rule — never
+  `core/db/db` or services directly), derives what it renders via `useMemo`
+  utils, and passes data down + callbacks up.
+- **Component** — presentational only: receives props, calls callbacks; no
+  store subscriptions, no data fetching, no derived metrics.
+When a page or a component accumulates a second responsibility, split it along
+this line (extract a container, or push a component down). New containers live
+in `src/ui/containers/<feature>/`; reusable presentational components stay in
+`src/ui/components/`.
+
 ### UI: "Noor" Design System (src-v2/)
 
 The only UI. Refined Islamic identity: deep emerald + gold on warm parchment (light) / deep green-black (dark).
