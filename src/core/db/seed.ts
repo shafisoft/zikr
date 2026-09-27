@@ -64,13 +64,18 @@ async function backfillSeedDisplayFields(database: ZikrDatabase): Promise<void> 
     );
     if (!entry) continue;
 
+    // The catalog is AUTHORITATIVE for predefined zikrs: whenever its content
+    // drifts from the record (a correction, a completion), the record is
+    // brought back in line. Content accuracy here is fatal — a stale text
+    // must never survive just because the field is non-null. Custom rows are
+    // never touched, and deletions are still respected (checked above).
     const fields: Partial<Zikr> = {};
-    if (zikr.arabicText == null) fields.arabicText = entry.arabicText;
-    if (zikr.translation == null) fields.translation = entry.translation;
-    if (zikr.nameBn == null) fields.nameBn = entry.nameBn;
-    if (zikr.translationBn == null) fields.translationBn = entry.translationBn;
-    if (zikr.defaultTarget == null) fields.defaultTarget = entry.defaultTarget;
-    if (zikr.isQuickStarter == null) fields.isQuickStarter = entry.isQuickStarter;
+    if (zikr.arabicText !== entry.arabicText) fields.arabicText = entry.arabicText;
+    if (zikr.translation !== entry.translation) fields.translation = entry.translation;
+    if (zikr.nameBn !== entry.nameBn) fields.nameBn = entry.nameBn;
+    if (zikr.translationBn !== entry.translationBn) fields.translationBn = entry.translationBn;
+    if (zikr.defaultTarget !== entry.defaultTarget) fields.defaultTarget = entry.defaultTarget;
+    if (zikr.isQuickStarter !== entry.isQuickStarter) fields.isQuickStarter = entry.isQuickStarter;
     if (Object.keys(fields).length > 0) patches.push({ id: zikr.id!, fields });
   }
 

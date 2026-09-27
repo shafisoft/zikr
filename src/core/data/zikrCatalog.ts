@@ -90,7 +90,7 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
     isQuickStarter: false,
     translation: 'Allah alone, no partner — His is the dominion and the praise',
     translationBn: 'একমাত্র আল্লাহই উপাস্য, কোনো অংশীদার নেই — রাজত্ব ও প্রশংসা তাঁরই',
-    defaultTarget: 100,
+    defaultTarget: 10,
   },
   'La hawla wa la quwwata illa Billah': {
     nameBn: 'লা হাওলা ওয়া লা কুওয়াতা ইল্লা বিল্লাহ',
@@ -138,7 +138,7 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
     isQuickStarter: true,
     translation: 'O Allah, help me remember You, thank You, and worship You well',
     translationBn: 'হে আল্লাহ, আমাকে আপনার স্মরণ, শুকরিয়া ও সুন্দর ইবাদতে সাহায্য করুন',
-    defaultTarget: 10,
+    defaultTarget: 1,
   },
   'Sayyidul Istighfar': {
     nameBn: 'সাইয়েদুল ইস্তিগফার',
@@ -154,7 +154,7 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
     isQuickStarter: false,
     translation: 'Allah is sufficient for us, and He is the best Disposer',
     translationBn: 'আল্লাহই আমাদের জন্য যথেষ্ট, তিনিই শ্রেষ্ঠ অভিভাবক',
-    defaultTarget: 33,
+    defaultTarget: 1,
   },
   // ----- Before-sleep & Friday presets (Hisn-ul-Muslim أذكار النوم etc.) —
   // Quranic texts are the complete, fully-vocalized verses in the same
@@ -162,8 +162,7 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
   // dagger-alif ٱللَّٰهُ, إِلَٰهَ). -----
   'Ayat al-Kursi': {
     nameBn: 'আয়াতুল কুরসি',
-    arabicText:
-      'ٱللَّٰهُ لَا إِلَٰهَ إِلَّا هُوَ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَهُ مَا فِي ٱلسَّمَاوَاتِ وَمَا فِي ٱلْأَرْضِ ۗ مَن ذَا ٱلَّذِي يَشْفَعُ عِندَهُ إِلَّا بِإِذْنِهِ ۚ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ وَلَا يُحِيطُونَ بِشَيْءٍ مِّنْ عِلْمِهِ إِلَّا بِمَا شَاءَ ۚ وَسِعَ كُرْسِيُّهُ ٱلسَّمَاوَاتِ وَٱلْأَرْضَ ۖ وَلَا يَئُودُهُ حِفْظُهُمَا ۚ وَهُوَ ٱلْعَلِيُّ ٱلْعَظِيمُ',
+    arabicText: 'ٱللَّهُ لَآ إِلَـٰهَ إِلَّا هُوَ ٱلْحَىُّ ٱلْقَيُّومُ ۚ لَا تَأْخُذُهُۥ سِنَةٌ وَلَا نَوْمٌ ۚ لَّهُۥ مَا فِى ٱلسَّمَـٰوَٰتِ وَمَا فِى ٱلْأَرْضِ ۗ مَن ذَا ٱلَّذِى يَشْفَعُ عِندَهُۥٓ إِلَّا بِإِذْنِهِۦ ۚ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ وَلَا يُحِيطُونَ بِشَىْءٍ مِّنْ عِلْمِهِۦٓ إِلَّا بِمَا شَآءَ ۚ وَسِعَ كُرْسِيُّهُ ٱلسَّمَـٰوَٰتِ وَٱلْأَرْضَ ۖ وَلَا يَـُٔودُهُۥ حِفْظُهُمَا ۚ وَهُوَ ٱلْعَلِىُّ ٱلْعَظِيمُ',
     isQuickStarter: false,
     translation:
       'The Throne Verse — Allah, there is no deity except Him, the Ever-Living, the Sustainer of existence',
@@ -173,8 +172,7 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
   },
   'Surah Al-Ikhlas': {
     nameBn: 'সূরা আল-ইখলাস',
-    arabicText:
-      'قُلْ هُوَ ٱللَّٰهُ أَحَدٌ ۝ ٱللَّٰهُ ٱلصَّمَدُ ۝ لَمْ يَلِدْ وَلَمْ يُولَدْ ۝ وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ',
+    arabicText: 'قُلْ هُوَ ٱللَّهُ أَحَدٌ ۝ ٱللَّهُ ٱلصَّمَدُ ۝ لَمْ يَلِدْ وَلَمْ يُولَدْ ۝ وَلَمْ يَكُن لَّهُۥ كُفُوًا أَحَدٌۢ',
     isQuickStarter: false,
     translation: 'Say: He is Allah, the One; Allah, the Eternal Refuge',
     translationBn: 'বলুন, তিনিই আল্লাহ, এক-অদ্বিতীয়; আল্লাহ অভয়ারণ্যের অধিপতি',
@@ -182,8 +180,7 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
   },
   'Surah Al-Falaq': {
     nameBn: 'সূরা আল-ফালাক',
-    arabicText:
-      'قُلْ أَعُوذُ بِرَبِّ ٱلْفَلَقِ ۝ مِن شَرِّ مَا خَلَقَ ۝ وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ ۝ وَمِن شَرِّ ٱلنَّفَّٰثَٰتِ فِي ٱلْعُقَدِ ۝ وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ',
+    arabicText: 'قُلْ أَعُوذُ بِرَبِّ ٱلْفَلَقِ ۝ مِن شَرِّ مَا خَلَقَ ۝ وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ ۝ وَمِن شَرِّ ٱلنَّفَّـٰثَـٰتِ فِى ٱلْعُقَدِ ۝ وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ',
     isQuickStarter: false,
     translation: 'Say: I seek refuge in the Lord of the daybreak',
     translationBn: 'বলুন, আমি আশ্রয় চাই ভোরের রবের কাছে',
@@ -191,8 +188,7 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
   },
   'Surah An-Nas': {
     nameBn: 'সূরা আন-নাস',
-    arabicText:
-      'قُلْ أَعُوذُ بِرَبِّ ٱلنَّاسِ ۝ مَلِكِ ٱلنَّاسِ ۝ إِلَٰهِ ٱلنَّاسِ ۝ مِن شَرِّ ٱلْوَسْوَاسِ ٱلْخَنَّاسِ ۝ ٱلَّذِي يُوَسْوِسُ فِي صُدُورِ ٱلنَّاسِ ۝ مِنَ ٱلْجِنَّةِ وَٱلنَّاسِ',
+    arabicText: 'قُلْ أَعُوذُ بِرَبِّ ٱلنَّاسِ ۝ مَلِكِ ٱلنَّاسِ ۝ إِلَـٰهِ ٱلنَّاسِ ۝ مِن شَرِّ ٱلْوَسْوَاسِ ٱلْخَنَّاسِ ۝ ٱلَّذِى يُوَسْوِسُ فِى صُدُورِ ٱلنَّاسِ ۝ مِنَ ٱلْجِنَّةِ وَٱلنَّاسِ',
     isQuickStarter: false,
     translation: 'Say: I seek refuge in the Lord of mankind',
     translationBn: 'বলুন, আমি আশ্রয় চাই মানুষের রবের কাছে',
@@ -208,8 +204,7 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
   },
   'Allahumma Aslamtu Nafsi Ilayk': {
     nameBn: 'আল্লাহুম্মা আসলামতু নাফসী',
-    arabicText:
-      'ٱللَّٰهُمَّ أَسْلَمْتُ نَفْسِيٓ إِلَيْكَ وَفَوَّضْتُ أَمْرِيٓ إِلَيْكَ وَوَجَّهْتُ وَجْهِيٓ إِلَيْكَ وَٱلْجَأْتُ ظَهْرِيٓ إِلَيْكَ رَغْبَةً فِيكَ وَرَهْبَةً مِنْكَ لَا مَلْجَأَ وَلَا مَنْجَا مِنْكَ إِلَّآ إِلَيْكَ',
+    arabicText: 'ٱللَّٰهُمَّ أَسْلَمْتُ نَفْسِيٓ إِلَيْكَ وَفَوَّضْتُ أَمْرِيٓ إِلَيْكَ وَوَجَّهْتُ وَجْهِيٓ إِلَيْكَ وَأَلْجَأْتُ ظَهْرِيٓ إِلَيْكَ رَغْبَةً إِلَيْكَ وَرَهْبَةً مِنْكَ لَا مَلْجَأَ وَلَا مَنْجَا مِنْكَ إِلَّآ إِلَيْكَ آمَنْتُ بِكِتَابِكَ ٱلَّذِيٓ أَنزَلْتَ وَبِنَبِيِّكَ ٱلَّذِيٓ أَرْسَلْتَ',
     isQuickStarter: false,
     translation:
       'O Allah, I submit myself to You, entrust my affairs to You, and seek Your refuge — no refuge or salvation from You except through You',

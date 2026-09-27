@@ -5,7 +5,26 @@ Notable, user-facing changes to Zikr. Format loosely follows
 GitHub Pages (`main2` push). Update the `Unreleased` section with every
 user-facing change and date it when it ships.
 
-## [1.5.0] — 2026-09-27
+## [1.5.1] — 2026-09-27
+
+### Fixed
+- **Ayat al-Kursi was missing "ٱلْحَىُّ ٱلْقَيُّومُ" (the Ever-Living, the Sustainer of
+  existence).** The whole verse has been replaced with the canonical Uthmani
+  text, verified against the Quran, word for word — and an automated test now
+  pins every revealed text in the app to its source so this class of error can
+  never ship again. The same test corrected two other details: the full
+  Al-Ikhlas/Falaq/Nas texts now match the mushaf exactly, and the bedtime dua
+  "Allahumma aslamtu nafsi ilayk" carries its complete closing ("āmantu
+  bi-kitābika…") with the correct wording, as in Bukhari.
+- **Dhikr counts now follow their hadith anchors.** "Allahumma a'inni ala
+  dhikrika" and "Hasbunallahu wa ni'mal wakeel" had no transmitted count (both
+  are recited once, not 10× or 33×), and "La ilaha illallahu wahdahu la
+  sharika lah" is 10× after Fajr and Maghrib (Muslim), not 100×. Every
+  remaining target is now cited to its source in the code tests.
+- **Existing installs receive content corrections automatically.** The
+  predefined zikr library is now treated as authoritative on boot: if a
+  shipped correction changes a text or count, your library updates to match
+  (custom zikrs you created are never touched).
 
 ### Added
 - **Your day, ritual by ritual: four ready-made routines, now on the clock.**
