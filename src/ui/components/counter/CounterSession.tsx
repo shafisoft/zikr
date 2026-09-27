@@ -151,6 +151,14 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   const saveSetting = useSettingsStore(state => state.saveSetting);
 
   const zikrDisplayInfo = getZikrDisplayInfoFromZikr(zikr, lang);
+  // Long content (Ayat al-Kursi ≈ 570 chars, the long duas) cannot render at
+  // the 48px display size inside this overflow-hidden screen — it would clip
+  // mid-verse and push the count circle off-screen. Scale by length; the
+  // medium/long tiers scroll inside a bounded block so the circle always
+  // stays on screen.
+  const arabicLength = zikrDisplayInfo.arabicText?.length ?? 0;
+  const arabicTone: 'short' | 'medium' | 'long' =
+    arabicLength <= 90 ? 'short' : arabicLength <= 220 ? 'medium' : 'long';
   const isRoomContinuation = progressMode === 'room';
   // The portion of the board that was already persisted before this
   // session opened: nothing for a personal round, the room's total for a
@@ -359,10 +367,22 @@ const CounterSession: React.FC<CounterSessionProps> = ({
         />
       )}
 
-      {/* Zikr Info */}
-      <div className="text-center mb-12 z-10 flex flex-col gap-4">
+      {/* Zikr Info — the Arabic block scales with content length; long texts
+          scroll within a bounded region so the count circle stays on screen
+          (this container is overflow-hidden — see arabicTone above). */}
+      <div className={`text-center z-10 flex flex-col gap-3 ${arabicTone === 'short' ? 'mb-12' : 'mb-6'} max-w-full`}>
         {zikrDisplayInfo.arabicText && (
-          <h1 className="font-display-arabic text-display-arabic text-primary" lang="ar" dir="rtl">
+          <h1
+            className={`font-display-arabic text-primary mx-auto w-full ${
+              arabicTone === 'short'
+                ? 'text-display-arabic'
+                : arabicTone === 'medium'
+                  ? 'text-3xl leading-[1.9] max-h-[30vh] overflow-y-auto px-2'
+                  : 'text-2xl leading-[1.9] max-h-[32vh] overflow-y-auto px-2'
+            }`}
+            lang="ar"
+            dir="rtl"
+          >
             {zikrDisplayInfo.arabicText}
           </h1>
         )}

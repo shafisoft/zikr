@@ -59,7 +59,7 @@ const BulkEntryForm: React.FC<BulkEntryFormProps> = ({ onSuccess, onCancel }) =>
 
       return {
         zikrId: zikr.id!,
-        name: zikr.name,
+        name: displayInfo.localizedName,
         arabicText: displayInfo.arabicText,
         translation: displayInfo.translation,
         count: lastCount > 0 ? lastCount.toString() : '',

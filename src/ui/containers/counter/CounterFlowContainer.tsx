@@ -205,7 +205,11 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
   const activeZikr = derivedFlow
     ? derivedStep?.zikr ?? null
     : selectedZikr;
-  const activeStepName = activeZikr?.name ?? null;
+  // The step name is display content — always localized (bn shows the
+  // Bangla name, per AC2.1.2), never the raw catalog key.
+  const activeStepName = activeZikr
+    ? getZikrDisplayInfoFromZikr(activeZikr, lang).localizedName
+    : null;
 
   const currentStepIndex =
     !derivedFlow && activeZikr && planSteps.length > 0
@@ -233,7 +237,7 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
       onActiveStep(derivedDone || !derivedStep ? t('postSalah.flow.title') : activeStepName);
       return;
     }
-    onActiveStep(activeZikr ? activeZikr.name : null);
+    onActiveStep(activeZikr ? getZikrDisplayInfoFromZikr(activeZikr, lang).localizedName : null);
     // Report whenever any of the underlying inputs change; the page only
     // mirrors the name into chrome.
   }, [derivedFlow, derivedDone, derivedStep, activeZikr, activeStepName, routineTitle, onActiveStep, t]);

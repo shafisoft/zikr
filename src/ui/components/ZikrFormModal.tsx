@@ -260,7 +260,11 @@ const ZikrFormModal: React.FC<ZikrFormModalProps> = ({
                           : 'border-outline-variant/30 hover:border-outline-variant'
                       }`}
                     >
-                      <p className="font-display-arabic text-display-arabic text-primary text-sm mb-1">
+                      <p
+                        className="font-display-arabic text-sm text-primary mb-1 line-clamp-2"
+                        lang="ar"
+                        dir="rtl"
+                      >
                         {displayInfo.arabicText}
                       </p>
                       <p className="font-label-md text-label-md text-on-surface">
