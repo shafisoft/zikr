@@ -98,7 +98,9 @@ async function holdAndRelease() {
   await sleep(30);
 }
 
-async function waitForDom(cond: () => boolean, ms = 2000) {
+async function waitForDom(cond: () => boolean, ms = 8000) {
+  // 8s: CI runners are much slower than laptops — two taps plus a React
+  // render must never race the window (a 2s budget flaked once in CI).
   const start = Date.now();
   while (!cond()) {
     if (Date.now() - start > ms) throw new Error('waitForDom: condition not met in time');
