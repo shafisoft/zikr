@@ -6,6 +6,7 @@ import {
   Goal,
   Plan,
   PlanOwner,
+  Routine,
   Streak,
   Setting,
   ZikrLastCount,
@@ -45,6 +46,7 @@ export class ZikrDatabase extends Dexie {
   syncOutbox!: Table<SyncOutboxItem>;          // NEW (v3)
   identity!: Table<SharedIdentity>;            // NEW (v3)
   zikrShareOutbox!: Table<ZikrShareOutboxItem>; // NEW (v5)
+  routines!: Table<Routine>;                   // NEW (v7)
 
   constructor() {
     super('zikr-db');
@@ -242,6 +244,32 @@ export class ZikrDatabase extends Dexie {
           }
         });
       }
+    });
+
+    // Version 7: Routines (R2 "Routines as a first-class object"). Purely
+    // additive — the new `routines` table is the ONLY change; every prior
+    // store definition repeats verbatim and no upgrade logic is needed
+    // (Dexie creates the empty table; nothing is copied or rewritten).
+    //
+    // As-built numbering: the design's "v8" assumed remediation 5.1
+    // (sessionTotals) ships first; it does not, so routines take v7 and 5.1
+    // takes the next bump (strictly sequential, additive-only invariant).
+    this.version(7).stores({
+      zikrs: '++id, name, custom, createdAt, deletedAt, remoteId',
+      sessions: '++id, zikrId, date, editableUntil, [zikrId+date]',
+      goals: '++id, status',
+      plans: 'id, status',
+      planOwners: '[planId+ownerId], planId, ownerId',
+      streaks: 'zikrId',
+      settings: 'key',
+      sessionFormState: '++id, createdAt',
+      zikrLastCount: 'zikrId, updatedAt',
+      sharedRooms: 'code, status',
+      sharedSubmissions: '++id, roomCode, submittedAt, eventId',
+      syncOutbox: '++id, nextAttemptAt, eventId',
+      identity: 'userId',
+      zikrShareOutbox: '++id, zikrId, nextAttemptAt',
+      routines: 'id, deletedAt, createdAt'                      // NEW
     });
   }
 }

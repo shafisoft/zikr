@@ -1,5 +1,5 @@
 import { db } from '../db/db';
-import { Zikr, Session, Plan, PlanOwner, Streak, Setting } from '../db/types';
+import { Zikr, Session, Plan, PlanOwner, Streak, Setting, Routine } from '../db/types';
 import { newPlanId } from '../utils/planUtils';
 
 interface ExportData {
@@ -12,6 +12,8 @@ interface ExportData {
     planOwners: PlanOwner[];
     streaks: Streak[];
     settings: Setting[];
+    /** Absent in older backups — import treats it as "none". */
+    routines?: Routine[];
   };
 }
 
@@ -37,6 +39,43 @@ interface LegacyExportData {
     streaks: Streak[];
     settings: Setting[];
   };
+}
+
+// ---------- Date rehydration (ENG-F1 fix, remediation 1.1) ----------
+//
+// JSON has no Date type: every Date serializes to an ISO string, so a
+// restored backup would land raw strings in Dexie and break date math
+// (streak day comparisons, the 3-day edit window, plan windows). importData
+// revives EXACTLY the fields below — a per-field allowlist, not a generic
+// "looks like a date" heuristic — so contractually-string fields are never
+// touched. In particular `zikrSyncCursor.updatedAt` MUST stay a string: it
+// is passed verbatim to the pull RPC (zikrSync/contract.ts).
+
+const TABLE_DATE_FIELDS = {
+  zikrs: ['createdAt', 'deletedAt', 'sharedAt', 'pulledAt'],
+  sessions: ['timestamp', 'date', 'editableUntil', 'createdAt', 'updatedAt'],
+  plans: ['startDate', 'endDate', 'createdAt', 'completedAt', 'endedAt', 'fetchedAt'],
+  streaks: ['lastProcessedDate'],
+  routines: ['createdAt', 'deletedAt'],
+} as const;
+
+/**
+ * Settings whose `value` carries Date fields, keyed by setting key. No
+ * Date-valued setting exists today — a future one must be allowlisted here
+ * explicitly. `zikrSyncCursor` stays out on purpose (string contract above).
+ */
+const SETTING_DATE_FIELDS: Record<string, readonly string[]> = {};
+
+/** Revive the allowlisted string fields of one row back into Date instances. */
+function rehydrateRow<T extends object>(row: T, fields: readonly string[]): T {
+  const out = { ...row } as Record<string, unknown>;
+  for (const field of fields) {
+    const value = out[field];
+    if (typeof value === 'string') {
+      out[field] = new Date(value);
+    }
+  }
+  return out as T;
 }
 
 /** Personal plans + their owner rows from the device (group mirrors excluded). */
@@ -81,21 +120,27 @@ function legacyGoalsToPlans(legacy: LegacyExportData): { plans: Plan[]; planOwne
   return { plans, planOwners };
 }
 
+/** Assemble the backup payload (also the round-trip test's entry point). */
+export async function buildExportData(): Promise<ExportData> {
+  const [zikrs, sessions, { plans, planOwners }, streaks, settings, routines] = await Promise.all([
+    db.zikrs.toArray(),
+    db.sessions.toArray(),
+    personalPlans(),
+    db.streaks.toArray(),
+    db.settings.toArray(),
+    db.routines.toArray()
+  ]);
+
+  return {
+    version: '1.0',
+    exportDate: new Date().toISOString(),
+    data: { zikrs, sessions, plans, planOwners, streaks, settings, routines }
+  };
+}
+
 export async function exportData(): Promise<void> {
   try {
-    const [zikrs, sessions, { plans, planOwners }, streaks, settings] = await Promise.all([
-      db.zikrs.toArray(),
-      db.sessions.toArray(),
-      personalPlans(),
-      db.streaks.toArray(),
-      db.settings.toArray()
-    ]);
-
-    const data: ExportData = {
-      version: '1.0',
-      exportDate: new Date().toISOString(),
-      data: { zikrs, sessions, plans, planOwners, streaks, settings }
-    };
+    const data = await buildExportData();
 
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: 'application/json'
@@ -146,31 +191,48 @@ export async function importData(file: File): Promise<void> {
         }
       : legacyGoalsToPlans(imported as unknown as LegacyExportData);
 
+    // Date rehydration — AFTER the legacy conversion, because converted
+    // plans inherit raw string dates straight from the backup JSON.
+    const importZikrs = data.zikrs.map(row => rehydrateRow(row, TABLE_DATE_FIELDS.zikrs));
+    const importSessions = data.sessions.map(row => rehydrateRow(row, TABLE_DATE_FIELDS.sessions));
+    const importPlans = source.plans.map(row => rehydrateRow(row, TABLE_DATE_FIELDS.plans));
+    const importStreaks = data.streaks.map(row => rehydrateRow(row, TABLE_DATE_FIELDS.streaks));
+    const importSettings = data.settings.map(row => {
+      const fields = SETTING_DATE_FIELDS[row.key];
+      return fields ? { key: row.key, value: rehydrateRow(row.value as object, fields) } : row;
+    });
+    // Older backups predate routines — absent means "none to import".
+    const importRoutines = Array.isArray(data.routines)
+      ? data.routines.map(row => rehydrateRow(row, TABLE_DATE_FIELDS.routines))
+      : [];
+
     // Create backup of existing data
-    const [zikrs, sessions, { plans, planOwners }, streaks, settings] = await Promise.all([
+    const [zikrs, sessions, { plans, planOwners }, streaks, settings, routines] = await Promise.all([
       db.zikrs.toArray(),
       db.sessions.toArray(),
       personalPlans(),
       db.streaks.toArray(),
-      db.settings.toArray()
+      db.settings.toArray(),
+      db.routines.toArray()
     ]);
 
     backup = {
       version: '1.0',
       exportDate: new Date().toISOString(),
-      data: { zikrs, sessions, plans, planOwners, streaks, settings }
+      data: { zikrs, sessions, plans, planOwners, streaks, settings, routines }
     };
 
     // Clear existing data and import
     await db.transaction(
       'rw',
-      [db.zikrs, db.sessions, db.plans, db.planOwners, db.streaks, db.settings],
+      [db.zikrs, db.sessions, db.plans, db.planOwners, db.streaks, db.settings, db.routines],
       async () => {
         await Promise.all([
           db.zikrs.clear(),
           db.sessions.clear(),
           db.streaks.clear(),
-          db.settings.clear()
+          db.settings.clear(),
+          db.routines.clear()
         ]);
         // Only personal plans are replaced; group mirrors stay untouched.
         const keep = await db.plans.toArray().then(all =>
@@ -180,15 +242,16 @@ export async function importData(file: File): Promise<void> {
         await db.planOwners.clear();
 
         // Import data in order (zikrs first for foreign key references)
-        await db.zikrs.bulkAdd(data.zikrs as Zikr[]);
-        await db.sessions.bulkAdd(data.sessions as Session[]);
-        await db.plans.bulkPut([...source.plans, ...keep]);
+        await db.zikrs.bulkAdd(importZikrs);
+        await db.sessions.bulkAdd(importSessions);
+        await db.plans.bulkPut([...importPlans, ...keep]);
         await db.planOwners.bulkPut([
           ...source.planOwners,
           ...keep.map(p => ({ planId: p.id, ownerKind: 'group' as const, ownerId: p.roomCode! })),
         ]);
-        await db.streaks.bulkAdd(data.streaks as Streak[]);
-        await db.settings.bulkAdd(data.settings as Setting[]);
+        await db.streaks.bulkAdd(importStreaks);
+        await db.settings.bulkAdd(importSettings);
+        await db.routines.bulkAdd(importRoutines);
       }
     );
   } catch (error) {
@@ -200,13 +263,14 @@ export async function importData(file: File): Promise<void> {
         const backupData = backup.data; // Capture data to avoid null issues
         await db.transaction(
           'rw',
-          [db.zikrs, db.sessions, db.plans, db.planOwners, db.streaks, db.settings],
+          [db.zikrs, db.sessions, db.plans, db.planOwners, db.streaks, db.settings, db.routines],
           async () => {
             await Promise.all([
               db.zikrs.clear(),
               db.sessions.clear(),
               db.streaks.clear(),
-              db.settings.clear()
+              db.settings.clear(),
+              db.routines.clear()
             ]);
             const keep = await db.plans.toArray().then(all =>
               all.filter(p => p.roomCode != null)
@@ -223,6 +287,7 @@ export async function importData(file: File): Promise<void> {
             ]);
             await db.streaks.bulkAdd(backupData.streaks);
             await db.settings.bulkAdd(backupData.settings);
+            if (backupData.routines) await db.routines.bulkAdd(backupData.routines);
           }
         );
       } catch (rollbackError) {

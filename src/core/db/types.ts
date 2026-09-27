@@ -1,6 +1,7 @@
 // Database: zikr-db
 // Stores: zikrs, sessions, plans, planOwners, streaks, settings, sessionFormState,
-//         zikrLastCount, sharedRooms, sharedSubmissions, syncOutbox, identity
+//         zikrLastCount, sharedRooms, sharedSubmissions, syncOutbox, identity,
+//         routines
 
 export interface Zikr {
   id?: number;
@@ -118,6 +119,105 @@ export interface PlanOwner {
   ownerKind: 'user' | 'group';
   /** 'me' (device user) or a room code. */
   ownerId: string;
+}
+
+// ============================================================
+// NEW (v7): Routines — a first-class ordered practice (wird).
+// Deliberately NO dates and NO deadlines: a routine is done or not
+// done each day, derived from `sessions` (solution-design §2.3) —
+// there are no completion rows to store. A routine never touches
+// plan machinery and never duplicates zikr records: items carry
+// zikrId references + a denormalized display name.
+// ============================================================
+
+/** One ordered entry of a routine. */
+export interface RoutineItem {
+  /** Reference to the user's existing Zikr record (AC2.1.3). */
+  zikrId: number;
+  /**
+   * Denormalized at write time — graceful display if the zikr is
+   * soft-deleted (§5.2); NOT a binding key.
+   */
+  name: string;
+  /** Per-item count (catalog defaultTarget at preset time). */
+  target: number;
+}
+
+export type RoutineSource = 'preset' | 'custom';
+
+/** Which civil part of the day a routine belongs to ('any' = all day). */
+export type RoutineSchedulePart = 'morning' | 'evening' | 'night' | 'any';
+
+/**
+ * Schedule metadata — which part of the day a routine is FOR. Only preset
+ * routines carry it (the seeder/creator writes it once); custom routines
+ * have none, meaning they are relevant at ANY time. Windows are civil and
+ * generous (routineUtils.ROUTINE_WINDOWS); `weekday` binds a routine to a
+ * day of the week (0=Sun … 6=Sat, `Date.getDay()`).
+ */
+export interface RoutineSchedule {
+  part: RoutineSchedulePart;
+  weekday?: number;
+}
+
+export interface Routine {
+  /** uuid — the newRoutineId() idiom (planUtils.ts pattern). */
+  id: string;
+  source: RoutineSource;
+  /**
+   * For presets only: which liturgical preset — the localized title renders
+   * from i18n so bn/en follow the locale (AC2.1.2). Custom routines store a
+   * user-entered title.
+   */
+  presetKey?: 'morning' | 'evening' | 'night' | 'friday';
+  /**
+   * Preset routines carry their day-part (morning/evening/night) or weekday
+   * (friday) so Home can show the routine that matches NOW; custom routines
+   * omit it (any time). Non-indexed — never queried, only read per row.
+   */
+  schedule?: RoutineSchedule;
+  title?: string;
+  /** Embedded, ordered (Dexie document model, like Plan.zikrs). */
+  items: RoutineItem[];
+  createdAt: Date;
+  /** Soft delete, house style (AGENTS.md). */
+  deletedAt?: Date;
+}
+
+// ============================================================
+// R1 "Post-salah mode" — prayer-time location (settings KV row
+// `prayerLocation`; NO schema bump, solution-design §4.2). The
+// location never leaves the device (AC1.1.4).
+// ============================================================
+
+/** Adhan calculation methods offered in Settings (default Karachi, §4.2). */
+export type PrayerCalculationMethod =
+  | 'Karachi'
+  | 'MuslimWorldLeague'
+  | 'Egyptian'
+  | 'UmmAlQura'
+  | 'MoonsightingCommittee'
+  | 'NorthAmerica';
+
+/** Asr shadow length (default Shafi, §4.2). */
+export type PrayerMadhab = 'Shafi' | 'Hanafi';
+
+export type PrayerHighLatitudeRule =
+  | 'MiddleOfTheNight'
+  | 'SeventhOfTheNight'
+  | 'TwilightAngle';
+
+/** The one persisted fact of R1 — the saved prayer-time location. */
+export interface PrayerLocation {
+  lat: number;
+  lon: number;
+  /** Display label (city name or "lat, lon" for manual/device entries). */
+  label: string;
+  /** Optional id into the bundled city list (enables bn label rendering). */
+  cityId?: string;
+  method: PrayerCalculationMethod;
+  madhab: PrayerMadhab;
+  highLatitudeRule?: PrayerHighLatitudeRule;
 }
 
 export interface Streak {

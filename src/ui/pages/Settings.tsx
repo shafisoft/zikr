@@ -14,6 +14,7 @@ import { useSharedRoomStore } from '../../core/stores/sharedRoomStore';
 import { useI18n, LANGUAGES, applyDocumentLanguage } from '../../core/i18n';
 import useShare, { ShareOutcome } from '../hooks/useShare';
 import AppLayout from '../components/layout/AppLayout';
+import PrayerTimeSettingsContainer from '../containers/prayer/PrayerTimeSettingsContainer';
 
 const Settings: React.FC = () => {
   const { lang, t } = useI18n();
@@ -32,6 +33,7 @@ const Settings: React.FC = () => {
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   );
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const [advancedCounter, setAdvancedCounter] = useState(false);
   const [countToGoals, setCountToGoals] = useState(true);
   const [nameEditing, setNameEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -51,6 +53,7 @@ const Settings: React.FC = () => {
       settings.darkMode ?? window.matchMedia('(prefers-color-scheme: dark)').matches
     );
     setHapticsEnabled(settings.hapticsEnabled ?? true);
+    setAdvancedCounter(settings.advancedCounterControls ?? false);
     setCountToGoals(settings.countToGoalsAndGroups ?? true);
   }, [settings]);
 
@@ -69,6 +72,11 @@ const Settings: React.FC = () => {
   const handleHapticsToggle = async (value: boolean) => {
     setHapticsEnabled(value);
     await saveSetting('hapticsEnabled', value);
+  };
+
+  const handleAdvancedCounterToggle = async (value: boolean) => {
+    setAdvancedCounter(value);
+    await saveSetting('advancedCounterControls', value);
   };
 
   const handleCountToGoalsToggle = async (value: boolean) => {
@@ -208,6 +216,25 @@ const Settings: React.FC = () => {
               <ToggleSwitch inputId="settings-haptics-toggle" checked={hapticsEnabled} onChange={handleHapticsToggle} />
             </label>
 
+            {/* Advanced counter controls (1.2 gating) — label-wrapped row (see above) */}
+            <label
+              htmlFor="settings-advanced-counter-toggle"
+              className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-4 flex items-center justify-between cursor-pointer select-none active-scale-98 transition-transform"
+            >
+              <div className="flex items-center gap-4">
+                <div className="bg-surface-container-high p-2 rounded-lg">
+                  <MaterialIcon icon="tune" className="text-primary text-[20px]" />
+                </div>
+                <div>
+                  <p className="font-body-md text-body-md text-on-surface">{t('settings.advancedCounter')}</p>
+                  <p className="font-caption text-caption text-on-surface-variant">
+                    {t('settings.advancedCounterDesc')}
+                  </p>
+                </div>
+              </div>
+              <ToggleSwitch inputId="settings-advanced-counter-toggle" checked={advancedCounter} onChange={handleAdvancedCounterToggle} />
+            </label>
+
             {/* Count towards goals & groups — label-wrapped row (see above) */}
             <label
               htmlFor="settings-count-goals-toggle"
@@ -228,6 +255,12 @@ const Settings: React.FC = () => {
             </label>
           </div>
         </section>
+
+        {/* Prayer times (R1, §6/§16.2) — the opt-in entry point sits beside
+            the preference toggles; the container owns every render decision
+            inside the section (setup form, saved row, choosers, toggle,
+            honest unavailability note). */}
+        <PrayerTimeSettingsContainer />
 
         {/* Language */}
         <section>

@@ -7,6 +7,7 @@ import {
   recordCount,
   checkpointProgress,
   clearCheckpoint,
+  RecordCountResult,
 } from '../services/countRecorder';
 import { useSettingsStore } from './settingsStore';
 
@@ -73,8 +74,10 @@ interface SessionState {
   /**
    * Record a counter round: the 3-day edit window, counts-toward-goals
    * default, and best-effort room propagation live in countRecorder.
+   * Returns the saved row (id included) and whether the round propagated
+   * to a group — the counter's Undo toast withholds on true.
    */
-  recordCount: (input: { zikrId: number; zikrName?: string; count: number }) => Promise<Session>;
+  recordCount: (input: { zikrId: number; zikrName?: string; count: number }) => Promise<RecordCountResult>;
 }
 
 export const useSessionStore = create<SessionState>((set) => ({

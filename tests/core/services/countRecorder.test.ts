@@ -6,6 +6,7 @@ import {
   checkpointProgress,
   clearCheckpoint,
 } from '../../../src/core/services/countRecorder';
+import { sharedRoomService } from '../../../src/core/services/sharedRoom';
 
 beforeEach(async () => {
   await Promise.all([
@@ -20,11 +21,10 @@ beforeEach(async () => {
 describe('countRecorder', () => {
   it('persists an app session with the 3-day edit window and given count', async () => {
     const before = Date.now();
-    await recordCount({ zikrId: 1, zikrName: 'SubhanAllah', count: 33 });
+    const { session } = await recordCount({ zikrId: 1, zikrName: 'SubhanAllah', count: 33 });
 
-    const sessions = await db.sessions.toArray();
-    expect(sessions).toHaveLength(1);
-    const s = sessions[0];
+    expect(session.id).toBeDefined();
+    const s = (await db.sessions.get(session.id!))!;
     expect(s.count).toBe(33);
     expect(s.source).toBe('app');
     expect(s.zikrId).toBe(1);
@@ -43,11 +43,37 @@ describe('countRecorder', () => {
     expect((await db.sessions.toArray())[0].countsToGoals).toBe(false);
   });
 
+  it('reports propagated=false when no group plan counted the zikr', async () => {
+    const spy = vi.spyOn(sharedRoomService, 'propagateToRooms').mockResolvedValue(0);
+    const result = await recordCount({ zikrId: 1, zikrName: 'SubhanAllah', count: 3 });
+    expect(spy).toHaveBeenCalledWith('SubhanAllah', 3);
+    expect(result.propagated).toBe(false);
+  });
+
+  it('reports propagated=true when the count reached a group plan', async () => {
+    const spy = vi.spyOn(sharedRoomService, 'propagateToRooms').mockResolvedValue(2);
+    const result = await recordCount({ zikrId: 1, zikrName: 'SubhanAllah', count: 3 });
+    expect(result.propagated).toBe(true);
+    // Withheld-Undo honesty: without a zikrName (or with counting off)
+    // propagation is never attempted and the round stays undoable.
+    const local = await recordCount({ zikrId: 1, count: 4 });
+    expect(local.propagated).toBe(false);
+    const optedOut = await recordCount({
+      zikrId: 1,
+      zikrName: 'SubhanAllah',
+      count: 5,
+      countsToGoalsResolver: () => false,
+    });
+    expect(optedOut.propagated).toBe(false);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it('does not throw when room propagation fails (best-effort by design)', async () => {
-    // zikrName triggers propagation; the recorder swallows its failures.
-    await expect(
-      recordCount({ zikrId: 1, zikrName: 'SubhanAllah', count: 3 })
-    ).resolves.toBeDefined();
+    vi.spyOn(sharedRoomService, 'propagateToRooms').mockRejectedValue(new Error('offline'));
+    // zikrName triggers propagation; the recorder swallows its failures and
+    // reports the round as not propagated.
+    const result = await recordCount({ zikrId: 1, zikrName: 'SubhanAllah', count: 3 });
+    expect(result.propagated).toBe(false);
     // The session itself still landed.
     expect(await db.sessions.count()).toBe(1);
   });

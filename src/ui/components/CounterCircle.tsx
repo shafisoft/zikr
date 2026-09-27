@@ -13,14 +13,24 @@ interface CounterCircleProps {
   count: number;
   target: number;
   onIncrement: () => void;
+  /**
+   * Press-and-hold takes one back (remediation 1.2a). Present only when the
+   * advanced-controls setting is on and the round is decrementable; when
+   * absent the circle behaves exactly as before.
+   */
+  onDecrement?: () => void;
   hapticsEnabled: boolean;
   className?: string;
 }
+
+/** How long a press must hold before it becomes a take-back. */
+const HOLD_DECREMENT_MS = 450;
 
 export const CounterCircle: React.FC<CounterCircleProps> = ({
   count,
   target,
   onIncrement,
+  onDecrement,
   hapticsEnabled,
   className = '',
 }) => {
@@ -29,6 +39,10 @@ export const CounterCircle: React.FC<CounterCircleProps> = ({
   // the first contact counts, extra fingers landing while another is still
   // down belong to the same gesture, and the gesture ends when all lift.
   const activePointers = useRef<Set<number>>(new Set());
+  // The pointer that started the current gesture — the only one whose
+  // release can commit a tap or a hold in decrement-armed mode.
+  const gestureStartPointer = useRef<number | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { t } = useI18n();
   const { createRipple } = useRipple(buttonRef, hapticsEnabled);
   const { trigger: haptic } = useHaptic(hapticsEnabled);
@@ -38,6 +52,13 @@ export const CounterCircle: React.FC<CounterCircleProps> = ({
   const offset = circumference - progress * circumference;
   const isComplete = count >= target;
   const isMilestone = count > 0 && (count % 33 === 0 || isComplete);
+
+  const clearHold = () => {
+    if (holdTimer.current !== null) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  };
 
   // Count on pointerdown — exactly one event per contact — and only for the
   // first contact of a gesture. The old onTouchStart + onMouseDown pair
@@ -57,16 +78,29 @@ export const CounterCircle: React.FC<CounterCircleProps> = ({
     if (!isGestureStart) return; // multi-finger part of an already-counted tap
 
     createRipple(e);
-    onIncrement();
 
+    if (onDecrement) {
+      // Forgiving mode: the count commits on RELEASE so a press that stays
+      // down can become a take-back instead of counting first.
+      gestureStartPointer.current = e.pointerId;
+      clearHold();
+      holdTimer.current = setTimeout(() => {
+        holdTimer.current = null;
+        if (hapticsEnabled) haptic('light');
+        onDecrement();
+      }, HOLD_DECREMENT_MS);
+    } else {
+      commitTap();
+    }
+  };
+
+  const commitTap = () => {
+    onIncrement();
     // Trigger haptic feedback
     if (hapticsEnabled) {
       if (count === target - 1) {
         // Next tap completes the target
         haptic('success');
-      } else if (count > 0 && count % 11 === 0) {
-        // Milestone
-        haptic('light');
       } else {
         haptic('light');
       }
@@ -74,9 +108,26 @@ export const CounterCircle: React.FC<CounterCircleProps> = ({
   };
 
   // Gesture bookkeeping: a pointer leaving the set lets the NEXT contact
-  // start a new tap. `lostpointercapture` is the safety net for pointers
-  // that end without a clean up/cancel.
-  const releasePointer = (e: React.PointerEvent<HTMLButtonElement>) => {
+  // start a new tap. In decrement-armed mode the starting pointer's release
+  // decides the gesture: released before the hold threshold = a tap, held
+  // past it = the take-back already fired (never both).
+  const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (gestureStartPointer.current === e.pointerId) {
+      gestureStartPointer.current = null;
+      if (holdTimer.current !== null) {
+        clearHold();
+        commitTap();
+      }
+    }
+    activePointers.current.delete(e.pointerId);
+  };
+
+  const handlePointerEnd = (e: React.PointerEvent<HTMLButtonElement>) => {
+    // Cancel / lost capture: the gesture died — commit nothing.
+    if (gestureStartPointer.current === e.pointerId) {
+      gestureStartPointer.current = null;
+      clearHold();
+    }
     activePointers.current.delete(e.pointerId);
   };
 
@@ -90,7 +141,10 @@ export const CounterCircle: React.FC<CounterCircleProps> = ({
     };
 
     button.addEventListener('touchmove', handleTouchMove, { passive: false });
-    return () => button.removeEventListener('touchmove', handleTouchMove);
+    return () => {
+      button.removeEventListener('touchmove', handleTouchMove);
+      clearHold();
+    };
   }, []);
 
   return (
@@ -127,9 +181,9 @@ export const CounterCircle: React.FC<CounterCircleProps> = ({
       <button
         ref={buttonRef}
         onPointerDown={handlePointerDown}
-        onPointerUp={releasePointer}
-        onPointerCancel={releasePointer}
-        onLostPointerCapture={releasePointer}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerEnd}
+        onLostPointerCapture={handlePointerEnd}
         className={`
           relative w-[85%] h-[85%] rounded-full
           bg-surface-bright border

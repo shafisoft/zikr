@@ -24,6 +24,12 @@
  * still be saved is count − saveableBase − savedSoFar, where saveableBase
  * is the portion already on the books before the session opened (0 for
  * personal, the room total for rooms).
+ *
+ * Forgiving input (remediation 1.2): reset ALWAYS confirms via the in-app
+ * ConfirmDialog (1.2b); the hold-to-take-back gesture (1.2a) and the
+ * auto-save Undo toast (1.2c) are gated behind the advanced-controls
+ * setting and exist for personal rounds only — group-propagated counts
+ * cannot be retracted, so rooms keep today's exact behavior.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -31,12 +37,20 @@ import CounterCircle from '../CounterCircle';
 import MaterialIcon from '../MaterialIcon';
 import OrnamentDivider from '../decor/OrnamentDivider';
 import PatternBackdrop from '../decor/PatternBackdrop';
+import Toast from '../Toast';
+import { showConfirm } from '../ConfirmDialog';
 import useHaptic from '../../hooks/useHaptic';
 import { useI18n } from '../../../core/i18n';
 import { useSessionStore } from '../../../core/stores/sessionStore';
 import { useSettingsStore } from '../../../core/stores/settingsStore';
 import { getZikrDisplayInfoFromZikr } from '../../utils/zikrMapping';
 import { Zikr } from '../../../core/db/types';
+
+/** The gated "Round saved — Undo" toast stays up for about this long. */
+const UNDO_TOAST_MS = 6000;
+/** The one-time hold hint appears the first time a count passes ~10. */
+const HOLD_HINT_AT_COUNT = 10;
+const HOLD_HINT_MS = 6000;
 
 interface CounterSessionProps {
   zikr: Zikr;
@@ -73,6 +87,15 @@ interface CounterSessionProps {
   variant?: 'page' | 'modal';
   /** In a dialog, Escape belongs to closing — only the page binds it to reset. */
   escapeResets?: boolean;
+  /**
+   * Presentational only (§16.4): inside a guided flow (routine; post-salah
+   * later) the saved-state actions offer "Next item" as the primary and
+   * suppress Another Round — keep-counting stays a plain-counter behavior.
+   * Step advancement NEVER enters this component; the wrapping container
+   * owns position (derived from sessions) and onContinueNext. A plain
+   * source leaves this undefined and renders exactly as before.
+   */
+  flowMode?: boolean;
 }
 
 const CounterSession: React.FC<CounterSessionProps> = ({
@@ -85,12 +108,14 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   onContinueNext,
   variant = 'page',
   escapeResets = true,
+  flowMode = false,
 }) => {
   const { lang, t } = useI18n();
   const clearCurrentSession = useSessionStore(state => state.clearCurrentSession);
   const clearProgressCheckpoint = useSessionStore(state => state.clearProgressCheckpoint);
   const checkpointProgress = useSessionStore(state => state.checkpointProgress);
   const recordCount = useSessionStore(state => state.recordCount);
+  const deleteSession = useSessionStore(state => state.deleteSession);
 
   // See the header comment for the board model.
   const [count, setCount] = useState(startCount);
@@ -101,10 +126,29 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   // Sync mirror of isRoundSaved: guards that read it synchronously.
   const isRoundSavedRef = useRef(false);
+  // The gated auto-save toast (1.2c): the round just saved, whether it can
+  // be undone locally, and how much of the board it carried. Null = hidden.
+  const [undoState, setUndoState] = useState<{
+    sessionId: number;
+    savedAmount: number;
+    shared: boolean;
+  } | null>(null);
+  // The one-time "Hold to take one back" hint (1.2a).
+  const [holdHintVisible, setHoldHintVisible] = useState(false);
 
   // Haptics come straight from settings so a toggle anywhere applies live.
   const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
   const { trigger: haptic, isSupported: hapticsSupported } = useHaptic(hapticsEnabled);
+
+  // Owner-gated forgiveness affordances (1.2a/1.2c): hold-to-take-back and
+  // the Undo toast exist only behind this toggle; default stays dead simple.
+  const advancedControls = useSettingsStore(
+    state => state.settings.advancedCounterControls ?? false
+  );
+  const holdHintShown = useSettingsStore(
+    state => state.settings.counterHoldHintShown ?? false
+  );
+  const saveSetting = useSettingsStore(state => state.saveSetting);
 
   const zikrDisplayInfo = getZikrDisplayInfoFromZikr(zikr, lang);
   const isRoomContinuation = progressMode === 'room';
@@ -133,11 +177,45 @@ const CounterSession: React.FC<CounterSessionProps> = ({
     onCount(isRoomContinuation ? count + 1 : saveAmount + 1);
   };
 
+  // 1.2a (gated): hold-to-take-back. Floored at zero AND at the counts this
+  // session already persisted — saved rounds go through Undo (1.2c) or the
+  // 3-day Progress edit window, never through the board.
+  const canDecrement = advancedControls && !isRoomContinuation;
+  const handleDecrement = () => {
+    if (count <= savedSoFar) return;
+    setCount(count - 1);
+    onCount(saveAmount - 1);
+  };
+
+  // One-time discoverability hint: shown (and persisted) the first time a
+  // count passes ~10 while the gesture is available. Never nags again.
+  useEffect(() => {
+    if (!canDecrement || holdHintShown || count <= HOLD_HINT_AT_COUNT) return;
+    setHoldHintVisible(true);
+    void saveSetting('counterHoldHintShown', true);
+    const timer = setTimeout(() => setHoldHintVisible(false), HOLD_HINT_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canDecrement, holdHintShown, count]);
+
   const handleReset = () => {
     // Discard the unsaved remainder; what is already persisted stays.
     setCount(saveableBase + savedSoFar);
     onCount(isRoomContinuation ? saveableBase + savedSoFar : 0);
     haptic('light');
+  };
+
+  // 1.2b (always on): reset is accident protection, so BOTH routes — the
+  // tap button and the desktop Escape — go through the in-app confirm with
+  // exactly two actions. No native confirm(), no ungated path.
+  const requestReset = async () => {
+    const confirmed = await showConfirm({
+      message: t('counter.resetConfirm'),
+      danger: true,
+      confirmLabel: t('common.delete'),
+      cancelLabel: t('counter.keepCounting'),
+    });
+    if (confirmed) handleReset();
   };
 
   // Persist what this session added — the business rules (edit window,
@@ -166,12 +244,22 @@ const CounterSession: React.FC<CounterSessionProps> = ({
       const autoSave = async () => {
         setIsAutoSaving(true);
         try {
-          await persistCount(saveAmount);
+          const result = await persistCount(saveAmount);
           setSavedSoFar(savedSoFar => savedSoFar + saveAmount);
           if (progressMode === 'personal') afterPersonalSave();
           isRoundSavedRef.current = true;
           setIsRoundSaved(true);
           haptic('success');
+          // 1.2c (gated): a ~6 s non-blocking toast for the round just
+          // saved. Group-propagated rounds get the honest "can't be
+          // undone" copy — the server total cannot be retracted here.
+          if (result && progressMode === 'personal' && advancedControls) {
+            setUndoState({
+              sessionId: result.session.id!,
+              savedAmount: saveAmount,
+              shared: result.propagated,
+            });
+          }
         } catch (error) {
           console.error('Failed to auto-save round:', error);
           haptic('warning');
@@ -182,7 +270,29 @@ const CounterSession: React.FC<CounterSessionProps> = ({
       void autoSave();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saveAmount, target, canAutoSave, isAutoSaving]);
+  }, [saveAmount, target, canAutoSave, isAutoSaving, advancedControls]);
+
+  // Undo the just-saved round (a mis-tap correction): delete the session
+  // (3-day window + the in-transaction recalc make it safe) and take its
+  // counts off the board too — handing them back unsaved would instantly
+  // re-trigger the auto-save at target. Taps made after the save stay.
+  const handleUndoRound = async () => {
+    if (!undoState) return;
+    const { sessionId, savedAmount } = undoState;
+    setUndoState(null);
+    try {
+      await deleteSession(sessionId);
+      setCount(count => count - savedAmount);
+      setSavedSoFar(soFar => soFar - savedAmount);
+      isRoundSavedRef.current = false;
+      setIsRoundSaved(false);
+      onCount(saveAmount);
+      haptic('light');
+    } catch (error) {
+      console.error('Failed to undo round:', error);
+      haptic('warning');
+    }
+  };
 
   const handleAnotherRound = () => {
     setCount(saveableBase);
@@ -208,8 +318,9 @@ const CounterSession: React.FC<CounterSessionProps> = ({
     }
   };
 
-  // Keyboard: Space/Enter to count; Escape resets (page only — a dialog
-  // binds Escape to closing instead).
+  // Keyboard: Space/Enter to count; Escape asks, then resets (page only —
+  // a dialog binds Escape to closing instead). The in-app ConfirmDialog
+  // replaces the old native confirm() (remediation 1.2b).
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
@@ -218,22 +329,35 @@ const CounterSession: React.FC<CounterSessionProps> = ({
         haptic('light');
       }
       if (e.key === 'Escape' && escapeResets && saveAmount > 0 && !isRoundSaved) {
-        const confirmed = confirm(t('counter.resetConfirm'));
-        if (confirmed) {
-          handleReset();
-        }
+        void requestReset();
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleIncrement, saveAmount, haptic, escapeResets, isRoundSaved]);
+  }, [handleIncrement, requestReset, saveAmount, haptic, escapeResets, isRoundSaved]);
 
   return (
     <div className={`relative flex-1 flex flex-col ${variant === 'page' ? 'overflow-hidden items-center justify-center pb-32' : 'items-center justify-center'}`}>
       {/* Khatam pattern backdrop */}
       <PatternBackdrop className="absolute inset-0" />
+
+      {/* Gated auto-save toast (1.2c) — non-blocking, counting continues */}
+      {undoState && (
+        <Toast
+          message={
+            undoState.shared
+              ? t('counter.roundSharedNoUndo')
+              : t('counter.roundSavedToast')
+          }
+          actionLabel={undoState.shared ? undefined : t('counter.undo')}
+          onAction={() => void handleUndoRound()}
+          dismissLabel={t('common.dismiss')}
+          onDismiss={() => setUndoState(null)}
+          durationMs={UNDO_TOAST_MS}
+        />
+      )}
 
       {/* Zikr Info */}
       <div className="text-center mb-12 z-10 flex flex-col gap-4">
@@ -248,18 +372,29 @@ const CounterSession: React.FC<CounterSessionProps> = ({
         </p>
       </div>
 
-      {/* Counter Circle */}
+      {/* Counter Circle — onDecrement arms the gated hold-to-take-back */}
       <CounterCircle
         count={count}
         target={target}
         onIncrement={handleIncrement}
+        onDecrement={canDecrement ? handleDecrement : undefined}
         hapticsEnabled={hapticsEnabled}
       />
 
-      {/* Reset Button — hidden once the round is saved */}
+      {/* One-time hold hint (1.2a, gated) */}
+      {holdHintVisible && (
+        <p
+          role="note"
+          className="mt-3 text-center font-caption text-caption text-on-surface-variant/80 z-10 px-6"
+        >
+          {t('counter.holdHint')}
+        </p>
+      )}
+
+      {/* Reset Button — hidden once the round is saved; always confirms (1.2b) */}
       {!isRoundSaved && (
         <button
-          onClick={handleReset}
+          onClick={() => void requestReset()}
           className="mt-8 text-on-surface-variant flex items-center gap-2 px-4 py-2 rounded-full hover:bg-surface-variant/50 transition-colors z-10 font-caption text-caption active-scale-95"
         >
           <MaterialIcon icon="refresh" className="text-[18px]" />
@@ -286,6 +421,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
             onFinish={onFinish}
             onComplete={handleComplete}
             onContinueNext={onContinueNext}
+            flowMode={flowMode}
           />
         </div>
       ) : (
@@ -298,6 +434,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
             onFinish={onFinish}
             onComplete={handleComplete}
             onContinueNext={onContinueNext}
+            flowMode={flowMode}
           />
         </div>
       )}
@@ -305,7 +442,9 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   );
 };
 
-/** Round flow actions: saved → (Continue next) Another Round / Done; counting → Finish & Save. */
+/** Round flow actions: saved → (Continue next) Another Round / Done; counting → Finish & Save.
+ *  In a guided flow (`flowMode`), the next step takes the primary slot and
+ *  Another Round is suppressed — advancement itself stays in the container. */
 const RoundActions: React.FC<{
   isRoundSaved: boolean;
   canSave: boolean;
@@ -314,7 +453,8 @@ const RoundActions: React.FC<{
   onFinish: (savedCount: number) => void;
   onComplete: () => void;
   onContinueNext?: () => void;
-}> = ({ isRoundSaved, canSave, savedCount, onAnotherRound, onFinish, onComplete, onContinueNext }) => {
+  flowMode?: boolean;
+}> = ({ isRoundSaved, canSave, savedCount, onAnotherRound, onFinish, onComplete, onContinueNext, flowMode = false }) => {
   const { t } = useI18n();
 
   if (isRoundSaved) {
@@ -325,8 +465,9 @@ const RoundActions: React.FC<{
           <MaterialIcon icon="check_circle" filled className="text-[20px]" />
           <span>{t('counter.roundSaved')}</span>
         </div>
-        {/* The plan's next zikr is the suggested path, so it takes the
-            primary slot and demotes Another Round to a secondary action. */}
+        {/* The flow's next step is the suggested path, so it takes the
+            primary slot. Mid-flow (flowMode) Another Round is suppressed —
+            keep-counting-past-target is a plain-counter affordance. */}
         {onContinueNext && (
           <button
             onClick={onContinueNext}
@@ -339,7 +480,7 @@ const RoundActions: React.FC<{
             "
           >
             <MaterialIcon icon="skip_next" className="text-[20px]" />
-            {t('counter.continueNext')}
+            {flowMode ? t('counter.nextItem') : t('counter.continueNext')}
           </button>
         )}
         <div className="w-full flex gap-3">
@@ -356,22 +497,24 @@ const RoundActions: React.FC<{
             <MaterialIcon icon="home" className="text-[18px]" />
             {t('counter.done')}
           </button>
-          <button
-            onClick={onAnotherRound}
-            className={`
-              flex-1 h-touch-target-min rounded-xl font-label-md text-label-md
-              flex items-center justify-center gap-2
-              active:scale-[0.98] transition-all
-              ${
-                onContinueNext
-                  ? 'border border-outline-variant/40 text-on-surface hover:bg-surface-variant/40'
-                  : 'bg-primary-container text-on-primary hover:opacity-90 shadow-sm'
-              }
-            `}
-          >
-            <MaterialIcon icon="replay" className="text-[18px]" />
-            {t('counter.anotherRound')}
-          </button>
+          {!flowMode && (
+            <button
+              onClick={onAnotherRound}
+              className={`
+                flex-1 h-touch-target-min rounded-xl font-label-md text-label-md
+                flex items-center justify-center gap-2
+                active:scale-[0.98] transition-all
+                ${
+                  onContinueNext
+                    ? 'border border-outline-variant/40 text-on-surface hover:bg-surface-variant/40'
+                    : 'bg-primary-container text-on-primary hover:opacity-90 shadow-sm'
+                }
+              `}
+            >
+              <MaterialIcon icon="replay" className="text-[18px]" />
+              {t('counter.anotherRound')}
+            </button>
+          )}
         </div>
       </div>
     );

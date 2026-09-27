@@ -21,13 +21,20 @@ import { useSharedRoomStore } from '../../core/stores/sharedRoomStore';
 
 import { useI18n } from '../../core/i18n';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
-import { counterUrl } from '../utils/counterLink';
+import { counterUrl, PostSalahPrayerParam } from '../utils/counterLink';
 import GoalRowCard from '../components/cards/GoalRowCard';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
 import { calculateOverallStreak } from '../../core/utils/overallStreak';
+import StreakStatusContainer from '../containers/streaks/StreakStatusContainer';
+import RoutinesSectionContainer, {
+  RoutineRowView,
+} from '../containers/routines/RoutinesSectionContainer';
+import RitualNowContainer from '../containers/routines/RitualNowContainer';
+import RoutineEditorContainer from '../containers/routines/RoutineEditorContainer';
+import PostSalahCardContainer from '../containers/postSalah/PostSalahCardContainer';
 import { todayTotal as metricsTodayTotal, planRingProgress } from '../../core/utils/metrics';
 import { buildGoalRows, GoalZikrRow } from '../../core/utils/planUtils';
-import { Zikr } from '../../core/db/types';
+import { Routine, Zikr } from '../../core/db/types';
 
 /** Rotating hero phrases — one per day, rooted in dhikr itself (i18n keys). */
 const DAILY_PHRASE_KEYS = [1, 2, 3, 4, 5];
@@ -65,10 +72,30 @@ const Home: React.FC = () => {
 
   // Modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // R1 chrome bridge (§16.1/§16.6.3): the post-salah container reports an
+  // active, not-done card and the page suppresses the hero phrase line —
+  // a plain visibility flag; the page subscribes to nothing to get it.
+  const [postSalahActive, setPostSalahActive] = useState(false);
+  // Ritual-card chrome bridge (§16.1): whether the "current ritual" card
+  // renders — while it does, the routines section suppresses its quiet
+  // preset offer (the user already has routines; never two offers of the
+  // same thing).
+  const [ritualPresent, setRitualPresent] = useState(false);
+  // Routine editor flow state (§16.3): the page decides WHEN the dialog is
+  // open; the container owns the data.
+  const [routineEditor, setRoutineEditor] = useState<{
+    open: boolean;
+    editing: Routine | null;
+  }>({ open: false, editing: null });
 
   // Derived stats — pure functions from core/utils/metrics + overallStreak,
   // memoized directly off the stores (no effect/state round-trip, so the
   // numbers can never go stale mid-render).
+  //
+  // The streak BADGE (number, grace framing, repair prompt) is owned by
+  // StreakStatusContainer below (§16.5); this memo stays only because the
+  // hero phrase keys off the number (§16.6 tension 2 — both call the same
+  // canonical derivation, so what is shown cannot diverge).
   const streakDays = useMemo(
     () => calculateOverallStreak(sessions.map(s => s.date)),
     [sessions]
@@ -141,6 +168,34 @@ const Home: React.FC = () => {
     navigate(counterUrl({ zikrId: row.zikrId, target: row.target, planId: row.planId }));
   };
 
+  // R1 (§4.6): the card's one tap opens the guided 33→33→34→100 flow.
+  const handleStartPostSalah = (prayer: PostSalahPrayerParam, zikrId: number | null) => {
+    navigate(counterUrl({ postSalah: prayer, zikrId: zikrId ?? undefined }));
+  };
+
+  // R3 "Log yesterday?" — deep-link into Progress's backdated manual entry
+  // with yesterday prefilled (§3.2 deep-link discipline, AC3.2.1).
+  const handleLogYesterday = () => {
+    const yesterday = getToday();
+    yesterday.setDate(yesterday.getDate() - 1);
+    navigate(`/progress?date=${formatDate(yesterday)}&focus=entry`);
+  };
+
+  // Routines (§16.3): a row tap deep-links the counter into the routine's
+  // guided flow at its derived resume point; edit/create open the editor
+  // dialog from the page's own flow state.
+  const handleRoutinePress = (view: RoutineRowView) => {
+    if (view.zikrId == null) return;
+    navigate(counterUrl({ zikrId: view.zikrId, routineId: view.routine.id }));
+  };
+
+  // The current-ritual card's Start: same deep-link contract as a section
+  // row — the counter flow re-derives the resume point on arrival.
+  const handleRitualStart = (routineId: string, zikrId: number | null) => {
+    if (zikrId == null) return;
+    navigate(counterUrl({ zikrId, routineId }));
+  };
+
   // Loading state
   if (zikrsLoading || sessionsLoading) {
     return (
@@ -186,33 +241,54 @@ const Home: React.FC = () => {
       bottomNav
       contentClassName="pt-8 pb-8 px-container-padding-mobile gap-8 relative"
     >
+        {/* R1 Post-salah — the LEADING slot (§4.5/§16.2, OQ-5): while an
+            active, not-done card exists it replaces the hero phrase (the
+            greeting section itself stays). Self-collapses to null outside
+            the moment (AC1.2.4). */}
+        <PostSalahCardContainer
+          onStartFlow={handleStartPostSalah}
+          onActiveChange={setPostSalahActive}
+        />
+
         {/* Welcome & Streak Header */}
         <section className="relative flex flex-col items-center text-center gap-2">
           <PatternBackdrop className="absolute -inset-x-8 -top-8 h-48" />
           <p className="relative font-display-arabic text-[32px] leading-[48px] text-tertiary" lang="ar" dir="rtl">
             ٱلسَّلَامُ عَلَيْكُمْ
           </p>
-          {streakDays > 0 && (
-            <div className="relative inline-flex items-center gap-2 bg-tertiary-container/10 text-tertiary border border-tertiary-container/30 px-4 py-1.5 rounded-full font-label-md text-label-md">
-              <MaterialIcon icon="local_fire_department" filled className="text-[20px]" />
-              <span className="tabular-nums">{t('home.streak', { count: streakDays })}</span>
-            </div>
+          {/* Streak badge + grace framing + "Log yesterday?" prompt — one
+              canonical container shared with Progress (AC3.4.1). Renders
+              nothing for users with no streak history (AC3.1.3). */}
+          <StreakStatusContainer onLogYesterday={handleLogYesterday} />
+          {!postSalahActive && (
+            <h2 className="relative font-headline-lg-mobile text-headline-lg-mobile text-primary mt-2">
+              {streakDays > 0 ? t('home.keepGoing') : t(`home.phrase${phraseKey}`)}
+            </h2>
           )}
-          <h2 className="relative font-headline-lg-mobile text-headline-lg-mobile text-primary mt-2">
-            {streakDays > 0 ? t('home.keepGoing') : t(`home.phrase${phraseKey}`)}
-          </h2>
           <p className="relative font-body-md text-body-md text-on-surface-variant">
             {todayTotal > 0
               ? t('home.doneToday', { count: todayTotal })
               : t('home.beginPractice')
             }
           </p>
-          {streakDays === 0 && t(`home.phrase${phraseKey}Source`) && (
+          {!postSalahActive && streakDays === 0 && t(`home.phrase${phraseKey}Source`) && (
             <p className="relative font-caption text-caption text-tertiary">
               — {t(`home.phrase${phraseKey}Source`)}
             </p>
           )}
         </section>
+
+        {/* Current ritual (R2 schedule, §16.3): the routine whose civil
+            window matches NOW — right after the streak badge / today's
+            count. While R1's post-salah card leads above, this shows the
+            NEXT routine instead of duplicating the moment; it reports its
+            presence so the routines section below can drop its quiet
+            preset offer. */}
+        <RitualNowContainer
+          postSalahActive={postSalahActive}
+          onPresentChange={setRitualPresent}
+          onStart={handleRitualStart}
+        />
 
         {/* Daily Goal Progress — mihrab arch */}
         {plans.length > 0 && (
@@ -247,6 +323,18 @@ const Home: React.FC = () => {
             </div>
           </section>
         )}
+
+        {/* Routines — fixed slot between "Your Goals" and the Quick Start
+            rail (§5.3/§16.3). The container decides rows vs. the single
+            quiet preset offer; the page keeps navigation + editor flow.
+            While the current-ritual card shows above, the offer is
+            suppressed — the user already has routines. */}
+        <RoutinesSectionContainer
+          hideQuietOffer={ritualPresent}
+          onRoutinePress={handleRoutinePress}
+          onEditRoutine={(routine) => setRoutineEditor({ open: true, editing: routine })}
+          onCreateRoutine={() => setRoutineEditor({ open: true, editing: null })}
+        />
 
         {/* Quick Start Dhikr List */}
         {recentZikrs.length > 0 && (
@@ -296,6 +384,12 @@ const Home: React.FC = () => {
       <ZikrFormModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+      />
+      {/* Routine editor dialog (§16.3) — open only from the page's flow state */}
+      <RoutineEditorContainer
+        isOpen={routineEditor.open}
+        editing={routineEditor.editing}
+        onClose={() => setRoutineEditor({ open: false, editing: null })}
       />
     </AppLayout>
   );

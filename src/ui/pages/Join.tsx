@@ -87,7 +87,7 @@ const Join: React.FC = () => {
           <div className="w-full flex flex-col gap-4">
             <InputField
               label={t('join.yourName')}
-              placeholder="e.g., Ahmed"
+              placeholder={t('joinModal.namePlaceholder')}
               value={displayName}
               onChange={(v) => setDisplayName(String(v))}
               icon="person"

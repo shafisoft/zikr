@@ -156,6 +156,75 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
     translationBn: 'আল্লাহই আমাদের জন্য যথেষ্ট, তিনিই শ্রেষ্ঠ অভিভাবক',
     defaultTarget: 33,
   },
+  // ----- Before-sleep & Friday presets (Hisn-ul-Muslim أذكار النوم etc.) —
+  // Quranic texts are the complete, fully-vocalized verses in the same
+  // Uthmani/Tanzil-style orthography as the entries above (ٱ alef wasla,
+  // dagger-alif ٱللَّٰهُ, إِلَٰهَ). -----
+  'Ayat al-Kursi': {
+    nameBn: 'আয়াতুল কুরসি',
+    arabicText:
+      'ٱللَّٰهُ لَا إِلَٰهَ إِلَّا هُوَ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَهُ مَا فِي ٱلسَّمَاوَاتِ وَمَا فِي ٱلْأَرْضِ ۗ مَن ذَا ٱلَّذِي يَشْفَعُ عِندَهُ إِلَّا بِإِذْنِهِ ۚ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ وَلَا يُحِيطُونَ بِشَيْءٍ مِّنْ عِلْمِهِ إِلَّا بِمَا شَاءَ ۚ وَسِعَ كُرْسِيُّهُ ٱلسَّمَاوَاتِ وَٱلْأَرْضَ ۖ وَلَا يَئُودُهُ حِفْظُهُمَا ۚ وَهُوَ ٱلْعَلِيُّ ٱلْعَظِيمُ',
+    isQuickStarter: false,
+    translation:
+      'The Throne Verse — Allah, there is no deity except Him, the Ever-Living, the Sustainer of existence',
+    translationBn:
+      'আল্লাহ, তিনি ছাড়া কোনো ইলাহ নেই; তিনি চিরঞ্জীব, সকলের রক্ষণকর্তা',
+    defaultTarget: 1,
+  },
+  'Surah Al-Ikhlas': {
+    nameBn: 'সূরা আল-ইখলাস',
+    arabicText:
+      'قُلْ هُوَ ٱللَّٰهُ أَحَدٌ ۝ ٱللَّٰهُ ٱلصَّمَدُ ۝ لَمْ يَلِدْ وَلَمْ يُولَدْ ۝ وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ',
+    isQuickStarter: false,
+    translation: 'Say: He is Allah, the One; Allah, the Eternal Refuge',
+    translationBn: 'বলুন, তিনিই আল্লাহ, এক-অদ্বিতীয়; আল্লাহ অভয়ারণ্যের অধিপতি',
+    defaultTarget: 3,
+  },
+  'Surah Al-Falaq': {
+    nameBn: 'সূরা আল-ফালাক',
+    arabicText:
+      'قُلْ أَعُوذُ بِرَبِّ ٱلْفَلَقِ ۝ مِن شَرِّ مَا خَلَقَ ۝ وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ ۝ وَمِن شَرِّ ٱلنَّفَّٰثَٰتِ فِي ٱلْعُقَدِ ۝ وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ',
+    isQuickStarter: false,
+    translation: 'Say: I seek refuge in the Lord of the daybreak',
+    translationBn: 'বলুন, আমি আশ্রয় চাই ভোরের রবের কাছে',
+    defaultTarget: 3,
+  },
+  'Surah An-Nas': {
+    nameBn: 'সূরা আন-নাস',
+    arabicText:
+      'قُلْ أَعُوذُ بِرَبِّ ٱلنَّاسِ ۝ مَلِكِ ٱلنَّاسِ ۝ إِلَٰهِ ٱلنَّاسِ ۝ مِن شَرِّ ٱلْوَسْوَاسِ ٱلْخَنَّاسِ ۝ ٱلَّذِي يُوَسْوِسُ فِي صُدُورِ ٱلنَّاسِ ۝ مِنَ ٱلْجِنَّةِ وَٱلنَّاسِ',
+    isQuickStarter: false,
+    translation: 'Say: I seek refuge in the Lord of mankind',
+    translationBn: 'বলুন, আমি আশ্রয় চাই মানুষের রবের কাছে',
+    defaultTarget: 3,
+  },
+  'Bismika Allahumma Amutu wa Ahya': {
+    nameBn: 'বিসমিকা আল্লাহুম্মা',
+    arabicText: 'بِاسْمِكَ ٱللَّٰهُمَّ أَمُوتُ وَأَحْيَا',
+    isQuickStarter: false,
+    translation: 'In Your name, O Allah, I die and I live',
+    translationBn: 'হে আল্লাহ, আপনার নামেই আমি মরি ও বাঁচি',
+    defaultTarget: 1,
+  },
+  'Allahumma Aslamtu Nafsi Ilayk': {
+    nameBn: 'আল্লাহুম্মা আসলামতু নাফসী',
+    arabicText:
+      'ٱللَّٰهُمَّ أَسْلَمْتُ نَفْسِيٓ إِلَيْكَ وَفَوَّضْتُ أَمْرِيٓ إِلَيْكَ وَوَجَّهْتُ وَجْهِيٓ إِلَيْكَ وَٱلْجَأْتُ ظَهْرِيٓ إِلَيْكَ رَغْبَةً فِيكَ وَرَهْبَةً مِنْكَ لَا مَلْجَأَ وَلَا مَنْجَا مِنْكَ إِلَّآ إِلَيْكَ',
+    isQuickStarter: false,
+    translation:
+      'O Allah, I submit myself to You, entrust my affairs to You, and seek Your refuge — no refuge or salvation from You except through You',
+    translationBn:
+      'হে আল্লাহ, আমি আপনার কাছে আত্মসমর্পণ করলাম, আমার সব ভরসা আপনারই উপর ছেড়ে দিলাম — আপনার কাছ ছাড়া কোনো আশ্রয় বা মুক্তি নেই',
+    defaultTarget: 1,
+  },
+  'Surah Al-Kahf': {
+    nameBn: 'সূরা আল-কাহফ তিলাবত',
+    arabicText: 'سُورَةُ ٱلْكَهْفِ',
+    isQuickStarter: false,
+    translation: 'Recite Surah Al-Kahf — a light from this Friday to the next',
+    translationBn: 'শুক্রবারে সূরা কাহফ তিলাবত — দুই জুম্মার মাঝামাঝি নূর',
+    defaultTarget: 1,
+  },
 };
 
 export const ZIKR_CATALOG: Array<ZikrMeanings & { name: string }> =

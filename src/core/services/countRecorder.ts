@@ -20,6 +20,17 @@ import { sharedRoomService } from './sharedRoom';
 
 const EDIT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
+export interface RecordCountResult {
+  /** The saved session row (id included) — Undo deletes exactly this. */
+  session: Session;
+  /**
+   * True when the count actually reached at least one group plan. The
+   * counter's Undo toast must withhold undo for shared rounds — the server
+   * total cannot be retracted here (remediation 1.2c).
+   */
+  propagated: boolean;
+}
+
 export async function recordCount(input: {
   zikrId: number;
   /** Zikr display name — required for room propagation; omit to skip rooms. */
@@ -27,7 +38,7 @@ export async function recordCount(input: {
   count: number;
   /** Resolves the countsToGoalsAndGroups setting (default true). */
   countsToGoalsResolver?: () => boolean | undefined;
-}): Promise<Session> {
+}): Promise<RecordCountResult> {
   const countsToGoals = input.countsToGoalsResolver?.() ?? true;
   const now = new Date();
 
@@ -42,18 +53,22 @@ export async function recordCount(input: {
     updatedAt: now,
     countsToGoals,
   };
-  await addSession(session);
+  const id = await addSession(session);
+  const saved = { ...session, id } as Session;
 
   // Best-effort: the same count also goes to every joined active room
   // counting this zikr, unless the user turned that behaviour off.
+  // Propagation is awaited inside the save, so its real outcome is known
+  // here and surfaced to the UI (previously the result was discarded).
+  let propagated = false;
   if (countsToGoals && input.zikrName) {
     try {
-      await sharedRoomService.propagateToRooms(input.zikrName, input.count);
+      propagated = (await sharedRoomService.propagateToRooms(input.zikrName, input.count)) > 0;
     } catch {
       // rooms are best-effort; the session itself is already saved
     }
   }
-  return session as Session;
+  return { session: saved, propagated };
 }
 
 // ---------- Progress checkpoints (the durable "where you left off") ----------

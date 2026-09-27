@@ -292,7 +292,7 @@ const PlanFormModal: React.FC<PlanFormModalProps> = ({
                         </span>
                         <span className="flex-1 min-w-0">
                           <span className="block font-body-md text-body-md text-on-surface truncate">
-                            {zikr.name}
+                            {displayInfo.localizedName}
                           </span>
                           <span className="block font-caption text-caption text-on-surface-variant truncate">
                             {displayInfo.translation}

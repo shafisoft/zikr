@@ -3,9 +3,11 @@ import { ErrorBoundary } from './ui/components/ErrorBoundary';
 import { useZikrStore } from './core/stores/zikrStore';
 import { useSessionStore } from './core/stores/sessionStore';
 import { usePlanStore } from './core/stores/planStore';
+import { useRoutineStore } from './core/stores/routineStore';
 import { useSettingsStore } from './core/stores/settingsStore';
 import { db } from './core/db/db';
 import { seedZikrs } from './core/db/seed';
+import { ensurePresets } from './core/services/routineService';
 import { sharedRoomService } from './core/services/sharedRoom';
 import { applyDocumentLanguage, detectLanguage } from './core/i18n';
 import { UpdateBanner } from './ui/components/UpdateBanner';
@@ -40,14 +42,20 @@ function App() {
   const [storesInitialized, setStoresInitialized] = useState(false);
 
   useEffect(() => {
-    // Seed predefined zikrs on first launch
-    seedZikrs(db).catch(err => {
-      console.error('Failed to seed zikrs:', err);
-    });
+    // Seed predefined zikrs on first launch, then ensure the FOUR preset
+    // routines exist (morning/evening/night/friday) so a fresh or existing
+    // install can start immediately. Preset seeding runs strictly AFTER the
+    // zikr seeder — it resolves its items against the seeded rows.
+    seedZikrs(db)
+      .then(() => ensurePresets())
+      .catch(err => {
+        console.error('Failed to seed zikrs:', err);
+      });
 
     const zikrUnsubscribe = useZikrStore.getState().initialize();
     const sessionUnsubscribe = useSessionStore.getState().initialize();
     const planUnsubscribe = usePlanStore.getState().initialize();
+    const routineUnsubscribe = useRoutineStore.getState().initialize();
 
     // Initialize dark mode — wait for persisted settings first, otherwise a
     // fresh boot races the async load and falls back to the system theme.
@@ -104,6 +112,7 @@ function App() {
       zikrUnsubscribe();
       sessionUnsubscribe();
       planUnsubscribe();
+      routineUnsubscribe();
       mediaQuery.removeEventListener('change', handleSystemPrefChange);
     };
   }, []);

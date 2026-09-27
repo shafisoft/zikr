@@ -4,7 +4,8 @@
  * NOW INTEGRATED WITH ZUSTAND STORES
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import GlassCard from '../components/cards/GlassCard';
 import InputField from '../components/forms/InputField';
 import MaterialIcon from '../components/MaterialIcon';
@@ -15,11 +16,12 @@ import WeeklyChart from '../components/progress/WeeklyChart';
 import SessionHistory from '../components/SessionHistory';
 import BulkEntryForm from '../components/BulkEntryForm';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
+import StreakStatusContainer from '../containers/streaks/StreakStatusContainer';
 import { useSessionStore } from '../../core/stores/sessionStore';
-import { calculateOverallStreak } from '../../core/utils/overallStreak';
 import { totalDhikr as metricsTotalDhikr, weeklyData as metricsWeeklyData } from '../../core/utils/metrics';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSettingsStore } from '../../core/stores/settingsStore';
+import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
 import { useI18n } from '../../core/i18n';
 
@@ -46,12 +48,32 @@ const Progress: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [entryMode, setEntryMode] = useState<'single' | 'bulk'>('single');
 
+  // R3 deep link: /progress?date=YYYY-MM-DD&focus=entry — Home's "Log
+  // yesterday?" prompt lands here with the missed day prefilled and the
+  // manual-entry form focused (AC3.2.1).
+  const [searchParams] = useSearchParams();
+  const entryZikrRef = useRef<HTMLSelectElement>(null);
+  const focusEntry = searchParams.get('focus') === 'entry';
+  const linkDate = searchParams.get('date');
+
+  useEffect(() => {
+    if (linkDate) setLogDate(linkDate);
+  }, [linkDate]);
+
+  useEffect(() => {
+    if (focusEntry) setEntryMode('single');
+  }, [focusEntry]);
+
+  useEffect(() => {
+    if (focusEntry && entryMode === 'single') {
+      entryZikrRef.current?.focus();
+    }
+  }, [focusEntry, entryMode]);
+
   // Derived statistics — pure functions from core/utils (same ones Home
-  // uses), memoized off the stores. No effect/state round-trip.
-  const streakDays = useMemo(
-    () => calculateOverallStreak(sessions.map(s => s.date)),
-    [sessions]
-  );
+  // uses), memoized off the stores. No effect/state round-trip. The streak
+  // number and its grace framing come from StreakStatusContainer (§16.5) —
+  // one canonical derivation shared with Home (AC3.4.1).
   const totalDhikr = useMemo(() => metricsTotalDhikr(sessions), [sessions]);
   const weeklyData = useMemo(
     () => metricsWeeklyData(sessions, WEEK_LABELS[lang]),
@@ -135,13 +157,11 @@ const Progress: React.FC = () => {
 
         {/* Stats Overview (Bento Style) */}
         <div className="grid grid-cols-2 gap-4">
-          {/* Streak Card */}
+          {/* Streak Card — the same container Home uses (badge only, §16.5);
+              grace and fresh-start framing follow the shared derivation. */}
           <GlassCard className="p-6 flex flex-col items-center justify-center text-center">
-            <MaterialIcon icon="local_fire_department" filled className="text-tertiary mb-2 text-4xl" />
-            <p className="font-headline-md text-headline-md text-primary tabular-nums">
-              {t(streakDays === 1 ? 'progress.streakDay' : 'progress.streakDays', { count: streakDays })}
-            </p>
-            <p className="font-caption text-caption text-on-surface-variant mt-1">
+            <StreakStatusContainer showPrompt={false} hideWhenEmpty={false} />
+            <p className="font-caption text-caption text-on-surface-variant mt-2">
               {t('progress.streakLabel')}
             </p>
           </GlassCard>
@@ -207,6 +227,7 @@ const Progress: React.FC = () => {
                 {t('progress.zikr')}
               </label>
               <select
+                ref={entryZikrRef}
                 value={selectedZikr || ''}
                 onChange={(e) => setSelectedZikr(Number(e.target.value))}
                 className="w-full bg-surface-container-lowest border border-outline-variant/50 rounded-xl px-4 h-touch-target-min font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
@@ -214,7 +235,7 @@ const Progress: React.FC = () => {
                 <option value="">{t('progress.selectZikr')}</option>
                 {zikrs.map((zikr) => (
                   <option key={zikr.id} value={zikr.id}>
-                    {zikr.name}
+                    {getZikrDisplayInfoFromZikr(zikr, lang).localizedName}
                   </option>
                 ))}
               </select>

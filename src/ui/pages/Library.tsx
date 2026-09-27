@@ -11,12 +11,14 @@ import { showAlert, showConfirm } from '../components/ConfirmDialog';
 import ZikrFormModal from '../components/ZikrFormModal';
 import { Zikr } from '../../core/db/types';
 import { useZikrStore } from '../../core/stores/zikrStore';
+import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
+import { zikrMatchesSearch } from '../utils/zikrSearch';
 import { useI18n } from '../../core/i18n';
 
 const SYNC_STATUS_TIMEOUT_MS = 5000;
 
 const Library: React.FC = () => {
-  const { t } = useI18n();
+  const { lang, t } = useI18n();
   const zikrs = useZikrStore(state => state.zikrs);
   const storeIsSyncing = useZikrStore(state => state.isSyncing);
   const syncLibrary = useZikrStore(state => state.syncLibrary);
@@ -45,11 +47,7 @@ const Library: React.FC = () => {
     return () => clearTimeout(timer);
   }, [syncStatus]);
 
-  const filteredZikrs = zikrs.filter(zikr => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return true;
-    return zikr.name.toLowerCase().includes(query);
-  });
+  const filteredZikrs = zikrs.filter(zikr => zikrMatchesSearch(zikr, searchQuery));
 
   const handleDeleteZikr = async (zikr: Zikr) => {
     const confirmed = await showConfirm({
@@ -168,7 +166,9 @@ const Library: React.FC = () => {
                     <MaterialIcon icon="spa" filled className="text-primary text-[20px]" />
                   </div>
                   <div>
-                    <p className="font-body-md text-body-md text-on-surface">{zikr.name}</p>
+                    <p className="font-body-md text-body-md text-on-surface">
+                      {getZikrDisplayInfoFromZikr(zikr, lang).localizedName}
+                    </p>
                     <p className="font-caption text-caption text-on-surface-variant">
                       {zikr.custom ? t('library.custom') : t('library.predefined')}
                     </p>

@@ -1,163 +1,59 @@
 /**
- * Counter Screen (V2)
- * Full-screen route around the shared CounterSession. As the counter's
- * caller it owns the inputs: startCount resumes an unsaved personal round
- * from the session store, and target comes from the plan step when the
- * route carries a plan (?planId=, per-zikr plans — which also enables the
- * "continue next zikr" flow), else a plan's ?target=, else the zikr's
- * default. Each count is mirrored back to the session store via onCount so
- * an unfinished round survives navigation. The same CounterSession is
- * embedded by CounterModal (e.g. from a room).
+ * Screen (V2)
+ * Full-screen route around the shared CounterSession. Route state and
+ * chrome only (§16.4): the page parses the source params
+ * (?zikrId/target/planId/routineId/postSalah), owns AppLayout chrome (the top-bar
+ * title arrives via the flow container's onActiveStep callback), the
+ * pre-existing haptics top-bar action, and leaveCounter. All data
+ * ownership — step sequences, flow position, resume snapshots, advancement
+ * — lives in CounterFlowContainer, which wraps the unchanged CounterSession.
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavActions } from '../components/navigation/navActions';
-import CounterSession from '../components/counter/CounterSession';
+import CounterFlowContainer from '../containers/counter/CounterFlowContainer';
 import MaterialIcon from '../components/MaterialIcon';
 import { useI18n } from '../../core/i18n';
-import { useZikrStore } from '../../core/stores/zikrStore';
-import { useSessionStore } from '../../core/stores/sessionStore';
 import { useSettingsStore } from '../../core/stores/settingsStore';
-import { usePlanStore } from '../../core/stores/planStore';
-import { planSequence } from '../../core/utils/planUtils';
-import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
-import { Zikr } from '../../core/db/types';
+import { useZikrStore } from '../../core/stores/zikrStore';
 
 const Counter: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const navActions = useNavActions();
-  const { lang, t } = useI18n();
+  const { t } = useI18n();
   const [searchParams] = useSearchParams();
-  const zikrIdParam = searchParams.get('zikrId');
   // Plans start the counter toward their own number (?target=N); plain
   // entries (Home, the nav tab) omit it and the zikr's default applies.
   const targetParam = Number(searchParams.get('target'));
-  // A per-zikr plan turns the counter into a sequence: after a saved round
-  // the user can continue straight to the plan's next zikr.
+  // The four flow sources (§16.4): a per-zikr plan sequence, a routine's
+  // guided item-by-item flow, the after-salah set (?postSalah= — R1), or
+  // a plain single-zikr counter.
   const planIdParam = searchParams.get('planId');
+  const routineIdParam = searchParams.get('routineId');
+  const postSalahParam = searchParams.get('postSalah');
+  const zikrIdParam = searchParams.get('zikrId');
 
-  // Store integrations
-  const zikrs = useZikrStore(state => state.zikrs);
+  // Store integrations (chrome-level only). The terminal empty state reads
+  // the library straight from the store — never from the container's
+  // chrome-bridge report, whose first (pre-selection) value is legitimately
+  // null and must not unmount the container mid-resolution (R2 deadlock).
   const zikrsLoading = useZikrStore(state => state.loading);
-  const plans = usePlanStore(state => state.plans);
-  const currentSession = useSessionStore(state => state.currentSession);
-  const checkpoints = useSessionStore(state => state.checkpoints);
-  const setCurrentSession = useSessionStore(state => state.setCurrentSession);
+  const zikrs = useZikrStore(state => state.zikrs);
   const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
   const saveSetting = useSettingsStore(state => state.saveSetting);
 
-  const [selectedZikr, setSelectedZikr] = useState<Zikr | null>(null);
-  // Resume snapshot: the unsaved count this zikr starts from. Captured once
-  // per zikr selection so the counter's startCount stays stable while it
-  // counts; the live value is mirrored back through onCount instead.
-  const [startCount, setStartCount] = useState(0);
-  // True after the first onCount — freezes the snapshot so store updates
-  // mirrored FROM the counter never feed back into startCount.
-  const interactedRef = useRef(false);
-  // True once the user continues to the plan's next zikr — the URL param
-  // must stop overriding the in-page selection from then on.
-  const selectionLockedRef = useRef(false);
-
-  // The plan behind ?planId= and its countable zikr sequence (per-zikr
-  // plans only — see planSequence). Empty until the stores hydrate; the
-  // resolution effect below re-runs when they do.
-  const plan = useMemo(
-    () => (planIdParam ? plans.find(p => p.id === planIdParam) : undefined),
-    [plans, planIdParam]
-  );
-  const planSteps = useMemo(() => planSequence(plan, zikrs), [plan, zikrs]);
-
-  const currentStepIndex =
-    selectedZikr && planSteps.length > 0
-      ? planSteps.findIndex(step => step.zikr.id === selectedZikr.id)
-      : -1;
-  const nextStep = currentStepIndex >= 0 ? planSteps[currentStepIndex + 1] : undefined;
+  // Chrome bridge (§16.1): the flow container reports the active step's
+  // name for the top bar; the page keeps it as plain flow state and never
+  // subscribes to acquire it. undefined = not yet resolved; null = no step.
+  const [activeStepName, setActiveStepName] = useState<string | null | undefined>(undefined);
 
   // Load settings (haptics toggle reads/writes the store directly)
   useEffect(() => {
     useSettingsStore.getState().loadSettings();
   }, []);
-
-  // Resolve the zikr to practice: plan step ← URL param → active session →
-  // first zikr. Skipped once the user continued to the next plan zikr —
-  // the params describe where the counter started, not where it is now.
-  useEffect(() => {
-    if (selectionLockedRef.current) return;
-
-    if (planSteps.length > 0) {
-      const initial = zikrIdParam
-        ? planSteps.find(step => step.zikr.id === Number(zikrIdParam))
-        : undefined;
-      setSelectedZikr((initial ?? planSteps[0]).zikr);
-      return;
-    }
-
-    if (zikrs.length === 0) return;
-
-    let zikrToUse: Zikr | undefined;
-
-    if (zikrIdParam) {
-      zikrToUse = zikrs.find(z => z.id === Number(zikrIdParam));
-    } else if (currentSession.zikrId) {
-      zikrToUse = zikrs.find(z => z.id === currentSession.zikrId);
-    }
-
-    if (!zikrToUse) {
-      zikrToUse = zikrs[0];
-    }
-
-    setSelectedZikr(zikrToUse ?? null);
-  }, [zikrs, zikrIdParam, currentSession.zikrId, planSteps]);
-
-  // Snapshot the resume count when the zikr selection settles. Resume
-  // order: the in-flight round mirror first, then the durable progress
-  // checkpoint (auto-saved counts), then zero. Re-runs when the stores
-  // hydrate from IndexedDB (their first load can land after this effect's
-  // first run), but never after the user started counting.
-  useEffect(() => {
-    if (!selectedZikr || interactedRef.current) return;
-    const zikrKey = selectedZikr.id;
-    setStartCount(
-      currentSession.zikrId === zikrKey
-        ? currentSession.count
-        : zikrKey != null
-          ? checkpoints[zikrKey] ?? 0
-          : 0
-    );
-  }, [selectedZikr, currentSession, checkpoints]);
-
-  // The page's target: the plan step's target when counting a plan, else a
-  // plan-provided ?target= when valid, else the zikr's default.
-  const stepTarget = currentStepIndex >= 0 ? planSteps[currentStepIndex].target : undefined;
-  const target = selectedZikr
-    ? stepTarget && stepTarget > 0
-      ? stepTarget
-      : Number.isFinite(targetParam) && targetParam > 0
-        ? targetParam
-        : getZikrDisplayInfoFromZikr(selectedZikr, lang)?.defaultTarget || 33
-    : 0;
-
-  // Jump to the plan's next zikr. The resume snapshot is captured here
-  // synchronously — a remounted session must never paint this zikr with
-  // the previous zikr's base count while the snapshot effect settles.
-  const handleContinueNext = () => {
-    if (!nextStep) return;
-    selectionLockedRef.current = true;
-    const unsaved = useSessionStore.getState().currentSession;
-    const nextZikrId = nextStep.zikr.id;
-    setStartCount(
-      nextZikrId != null && unsaved.zikrId === nextZikrId
-        ? unsaved.count
-        : nextZikrId != null
-          ? checkpoints[nextZikrId] ?? 0
-          : 0
-    );
-    interactedRef.current = true;
-    setSelectedZikr(nextStep.zikr);
-  };
 
   const handleToggleHaptics = () => {
     void saveSetting('hapticsEnabled', !hapticsEnabled);
@@ -180,8 +76,14 @@ const Counter: React.FC = () => {
     );
   }
 
-  // No zikrs available
-  if (!selectedZikr) {
+  // Terminal empty state: ONLY from the page's own store knowledge — the
+  // library is loaded and empty. A null activeStepName is NOT this state:
+  // it is also the container's legitimate first report before it resolves
+  // the route's zikr (gating on it unmounted the container before its
+  // selection effect could land — the plain counter deadlocked on empty).
+  // Non-empty-library degenerate routes (a routine whose items are all
+  // unresolvable) render in-flow inside the container, not here.
+  if (!zikrsLoading && zikrs.length === 0) {
     return (
       <div className="min-h-screen bg-surface text-on-surface antialiased flex flex-col items-center justify-center p-8 text-center">
         <MaterialIcon icon="error_outline" className="text-6xl text-tertiary-container mb-4" />
@@ -204,7 +106,7 @@ const Counter: React.FC = () => {
   return (
     <AppLayout
       topBar={{
-        title: selectedZikr.name,
+        title: activeStepName ?? undefined,
         close: true,
         onClose: leaveCounter,
         actions: [
@@ -218,18 +120,14 @@ const Counter: React.FC = () => {
       }}
       contentClassName="px-container-padding-mobile"
     >
-      <CounterSession
-        key={selectedZikr.id}
-        zikr={selectedZikr}
-        startCount={startCount}
-        target={target}
-        onCount={(count) => {
-          interactedRef.current = true;
-          setCurrentSession({ zikrId: selectedZikr.id || null, count });
-        }}
-        onContinueNext={nextStep ? handleContinueNext : undefined}
-        variant="page"
+      <CounterFlowContainer
+        zikrIdParam={zikrIdParam}
+        targetParam={targetParam}
+        planIdParam={planIdParam}
+        routineIdParam={routineIdParam}
+        postSalahParam={postSalahParam}
         onFinish={leaveCounter}
+        onActiveStep={setActiveStepName}
       />
     </AppLayout>
   );

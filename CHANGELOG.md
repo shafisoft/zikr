@@ -5,9 +5,103 @@ Notable, user-facing changes to Zikr. Format loosely follows
 GitHub Pages (`main2` push). Update the `Unreleased` section with every
 user-facing change and date it when it ships.
 
-## Unreleased
+## [1.5.0] — 2026-09-27
 
-_(nothing yet)_
+### Added
+- **Your day, ritual by ritual: four ready-made routines, now on the clock.**
+  The app now seeds four Hisn-ul-Muslim routines for you — morning adhkar,
+  evening adhkar, the before-sleep set (Ayat al-Kursi; the three surahs
+  Ikhlas, Falaq and Nas in full; the bedtime duas; and Tasbih Fatimah
+  33 · 33 · 34), and the Friday sunnahs (Surah Al-Kahf, Salawat ×100,
+  istighfar ×100) — complete with fully vocalized Arabic, Bangla and English
+  meanings, and the traditional counts. Home greets you with a quiet
+  "current ritual" card right below your streak: it names the routine whose
+  part of day it is right now (morning, evening, night, or Friday), shows
+  your progress item by item, and one tap starts the guided counter flow —
+  after dark it points at the night set, at midday it tells you what's
+  next, and when today's set is done it says so gently instead of
+  disappearing. If your after-salah card is already up, the ritual card
+  steps aside and shows what comes next instead. Every routine stays fully
+  yours: edit the items, delete a preset without it ever creeping back, or
+  ignore it all — nothing else on the app changes.
+- **Post-salah mode: the app now knows the moment after prayer.** Save your
+  location once in Settings — pick from an offline city list (all Bangladesh
+  districts and major diaspora cities, searchable in Bangla or English),
+  type coordinates, or use a one-shot device fix — and Zikr can offer your
+  after-salah set (33 · 33 · 34 · 100) right after each of the five prayers.
+  For 30 minutes after a prayer time, Home shows a quiet card naming the
+  prayer; one tap runs the set in the counter, item by item, resuming where
+  you left off. Everything is computed on your device and works fully
+  offline — your location never leaves your phone, and the feature stays
+  invisible until you both save a location and turn it on. If prayer times
+  can't be computed for your location, the feature quietly stays out of the
+  way and Settings says so.
+- **Routines: your morning/evening adhkar as one object.** A routine is an
+  ordered list of your zikrs with per-item counts — no dates, no deadlines,
+  just "did I do it today". Start with one tap from the ready-made
+  morning/evening set (the six-item Hisn-ul-Muslim cluster, with its
+  traditional counts, referencing your existing library entries), or build
+  your own sequence from any zikrs with editable per-item counts (up to 12
+  items, 5 routines). Tapping a routine runs it in the counter,
+  item-by-item: reaching an item's count saves it and moves on; quit and
+  return any time — the flow resumes exactly where you left off, and
+  anything you counted outside the routine (plain counter, manual entry)
+  already counts toward it. When every item is done, the routine says so —
+  and keeps its own daily streak under the same gentle "never miss twice"
+  rule as the overall streak (a partial day counts for your overall
+  streak, but the routine streak means the whole sequence). If a zikr in a
+  routine is removed from your library, the row gently says so and stays
+  editable. Home shows one quiet, dismissible offer for the preset when
+  you have no routines — and nothing at all otherwise; deleting a routine
+  never touches your zikrs or history.
+
+### Fixed
+- **Opening the counter no longer shows "No Zikrs Available" with a full
+  library.** Every "Start" on Home could land on the counter's empty state
+  instead of the zikr: the screen's top-bar title handshake reported "no
+  step" for one frame before the zikr resolved, and the screen mistook that
+  first report for an empty library and tore the counter down mid-load. The
+  empty state now appears only when the library really is empty.
+- **Restoring a backup no longer corrupts your dates.** Session, plan, and
+  settings dates could come back from a restore as plain text instead of
+  real dates, silently breaking streaks, plan windows, and history sorting.
+  Import now rehydrates every date field, and an export → restore round
+  trip is lossless — existing backup files work as-is. Backups now also
+  carry your routines (presets, custom sets, schedules, and dismissals), so
+  a restore brings your whole practice back.
+- **Reset on the counter no longer erases an unsaved round in one tap.**
+  Reset now asks for confirmation first ("Delete" / "Keep counting") on
+  every platform, including desktop's Escape path.
+
+### Added
+- **One missed day no longer breaks your streak ("never miss twice").**
+  Come back the day after a miss and the streak badge holds its value in a
+  quieter grace state — "your streak is safe" — instead of showing zero,
+  with a one-tap "Log yesterday?" prompt that opens the backdated entry
+  form with yesterday prefilled (it asks at most once a day and stays
+  dismissible). Practicing again, or logging the missed day, silently
+  continues the streak at its old value plus one. Only a second consecutive
+  missed day ends a streak, and even then the app just says a fresh streak
+  starts today — never guilt copy, in either language. Home and Progress
+  always show the same number from the same rule, and the rule is re-derived
+  from history, so edits, restores, and backdated logs all agree.
+- **Advanced counter controls (optional, off by default).** A new Settings
+  toggle enables two forgiveness affordances for the counter: long-press the
+  count circle to take one back (with a one-time "Hold to take one back"
+  hint the first time a count passes ~10), and a short "Round saved — Undo"
+  toast after an auto-save that deletes just that round. The Undo is honest
+  about its limits: a round already shared with your group says plainly it
+  can't be undone here, instead of offering a link that wouldn't retract the
+  shared total. Counting is never blocked while the toast shows.
+- **Bangla and Arabic work in search and pickers.** Library search now
+  matches the Bangla name and the Arabic text as well as the English name
+  (name matching ignores case and stray spaces — search "সুবহানাল্লাহ",
+  "subhan", or the Arabic string and find SubhanAllah). In Bangla mode the
+  Library list, the manual-entry zikr dropdown, and the plan form's zikr
+  pickers show Bangla names when available. The invite-join page's name
+  field now uses the localized placeholder ("যেমন, আহমেদ") instead of a
+  hardcoded "e.g., Ahmed", so the deep-link page renders fully in the
+  device language.
 
 ## 1.4.0 — 2026-09-25
 
