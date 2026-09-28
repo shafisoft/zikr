@@ -156,6 +156,7 @@ export const en = {
   'counter.continueNext': 'Continue next zikr',
   'counter.done': 'Done',
   'counter.reset': 'Reset',
+  'counter.translation': 'Translation',
   'counter.ofTarget': 'of {{target}}',
   'counter.noZikrs': 'No Zikrs Available',
   'counter.noZikrsHint': 'Create a zikr to start practicing.',

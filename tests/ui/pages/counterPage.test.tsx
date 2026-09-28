@@ -145,8 +145,15 @@ describe('Counter page — terminal empty state vs the chrome bridge (R2 deadloc
     // The counter board is up — no empty state, no deadlock.
     await waitForDom(() => circleButton() !== null);
     await waitForDom(() => container!.textContent!.includes('SubhanAllah'));
-    expect(container!.textContent).toContain('Glory be to Allah');
     expect(container!.textContent).not.toContain('No Zikrs Available');
+
+    // The meaning line is hidden by default (simplified counter) and
+    // appears under its translation toggle.
+    expect(container!.textContent).not.toContain('Glory be to Allah');
+    const translationToggle = buttonByText('Translation');
+    expect(translationToggle).not.toBeNull();
+    translationToggle!.click();
+    await waitForDom(() => container!.textContent!.includes('Glory be to Allah'));
 
     // The chrome bridge still works: the active step names the top bar.
     const topBarTitle = container!.querySelector('header h1')?.textContent;

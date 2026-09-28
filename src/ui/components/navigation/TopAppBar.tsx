@@ -46,9 +46,10 @@ export const TopAppBar: React.FC<HeaderProps> = ({
         <div className="w-touch-target-min -ml-4" />
       )}
 
-      {/* Center: Title */}
+      {/* Center: Title — one line, ellipsized; a long zikr name must never
+          wrap the bar into a broken two-line header. */}
       {title && (
-        <h1 className="font-headline-md text-headline-md text-primary font-bold">
+        <h1 className="font-headline-md text-headline-md text-primary font-bold flex-1 min-w-0 text-center truncate px-2">
           {title}
         </h1>
       )}

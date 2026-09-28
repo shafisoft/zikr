@@ -3,8 +3,9 @@
  * Full-screen route around the shared CounterSession. Route state and
  * chrome only (§16.4): the page parses the source params
  * (?zikrId/target/planId/routineId/postSalah), owns AppLayout chrome (the top-bar
- * title arrives via the flow container's onActiveStep callback), the
- * pre-existing haptics top-bar action, and leaveCounter. All data
+ * title arrives via the flow container's onActiveStep callback; the only
+ * top-bar actions are Close and the in-context haptics toggle — Library and
+ * Settings don't belong in a counting session), and leaveCounter. All data
  * ownership — step sequences, flow position, resume snapshots, advancement
  * — lives in CounterFlowContainer, which wraps the unchanged CounterSession.
  */
@@ -12,7 +13,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
-import { useNavActions } from '../components/navigation/navActions';
 import CounterFlowContainer from '../containers/counter/CounterFlowContainer';
 import MaterialIcon from '../components/MaterialIcon';
 import { useI18n } from '../../core/i18n';
@@ -22,7 +22,6 @@ import { useZikrStore } from '../../core/stores/zikrStore';
 const Counter: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const navActions = useNavActions();
   const { t } = useI18n();
   const [searchParams] = useSearchParams();
   // Plans start the counter toward their own number (?target=N); plain
@@ -115,7 +114,6 @@ const Counter: React.FC = () => {
             onClick: handleToggleHaptics,
             ariaLabel: 'Toggle haptic feedback',
           },
-          ...navActions,
         ],
       }}
       contentClassName="px-container-padding-mobile"

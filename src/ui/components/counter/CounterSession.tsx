@@ -19,6 +19,13 @@
  * Whatever is still unsaved when the user leaves rides on the durable
  * checkpoint (personal) or the caller's mirror (room).
  *
+ * Simplified counting surface: the page variant has no manual save button
+ * (auto-save owns saving; leaving mid-round is the top-bar Close) and no
+ * Library/Settings chrome; the meaning line hides behind a translation
+ * toggle. The modal variant (shared rooms) keeps "Finish & Save" — a
+ * room's unsaved remainder has no durable checkpoint, so that button is
+ * its only path onto the books.
+ *
  * The board bookkeeping: `count` is the displayed number; `savedSoFar` is
  * how much of the counting since open has already been persisted. What can
  * still be saved is count − saveableBase − savedSoFar, where saveableBase
@@ -135,6 +142,10 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   } | null>(null);
   // The one-time "Hold to take one back" hint (1.2a).
   const [holdHintVisible, setHoldHintVisible] = useState(false);
+  // Counter-simplification: the meaning line is reference material, not
+  // counting material — hidden behind a toggle so the screen stays a
+  // counter. Default hidden every session.
+  const [showTranslation, setShowTranslation] = useState(false);
 
   // Haptics come straight from settings so a toggle anywhere applies live.
   const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
@@ -387,9 +398,27 @@ const CounterSession: React.FC<CounterSessionProps> = ({
           </h1>
         )}
         <OrnamentDivider className="w-44 mx-auto" />
-        <p className="font-body-lg text-body-lg text-on-surface-variant">
-          {zikrDisplayInfo.translation}
-        </p>
+        {zikrDisplayInfo.translation && (
+          <>
+            {showTranslation && (
+              <p className="font-body-lg text-body-lg text-on-surface-variant max-w-full px-2">
+                {zikrDisplayInfo.translation}
+              </p>
+            )}
+            <button
+              onClick={() => setShowTranslation(open => !open)}
+              aria-expanded={showTranslation}
+              className="mx-auto flex items-center gap-1.5 px-3 py-1 rounded-full text-on-surface-variant/70 hover:bg-surface-variant/50 active:scale-95 transition-colors z-10"
+            >
+              <MaterialIcon icon="translate" className="text-[16px]" />
+              <span className="font-caption text-caption">{t('counter.translation')}</span>
+              <MaterialIcon
+                icon={showTranslation ? 'expand_less' : 'expand_more'}
+                className="text-[16px]"
+              />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Counter Circle — onDecrement arms the gated hold-to-take-back */}
@@ -411,8 +440,21 @@ const CounterSession: React.FC<CounterSessionProps> = ({
         </p>
       )}
 
-      {/* Reset Button — hidden once the round is saved; always confirms (1.2b) */}
-      {!isRoundSaved && (
+      {/* Reset — tucked into the counting screen's unused bottom-right corner
+          (page) / inline (modal). Hidden once the round is saved; always
+          confirms (1.2b). Icon-only on the page: the label lives in the
+          aria-label/title, the confirm dialog carries the words. */}
+      {!isRoundSaved && variant === 'page' && (
+        <button
+          onClick={() => void requestReset()}
+          aria-label={t('counter.reset')}
+          title={t('counter.reset')}
+          className="absolute z-10 right-4 bottom-[calc(env(safe-area-inset-bottom)+20px)] w-touch-target-min h-touch-target-min rounded-full flex items-center justify-center text-on-surface-variant/80 hover:bg-surface-variant/50 active:scale-95 transition-all"
+        >
+          <MaterialIcon icon="refresh" className="text-[22px]" />
+        </button>
+      )}
+      {!isRoundSaved && variant === 'modal' && (
         <button
           onClick={() => void requestReset()}
           className="mt-8 text-on-surface-variant flex items-center gap-2 px-4 py-2 rounded-full hover:bg-surface-variant/50 transition-colors z-10 font-caption text-caption active-scale-95"
@@ -430,20 +472,27 @@ const CounterSession: React.FC<CounterSessionProps> = ({
         </p>
       )}
 
-      {/* Action area */}
+      {/* Action area. Page: auto-save owns saving, so before the first saved
+          round there is NO button at all — leaving is the top-bar Close (the
+          unsaved remainder rides the durable checkpoint). The bar exists only
+          for the saved-round choices. Modal (rooms): keeps Finish & Save — a
+          room's remainder has no checkpoint, the button is its only path onto
+          the books. */}
       {variant === 'page' ? (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-container-padding-mobile pb-[calc(env(safe-area-inset-bottom)+24px)] bg-gradient-to-t from-surface via-surface/90 to-transparent z-40">
-          <RoundActions
-            isRoundSaved={isRoundSaved}
-            canSave={saveAmount > 0}
-            savedCount={saveAmount}
-            onAnotherRound={handleAnotherRound}
-            onFinish={onFinish}
-            onComplete={handleComplete}
-            onContinueNext={onContinueNext}
-            flowMode={flowMode}
-          />
-        </div>
+        isRoundSaved ? (
+          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-container-padding-mobile pb-[calc(env(safe-area-inset-bottom)+24px)] bg-gradient-to-t from-surface via-surface/90 to-transparent z-40">
+            <RoundActions
+              isRoundSaved={isRoundSaved}
+              canSave={saveAmount > 0}
+              savedCount={saveAmount}
+              onAnotherRound={handleAnotherRound}
+              onFinish={onFinish}
+              onComplete={handleComplete}
+              onContinueNext={onContinueNext}
+              flowMode={flowMode}
+            />
+          </div>
+        ) : null
       ) : (
         <div className="w-full mt-8 z-10">
           <RoundActions

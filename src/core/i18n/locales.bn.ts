@@ -155,6 +155,7 @@ export const bn: Dictionary = {
   'counter.continueNext': 'পরবর্তী জিকিরে চলুন',
   'counter.done': 'সম্পন্ন',
   'counter.reset': 'রিসেট',
+  'counter.translation': 'অনুবাদ',
   'counter.ofTarget': '{{target}} এর মধ্যে',
   'counter.noZikrs': 'কোনো জিকির নেই',
   'counter.noZikrsHint': 'শুরু করতে একটি জিকির তৈরি করুন।',

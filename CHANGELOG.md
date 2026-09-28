@@ -5,6 +5,21 @@ Notable, user-facing changes to Zikr. Format loosely follows
 GitHub Pages (`main2` push). Update the `Unreleased` section with every
 user-facing change and date it when it ships.
 
+## [Unreleased]
+
+### Changed
+- **The counter screen is now just a counter.** Library and Settings are gone
+  from its top bar (Close and the haptics toggle remain); the meaning line
+  hides behind a small "Translation" toggle so the screen stays on the
+  dhikr itself; the manual "Save N & Finish" button is removed — rounds save
+  themselves at the target, and anything unsaved when you leave waits on
+  your checkpoint and resumes next time; Reset moved into the screen's
+  bottom-right corner (it still always asks first). The room counter keeps
+  its explicit "Save & Finish", since a group's unsaved counts have no
+  checkpoint. Long top-bar names no longer wrap the header into two lines,
+  and long Arabic text scrolls within the counter instead of clipping
+  (existing behavior, kept).
+
 ## [1.5.1] — 2026-09-27
 
 ### Fixed
