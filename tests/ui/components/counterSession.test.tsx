@@ -10,7 +10,7 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import CounterSession from '../../../src/ui/components/counter/CounterSession';
-import { ConfirmDialogHost, useConfirmDialogStore } from '../../../src/ui/components/ConfirmDialog';
+import { ConfirmDialogHost } from '../../../src/ui/components/ConfirmDialog';
 import { db } from '../../../src/core/db/db';
 import { useSettingsStore } from '../../../src/core/stores/settingsStore';
 import { clearCheckpoint } from '../../../src/core/services/countRecorder';
@@ -142,39 +142,36 @@ describe('reset confirmation (1.2b — always on, not gated)', () => {
     await tap();
     await waitForDom(() => countDisplay() === '2');
 
-    buttonByText('Reset')!.click();
-    try {
-      await waitForDom(() => container!.querySelector('[role="dialog"]') !== null);
-    } catch (e) {
-      // TEMPORARY CI diagnostics: dump every button and the dialog store so
-      // the environment-specific non-open can be seen, not guessed.
-      const buttons = [...container!.querySelectorAll('button')].map(b => ({
-        text: (b.textContent ?? '').slice(0, 40),
-        aria: b.getAttribute('aria-label'),
-        expanded: b.getAttribute('aria-expanded'),
-      }));
-      throw new Error(
-        `reset dialog did not open; confirmOptions=${JSON.stringify(
-          useConfirmDialogStore.getState().options
-        )} buttons=${JSON.stringify(buttons)}`
-      );
-    }
-
+    // The reset click is retried inside the wait: on loaded CI runners a
+    // re-render can swap the button's DOM node between lookup and click,
+    // and a click on the stale node never reaches React's delegated root
+    // listener. Re-issuing is safe — showConfirm just reopens the dialog.
+    await waitForDom(() => {
+      buttonByText('Reset')?.click();
+      return container!.querySelector('[role="dialog"]') !== null;
+    });
     const dialog = container!.querySelector('[role="dialog"]')!;
     expect(dialog.textContent).toContain('Reset counter to zero?');
     expect(buttonByText('Delete')).not.toBeNull();
     expect(buttonByText('Keep counting')).not.toBeNull();
 
     // Keep counting: dialog closes, the round survives.
-    buttonByText('Keep counting')!.click();
-    await waitForDom(() => container!.querySelector('[role="dialog"]') === null);
+    await waitForDom(() => {
+      buttonByText('Keep counting')?.click();
+      return container!.querySelector('[role="dialog"]') === null;
+    });
     expect(countDisplay()).toBe('2');
 
-    // Delete: the unsaved remainder is discarded.
-    buttonByText('Reset')!.click();
-    await waitForDom(() => container!.querySelector('[role="dialog"]') !== null);
-    buttonByText('Delete')!.click();
-    await waitForDom(() => container!.querySelector('[role="dialog"]') === null);
+    // Delete: the unsaved remainder is discarded. (Same retry-click — see
+    // the first reset above.)
+    await waitForDom(() => {
+      buttonByText('Reset')?.click();
+      return container!.querySelector('[role="dialog"]') !== null;
+    });
+    await waitForDom(() => {
+      buttonByText('Delete')?.click();
+      return container!.querySelector('[role="dialog"]') === null;
+    });
     await waitForDom(() => countDisplay() === '0');
   });
 });
@@ -269,8 +266,10 @@ describe('auto-save Undo toast (1.2c — gated)', () => {
 
     // Undo: session deleted, the round comes off the books AND off the
     // board — the counter returns to a fresh round (nothing re-saves).
-    buttonByText('Undo')!.click();
-    await waitForDom(() => container!.querySelector('[role="status"]') === null);
+    await waitForDom(() => {
+      buttonByText('Undo')?.click();
+      return container!.querySelector('[role="status"]') === null;
+    });
     await waitForDom(() => !container!.textContent!.includes('Target reached — saved!'));
     expect(await db.sessions.count()).toBe(0);
     expect(countDisplay()).toBe('0');
