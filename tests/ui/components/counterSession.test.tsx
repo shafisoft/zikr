@@ -10,7 +10,7 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import CounterSession from '../../../src/ui/components/counter/CounterSession';
-import { ConfirmDialogHost } from '../../../src/ui/components/ConfirmDialog';
+import { ConfirmDialogHost, useConfirmDialogStore } from '../../../src/ui/components/ConfirmDialog';
 import { db } from '../../../src/core/db/db';
 import { useSettingsStore } from '../../../src/core/stores/settingsStore';
 import { clearCheckpoint } from '../../../src/core/services/countRecorder';
@@ -143,7 +143,22 @@ describe('reset confirmation (1.2b — always on, not gated)', () => {
     await waitForDom(() => countDisplay() === '2');
 
     buttonByText('Reset')!.click();
-    await waitForDom(() => container!.querySelector('[role="dialog"]') !== null);
+    try {
+      await waitForDom(() => container!.querySelector('[role="dialog"]') !== null);
+    } catch (e) {
+      // TEMPORARY CI diagnostics: dump every button and the dialog store so
+      // the environment-specific non-open can be seen, not guessed.
+      const buttons = [...container!.querySelectorAll('button')].map(b => ({
+        text: (b.textContent ?? '').slice(0, 40),
+        aria: b.getAttribute('aria-label'),
+        expanded: b.getAttribute('aria-expanded'),
+      }));
+      throw new Error(
+        `reset dialog did not open; confirmOptions=${JSON.stringify(
+          useConfirmDialogStore.getState().options
+        )} buttons=${JSON.stringify(buttons)}`
+      );
+    }
 
     const dialog = container!.querySelector('[role="dialog"]')!;
     expect(dialog.textContent).toContain('Reset counter to zero?');
