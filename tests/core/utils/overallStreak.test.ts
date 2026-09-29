@@ -149,8 +149,11 @@ describe('streakStatus — break + history edges', () => {
 
   it('streakStatusOf: empty sessions are normal, raw dates derive fully', () => {
     expect(streakStatusOf([])).toEqual({ value: 0, mode: 'normal' });
+    // streakStatusOf anchors "today" to the real clock, so the raw dates must
+    // be built relative to it too — fixed-calendar dates read as grace (or
+    // worse) once the real day moves past the fixture.
     expect(
-      streakStatusOf([d(2), d(0)])
+      streakStatusOf([daysAgo(2), daysAgo(0)])
     ).toEqual({ value: 2, mode: 'normal' });
   });
 });
