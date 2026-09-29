@@ -7,6 +7,10 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
+_(nothing yet)_
+
+## [1.6.0] — 2026-09-28
+
 ### Changed
 - **The counter screen is now just a counter.** Library and Settings are gone
   from its top bar (Close and the haptics toggle remain); the meaning line
