@@ -86,8 +86,24 @@ function dispatchKey(key = ' ') {
  * on a slower macrotask than setTimeout(0) under happy-dom, so tests must
  * waitFor DOM state instead of sleeping a fixed tick. */
 async function tap() {
+  const before = countDisplay();
   dispatchKey();
-  await sleep(30);
+  await waitForDom(() => countDisplay() !== before, 1500).catch(() => {});
+}
+
+/** Tap until the display reads `expected`. The keydown listener attaches
+ * in a passive effect AFTER the DOM commit, so on loaded CI runners an
+ * early tap can vanish into a window with no listener. Re-issue only while
+ * the previous tap provably did nothing — each delivered tap counts exactly
+ * one, so the count never overshoots (and never falsely triggers the
+ * target's auto-save). The budget bounds only lost-tap retries: 11s of
+ * tapping + the 8s final wait stays under the 20s per-test timeout. */
+async function tapUntil(expected: string) {
+  const start = Date.now();
+  while (countDisplay() !== expected && Date.now() - start < 11_000) {
+    await tap();
+  }
+  await waitForDom(() => countDisplay() === expected);
 }
 
 async function holdAndRelease() {
@@ -138,9 +154,7 @@ afterEach(async () => {
 describe('reset confirmation (1.2b — always on, not gated)', () => {
   it('routes the tap Reset through the in-app dialog with Delete / Keep counting', async () => {
     await renderSession(); // advanced controls OFF — confirm still applies
-    await tap();
-    await tap();
-    await waitForDom(() => countDisplay() === '2');
+    await tapUntil('2');
 
     // The reset click is retried inside the wait: on loaded CI runners a
     // re-render can swap the button's DOM node between lookup and click,
@@ -189,8 +203,7 @@ describe('hold-to-take-back (1.2a — gated)', () => {
     expect(countDisplay()).toBe('0');
 
     // 1 → hold → 0 → hold → still 0.
-    await tap();
-    await waitForDom(() => countDisplay() === '1');
+    await tapUntil('1');
     await holdAndRelease();
     await waitForDom(() => countDisplay() === '0');
     await holdAndRelease();
@@ -204,15 +217,13 @@ describe('hold-to-take-back (1.2a — gated)', () => {
     });
     await renderSession();
 
-    for (let i = 0; i < 11; i++) await tap();
-    await waitForDom(() => countDisplay() === '11');
+    await tapUntil('11');
     await waitForDom(() => container!.textContent!.includes('Hold to take one back'));
     expect((await db.settings.get('counterHoldHintShown'))?.value).toBe(true);
 
     // The flag persists — a fresh session never nags again.
     await renderSession();
-    for (let i = 0; i < 11; i++) await tap();
-    await waitForDom(() => countDisplay() === '11');
+    await tapUntil('11');
     expect(container!.textContent).not.toContain('Hold to take one back');
   });
 
@@ -220,8 +231,7 @@ describe('hold-to-take-back (1.2a — gated)', () => {
     await renderSession(); // settings default — advanced controls OFF
 
     // Counting into the target auto-saves, but NO gated toast appears.
-    for (let i = 0; i < 3; i++) await tap();
-    await waitForDom(() => countDisplay() === '3');
+    await tapUntil('3');
     await waitForDom(() => container!.textContent!.includes('Target reached — saved!'));
     expect(container!.querySelector('[role="status"]')).toBeNull();
 
@@ -237,8 +247,7 @@ describe('hold-to-take-back (1.2a — gated)', () => {
     await waitForDom(() => countDisplay() === '4');
 
     // Past 10 with the toggle off: no hint either.
-    for (let i = 0; i < 7; i++) await tap();
-    await waitForDom(() => countDisplay() === '11');
+    await tapUntil('11');
     expect(container!.textContent).not.toContain('Hold to take one back');
   });
 });
@@ -254,7 +263,7 @@ describe('auto-save Undo toast (1.2c — gated)', () => {
       .mockResolvedValue(0);
     await renderSession();
 
-    for (let i = 0; i < 3; i++) await tap();
+    await tapUntil('3');
     await waitForDom(() => container!.querySelector('[role="status"]') !== null);
     expect(propagate).toHaveBeenCalledWith('SubhanAllah', 3);
 
@@ -284,7 +293,7 @@ describe('auto-save Undo toast (1.2c — gated)', () => {
     vi.spyOn(sharedRoomService, 'propagateToRooms').mockResolvedValue(1);
     await renderSession();
 
-    for (let i = 0; i < 3; i++) await tap();
+    await tapUntil('3');
     await waitForDom(() => container!.querySelector('[role="status"]') !== null);
 
     const toast = container!.querySelector('[role="status"]')!;
