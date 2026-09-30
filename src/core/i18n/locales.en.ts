@@ -483,6 +483,9 @@ export const en = {
   'history.loadFailed': 'Something went wrong while reading your sessions. Your data is safe — please try again.',
 
   'bulk.date': 'Practice Date',
+  'bulk.dayPart': 'Time of day',
+  'bulk.dayPartAny': 'Any time',
+  'bulk.partNight': 'Night',
   'bulk.hint': 'Enter counts for each zikr (leave blank if not practiced)',
   'bulk.toLog': '{{count}} zikr to log',
   'bulk.toLogPlural': '{{count}} zikrs to log',

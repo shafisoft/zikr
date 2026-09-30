@@ -1,5 +1,8 @@
 // R2 routine pure logic (docs/solution-design.md §2.3, §5; AC2.x):
-//   - done-today = day-scoped cross-source aggregation over sessions
+//   - done-today = day-scoped aggregation over sessions, SCOPED per routine
+//     (own guided-flow saves always count; free practice must match the
+//     routine's part of day — so the morning preset never completes the
+//     evening preset's identical items)
 //   - the countsToGoals=false PIN (routine progress ≠ goal bookkeeping)
 //   - duplicate zikr occurrences allocate the day total positionally
 //   - a soft-deleted zikr is excluded from counting and BLOCKS done-today
@@ -10,11 +13,13 @@ import { describe, it, expect } from 'vitest';
 import {
   MAX_ROUTINES,
   MAX_ROUTINE_ITEMS,
+  dayPartOfTime,
   hasPresetClusterZikr,
   resolveRoutinePreset,
   ROUTINE_PRESETS,
   ROUTINE_PRESET_SCHEDULES,
   ROUTINE_WINDOWS,
+  PRAYER_DAY_PART,
   routineDayTotals,
   routineDraftIssue,
   routineDoneOn,
@@ -26,6 +31,7 @@ import {
   routineSequence,
   routineStreakStatus,
   routineTodayState,
+  sessionCountsTowardRoutine,
 } from '../../../src/core/utils/routineUtils';
 import { formatDate } from '../../../src/core/utils/dateUtils';
 import { Routine, Session, Zikr } from '../../../src/core/db/types';
@@ -162,6 +168,122 @@ describe('routineTodayState / routineDoneOn', () => {
     expect(state.done).toBe(true);
     expect(state.current).toBe(1); // total when done
     expect(state.total).toBe(1);
+  });
+});
+
+describe('routine scoping — attribution + part of day (the morning/evening fix)', () => {
+  // The presets share one item set resolved to the SAME zikr rows; a custom
+  // fixture stands in for each side.
+  const morningRoutine: Routine = {
+    ...routine([{ zikrId: 1, target: 33 }]),
+    id: 'morning',
+    schedule: { part: 'morning' },
+  };
+  const eveningRoutine: Routine = {
+    ...routine([{ zikrId: 1, target: 33 }]),
+    id: 'evening',
+    schedule: { part: 'evening' },
+  };
+  const zikrs = [zikr(1)];
+
+  it('a guided morning save completes morning — and never the evening preset', () => {
+    // One session, attributed to the morning flow (this is what completing
+    // the morning routine writes). Morning is done; evening stays pending.
+    const sessions = [session(1, 33, TODAY, { routineId: 'morning' })];
+    expect(routineTodayState(morningRoutine, zikrs, sessions, TODAY_STR).done).toBe(true);
+    expect(routineTodayState(eveningRoutine, zikrs, sessions, TODAY_STR).done).toBe(false);
+    expect(routineDayTotals(sessions, TODAY_STR, eveningRoutine).get(1)).toBeUndefined();
+  });
+
+  it('a guided save counts toward its own routine regardless of wall clock', () => {
+    // Morning set completed at 13:00 (outside its window) still credits
+    // morning — attribution outranks the clock.
+    const atNoon = session(1, 33, TODAY, { routineId: 'morning', timestamp: new Date('2026-09-20T13:00:00') });
+    expect(sessionCountsTowardRoutine(atNoon, morningRoutine, TODAY_STR)).toBe(true);
+  });
+
+  it('free practice scopes by explicit dayPart: a Fajr entry credits morning, not evening', () => {
+    const sessions = [session(1, 33, TODAY, { source: 'manual', dayPart: 'morning' })];
+    expect(routineTodayState(morningRoutine, zikrs, sessions, TODAY_STR).done).toBe(true);
+    expect(routineTodayState(eveningRoutine, zikrs, sessions, TODAY_STR).done).toBe(false);
+  });
+
+  it('an Isha entry (dayPart evening) credits evening, not the night preset', () => {
+    const nightRoutine: Routine = {
+      ...routine([{ zikrId: 1, target: 33 }]),
+      id: 'night',
+      schedule: { part: 'night' },
+    };
+    const sessions = [session(1, 33, TODAY, { source: 'manual', dayPart: 'evening' })];
+    expect(routineTodayState(eveningRoutine, zikrs, sessions, TODAY_STR).done).toBe(true);
+    expect(routineTodayState(nightRoutine, zikrs, sessions, TODAY_STR).done).toBe(false);
+  });
+
+  it('a Dhuhr entry (dayPart noon) credits no scheduled preset — but customs stay any-time', () => {
+    const custom = routine([{ zikrId: 1, target: 33 }]);
+    const sessions = [session(1, 33, TODAY, { source: 'manual', dayPart: 'noon' })];
+    expect(routineTodayState(morningRoutine, zikrs, sessions, TODAY_STR).done).toBe(false);
+    expect(routineTodayState(eveningRoutine, zikrs, sessions, TODAY_STR).done).toBe(false);
+    expect(routineTodayState(custom, zikrs, sessions, TODAY_STR).done).toBe(true);
+  });
+
+  it('unattributed app sessions derive the part from their clock time', () => {
+    // 16:00 is inside the evening window (15:00–19:59): counts toward
+    // evening, not morning.
+    const atFour = session(1, 33, TODAY, { timestamp: new Date('2026-09-20T16:00:00') });
+    expect(sessionCountsTowardRoutine(atFour, eveningRoutine, TODAY_STR)).toBe(true);
+    expect(sessionCountsTowardRoutine(atFour, morningRoutine, TODAY_STR)).toBe(false);
+  });
+
+  it('legacy manual rows (no dayPart, midnight-normalized) stay any-time', () => {
+    const sessions = [session(1, 33, TODAY, { source: 'manual' })]; // timestamp at midnight
+    expect(routineTodayState(morningRoutine, zikrs, sessions, TODAY_STR).done).toBe(true);
+    expect(routineTodayState(eveningRoutine, zikrs, sessions, TODAY_STR).done).toBe(true);
+  });
+
+  it('an explicit dayPart can always be re-scoped later (history edit)', () => {
+    const legacy = session(1, 33, TODAY, { source: 'manual' });
+    expect(sessionCountsTowardRoutine(legacy, eveningRoutine, TODAY_STR)).toBe(true);
+    const scoped = { ...legacy, dayPart: 'morning' as const };
+    expect(sessionCountsTowardRoutine(scoped, eveningRoutine, TODAY_STR)).toBe(false);
+    expect(sessionCountsTowardRoutine(scoped, morningRoutine, TODAY_STR)).toBe(true);
+  });
+
+  it('the friday preset checks the weekday, then credits any part that day', () => {
+    const friday: Routine = {
+      ...routine([{ zikrId: 1, target: 100 }]),
+      id: 'friday',
+      schedule: { part: 'any', weekday: 5 },
+    };
+    const fridaySession = session(1, 100, new Date('2026-09-25T11:00:00'), { dayPart: 'noon' });
+    expect(sessionCountsTowardRoutine(fridaySession, friday, '2026-09-25')).toBe(true);
+    // Same instant one day earlier (Thursday): weekday gate excludes it.
+    const thursdaySession = session(1, 100, new Date('2026-09-24T11:00:00'), { dayPart: 'noon' });
+    expect(sessionCountsTowardRoutine(thursdaySession, friday, '2026-09-24')).toBe(false);
+  });
+});
+
+describe('dayPartOfTime — the civil parts tile the day (windows + the noon gap)', () => {
+  it('maps the windows and the midday gap', () => {
+    expect(dayPartOfTime(new Date('2026-09-20T04:00:00'))).toBe('morning');
+    expect(dayPartOfTime(new Date('2026-09-20T11:29:00'))).toBe('morning');
+    expect(dayPartOfTime(new Date('2026-09-20T11:30:00'))).toBe('noon');
+    expect(dayPartOfTime(new Date('2026-09-20T14:59:00'))).toBe('noon');
+    expect(dayPartOfTime(new Date('2026-09-20T15:00:00'))).toBe('evening');
+    expect(dayPartOfTime(new Date('2026-09-20T19:59:00'))).toBe('evening');
+    expect(dayPartOfTime(new Date('2026-09-20T20:00:00'))).toBe('night');
+    // Night wraps midnight.
+    expect(dayPartOfTime(new Date('2026-09-20T23:59:00'))).toBe('night');
+    expect(dayPartOfTime(new Date('2026-09-20T01:00:00'))).toBe('night');
+  });
+
+  it('the manual-entry prayer mapping lands on the scoping parts', () => {
+    expect(PRAYER_DAY_PART.fajr).toBe('morning');
+    expect(PRAYER_DAY_PART.dhuhr).toBe('noon');
+    expect(PRAYER_DAY_PART.asr).toBe('evening');
+    expect(PRAYER_DAY_PART.maghrib).toBe('evening');
+    expect(PRAYER_DAY_PART.isha).toBe('evening');
+    expect(PRAYER_DAY_PART.night).toBe('night');
   });
 });
 

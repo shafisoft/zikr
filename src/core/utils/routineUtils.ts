@@ -4,10 +4,13 @@
  * stays trivially testable.
  *
  * The single counting truth: there are NO completion rows. An item's
- * done-state for a day is a day-scoped aggregation over `sessions` — all
- * sources count (plain counter, manual entry, group row, flows), and a
- * session saved with `countsToGoals: false` STILL counts (a routine
- * measures dhikr performed, not goal bookkeeping — §2.3, pinned by test).
+ * done-state for a day is a day-scoped aggregation over `sessions`, SCOPED
+ * to the routine (sessionCountsTowardRoutine): a routine's own guided-flow
+ * sessions always count; free counting (plain counter, manual entry, group
+ * row) counts when its part of day matches the routine's schedule window —
+ * so completing the morning set no longer completes the evening preset's
+ * identical items. A session saved with `countsToGoals: false` STILL counts
+ * (a routine measures dhikr performed, not goal bookkeeping — §2.3).
  *
  * Duplicate zikr occurrences are positional, not keyed (AC2.2.2): each
  * zikr's day total is allocated across that routine's occurrences in
@@ -18,7 +21,7 @@
  * and renders from the denormalized item name with a gentle suffix.
  */
 
-import { Routine, RoutineItem, RoutineSchedule, RoutineSchedulePart, Session, Zikr } from '../db/types';
+import { DayPart, Routine, RoutineItem, RoutineSchedule, RoutineSchedulePart, Session, Zikr } from '../db/types';
 import { formatDate } from './dateUtils';
 import { streakStatus, StreakStatus } from './overallStreak';
 
@@ -230,6 +233,83 @@ function minuteOfDay(now: Date): number {
   return now.getHours() * 60 + now.getMinutes();
 }
 
+/**
+ * Which civil part of day an instant belongs to. The three routine windows
+ * plus the midday gap between them (11:30–14:59 = 'noon' — real dhikr, but
+ * neither the morning nor the evening set).
+ */
+export function dayPartOfTime(now: Date): DayPart {
+  const m = minuteOfDay(now);
+  const evening = ROUTINE_WINDOWS.evening;
+  const night = ROUTINE_WINDOWS.night;
+  const morning = ROUTINE_WINDOWS.morning;
+  if (m >= evening.startMinute && m <= evening.endMinute) return 'evening';
+  // Night wraps midnight: 20:00–23:59 or 00:00–03:29.
+  if (m >= night.startMinute || m <= night.endMinute) return 'night';
+  if (m >= morning.startMinute && m <= morning.endMinute) return 'morning';
+  return 'noon';
+}
+
+/**
+ * Prayer-anchored part-of-day choice → the internal scoping part. The
+ * manual-entry form offers these labels (localized like the post-salah
+ * prayers); the session stores the mapped part. Evening adhkar begin after
+ * Asr (Hisn-ul-Muslim), and 'night' exists so the before-sleep preset can
+ * be credited — the five prayers alone would never map to it.
+ */
+export const PRAYER_DAY_PART: Readonly<Record<string, DayPart>> = {
+  fajr: 'morning',
+  dhuhr: 'noon',
+  asr: 'evening',
+  maghrib: 'evening',
+  isha: 'evening',
+  night: 'night',
+};
+
+/** Preselect for a known part (the form's default from the clock). */
+export const DEFAULT_PRAYER_FOR_PART: Readonly<Record<DayPart, string>> = {
+  morning: 'fajr',
+  noon: 'dhuhr',
+  evening: 'maghrib',
+  night: 'night',
+};
+
+/**
+ * Does one session count toward THIS routine's day-state? The scoping rule:
+ *
+ *   1. Guided-flow attribution wins — a session attributed to this routine
+ *      always counts (the morning set done at noon is still morning's
+ *      practice); one attributed to a sibling never does.
+ *   2. Unattributed practice is scoped by part of day against the routine's
+ *      schedule: explicit `dayPart` first (manual entries carry the user's
+ *      prayer-anchored choice), else the session's clock time. Customs (no
+ *      schedule) and 'any'-part schedules credit any part; a weekday-bound
+ *      schedule (friday) also requires the DAY to match.
+ *   3. Legacy rows carry neither field: app sessions derive from their real
+ *      timestamp; old manual/physical entries are midnight-normalized (no
+ *      time information exists) and stay any-time — history is never
+ *      retroactively re-scoped.
+ */
+export function sessionCountsTowardRoutine(
+  session: Session,
+  routine: Routine,
+  day: string
+): boolean {
+  if (session.routineId != null) return session.routineId === routine.id;
+  if (!routine.schedule) return true;
+
+  if (routine.schedule.weekday != null) {
+    const [y, m, d] = day.split('-').map(Number);
+    if (new Date(y, m - 1, d).getDay() !== routine.schedule.weekday) return false;
+  }
+  if (routine.schedule.part === 'any') return true;
+
+  const part: DayPart | null =
+    session.dayPart ??
+    (session.source === 'app' ? dayPartOfTime(new Date(session.timestamp)) : null);
+  return part === null || part === routine.schedule.part;
+}
+
 function startOfDay(now: Date): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
@@ -384,17 +464,22 @@ export function routineDisplayName(
 // ---------- Day-scoped derivation (the single counting truth) ----------
 
 /**
- * Per-zikr totals for ONE calendar day, aggregated over ALL sources.
- * `countsToGoals: false` sessions are deliberately NOT filtered (§2.3 pin):
- * routine progress is practice, not group contribution.
+ * Per-zikr totals for ONE calendar day that count toward `routine` (pass
+ * null/undefined for the unscoped legacy aggregation — tests and callers
+ * that mean "everything"). Scoping per sessionCountsTowardRoutine:
+ * attributed siblings are excluded and free practice must match the
+ * routine's part of day. `countsToGoals: false` sessions are deliberately
+ * NOT filtered (§2.3 pin): routine progress is practice, not bookkeeping.
  */
 export function routineDayTotals(
   sessions: Session[],
-  day: string
+  day: string,
+  routine?: Routine | null
 ): Map<number, number> {
   const totals = new Map<number, number>();
   for (const session of sessions) {
     if (formatDate(new Date(session.date)) !== day) continue;
+    if (routine && !sessionCountsTowardRoutine(session, routine, day)) continue;
     totals.set(session.zikrId, (totals.get(session.zikrId) ?? 0) + session.count);
   }
   return totals;
@@ -447,7 +532,7 @@ export function routineTodayState(
   sessions: Session[],
   day: string
 ): RoutineTodayState {
-  const dayTotals = routineDayTotals(sessions, day);
+  const dayTotals = routineDayTotals(sessions, day, routine);
   const counts = routineItemCounts(routine, dayTotals);
   const missingCount = routineMissingCount(routine, zikrs);
   const total = routine.items.length;
@@ -469,7 +554,7 @@ export function routineDoneOn(
 ): boolean {
   if (routine.items.length === 0) return false;
   if (routineMissingCount(routine, zikrs) > 0) return false;
-  const dayTotals = routineDayTotals(sessions, day);
+  const dayTotals = routineDayTotals(sessions, day, routine);
   const counts = routineItemCounts(routine, dayTotals);
   return counts.every((count, i) => count >= routine.items[i].target);
 }

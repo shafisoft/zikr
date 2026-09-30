@@ -228,6 +228,41 @@ describe('RoutinesSectionContainer — glance rows (AC2.4.1)', () => {
     await waitForDom(() => container!.textContent!.includes('Done today'));
   });
 
+  it('a scheduled row never counts a sibling routine attributed saves (the morning/evening fix)', async () => {
+    // The evening preset shares the morning preset's zikr rows: a session
+    // attributed to the morning flow must leave the evening row pending.
+    const evening: Routine = {
+      ...midFlow,
+      id: 'evening',
+      presetKey: 'evening',
+      schedule: { part: 'evening' },
+    };
+    useZikrStore.setState({ zikrs, loading: false });
+    useSessionStore.setState({
+      sessions: todaySessions([
+        { zikrId: 1, count: 3 },
+        { zikrId: 2, count: 5 },
+      ]).map(s => ({ ...s, routineId: 'morning' })),
+      loading: false,
+    });
+    useRoutineStore.setState({ routines: [evening], loading: false });
+    useSettingsStore.setState({ settings: {}, loading: false });
+
+    await renderSection();
+    await waitForDom(() => container!.textContent!.includes('Evening adhkar'));
+    expect(container!.textContent).not.toContain('Done today');
+
+    // The same counts attributed to EVENING (its own guided flow) complete it.
+    useSessionStore.setState({
+      sessions: todaySessions([
+        { zikrId: 1, count: 3 },
+        { zikrId: 2, count: 5 },
+      ]).map(s => ({ ...s, routineId: 'evening' })),
+      loading: false,
+    });
+    await waitForDom(() => container!.textContent!.includes('Done today'));
+  });
+
   it('greys a row with a gentle "zikr removed" state and blocks done (§5.2)', async () => {
     // zikr 2 soft-deleted → not in the live list.
     useZikrStore.setState({ zikrs: [zikrs[0]], loading: false });

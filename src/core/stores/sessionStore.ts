@@ -73,11 +73,17 @@ interface SessionState {
   deleteSession: (id: number) => Promise<void>;
   /**
    * Record a counter round: the 3-day edit window, counts-toward-goals
-   * default, and best-effort room propagation live in countRecorder.
-   * Returns the saved row (id included) and whether the round propagated
-   * to a group — the counter's Undo toast withholds on true.
+   * default, clock-derived day part, and best-effort room propagation live
+   * in countRecorder. Returns the saved row (id included) and whether the
+   * round propagated to a group — the counter's Undo toast withholds on true.
    */
-  recordCount: (input: { zikrId: number; zikrName?: string; count: number }) => Promise<RecordCountResult>;
+  recordCount: (input: {
+    zikrId: number;
+    zikrName?: string;
+    count: number;
+    routineId?: string;
+    dayPart?: Session['dayPart'];
+  }) => Promise<RecordCountResult>;
 }
 
 export const useSessionStore = create<SessionState>((set) => ({

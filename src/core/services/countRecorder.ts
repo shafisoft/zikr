@@ -13,10 +13,11 @@
  * or the app is killed. A round that actually saves clears its checkpoint.
  */
 
-import { Session } from '../db/types';
+import { DayPart, Session } from '../db/types';
 import { db } from '../db/db';
 import { add as addSession } from './sessionService';
 import { sharedRoomService } from './sharedRoom';
+import { dayPartOfTime } from '../utils/routineUtils';
 
 const EDIT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -36,6 +37,17 @@ export async function recordCount(input: {
   /** Zikr display name — required for room propagation; omit to skip rooms. */
   zikrName?: string;
   count: number;
+  /**
+   * Guided routine-flow attribution — written onto the session so the
+   * routine's day-state counts it and sibling routines don't.
+   */
+  routineId?: string;
+  /**
+   * The part of day the count belongs to; derived from the clock when
+   * omitted (every counter path), so unattributed sessions scope to
+   * matching scheduled routines (sessionCountsTowardRoutine).
+   */
+  dayPart?: DayPart;
   /** Resolves the countsToGoalsAndGroups setting (default true). */
   countsToGoalsResolver?: () => boolean | undefined;
 }): Promise<RecordCountResult> {
@@ -52,6 +64,8 @@ export async function recordCount(input: {
     createdAt: now,
     updatedAt: now,
     countsToGoals,
+    routineId: input.routineId,
+    dayPart: input.dayPart ?? dayPartOfTime(now),
   };
   const id = await addSession(session);
   const saved = { ...session, id } as Session;

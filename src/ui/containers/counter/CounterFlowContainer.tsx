@@ -25,7 +25,7 @@
  * verbatim (§16.4) — a plain source renders today's counter bit-for-bit.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CounterSession from '../../components/counter/CounterSession';
 import FlowDoneCard from '../../components/counter/FlowDoneCard';
 import { useI18n } from '../../../core/i18n';
@@ -88,6 +88,7 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
   const currentSession = useSessionStore(state => state.currentSession);
   const checkpoints = useSessionStore(state => state.checkpoints);
   const setCurrentSession = useSessionStore(state => state.setCurrentSession);
+  const computePlanProgress = usePlanStore(state => state.computePlanProgress);
   const plans = usePlanStore(state => state.plans);
   const routines = useRoutineStore(state => state.routines);
   const prayerLocation = useSettingsStore(
@@ -96,8 +97,7 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
 
   // ----- Plain + plan selection state (page logic, verbatim) -----
   const [selectedZikr, setSelectedZikr] = useState<Zikr | null>(null);
-  const [startCount, setStartCount] = useState(0);
-  const interactedRef = useRef(false);
+  const plainTouchedRef = useRef(false);
   const selectionLockedRef = useRef(false);
 
   // ----- Which derived flow is this? (routine first — its route wins) -----
@@ -120,9 +120,13 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
       : null;
 
   // ----- Routine flow: DERIVED position (§5.2/§16.4 — no position state) -----
+  // Day totals are SCOPED to this routine: its own guided saves always
+  // count; free counting counts only in the routine's part of day — so the
+  // morning preset's completion never satisfies the evening preset's
+  // identical items (sessionCountsTowardRoutine).
   const todayCounts = useMemo(
-    () => routineDayTotals(sessions, formatDate(getToday())),
-    [sessions]
+    () => routineDayTotals(sessions, formatDate(getToday()), routine ?? undefined),
+    [sessions, routine]
   );
   // Steps carry the REMAINING count as their target: item target minus what
   // today's sessions (any source) already contributed to it, allocated
@@ -201,6 +205,27 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
   );
   const planSteps = useMemo(() => planSequence(plan, zikrs), [plan, zikrs]);
 
+  // ----- Seed from the plan's displayed progress (what the row showed) -----
+  // Only personal plans resolve here (usePlanStore); group mirrors keep the
+  // round-based counter — their displayed total includes other members, so
+  // seeding from it would undercount the user's own contribution. The seed
+  // is the ALREADY-SAVED portion: the board resumes there and saves only
+  // the delta (CounterSession.resumedBase).
+  const planSeedFor = useCallback(
+    (zikrId: number | null | undefined): number => {
+      if (!plan || plan.status !== 'active') return 0;
+      const progress = computePlanProgress(plan, sessions);
+      if (plan.mode === 'per-zikr') {
+        const zp = progress.perZikr.find(p => p.zikrId === zikrId);
+        return zp && zp.target > 0 ? Math.min(zp.currentCount, zp.target) : 0;
+      }
+      return plan.target && plan.target > 0
+        ? Math.min(progress.currentCount, plan.target)
+        : 0;
+    },
+    [plan, sessions, computePlanProgress]
+  );
+
   // ----- The active step across sources -----
   const activeZikr = derivedFlow
     ? derivedStep?.zikr ?? null
@@ -271,20 +296,31 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
     setSelectedZikr(zikrToUse ?? null);
   }, [derivedFlow, zikrs, zikrIdParam, currentSession.zikrId, planSteps]);
 
-  // Resume snapshot for plain/plan (page logic, verbatim): the unsaved
-  // round mirror first, then the durable checkpoint, then zero. The
-  // derived flows compute their snapshot during render (above).
-  useEffect(() => {
-    if (derivedFlow || !selectedZikr || interactedRef.current) return;
-    const zikrKey = selectedZikr.id;
-    setStartCount(
-      currentSession.zikrId === zikrKey
-        ? currentSession.count
-        : zikrKey != null
-          ? checkpoints[zikrKey] ?? 0
-          : 0
-    );
-  }, [derivedFlow, selectedZikr, currentSession, checkpoints]);
+  // Resume snapshot for plain/plan: computed DURING RENDER (the derived
+  // analogue below does the same) so a mounting step paints its resume
+  // count on first paint — a post-mount state update would never reach the
+  // board's useState(startCount). The mirror (unsaved round) rides first,
+  // then the durable checkpoint, then zero — plus the plan's already-saved
+  // progress when opening from a personal plan row, so the board starts at
+  // the number the row displayed (260/1000 → 260). Until the first tap the
+  // snapshot tracks store hydration (a late-arriving checkpoint still
+  // paints); once touched, the board is frozen — mid-count store updates
+  // (a save clearing its checkpoint) never re-base it.
+  const [plainBoard, setPlainBoard] = useState<BoardSnapshot>({
+    stepId: null,
+    startCount: 0,
+  });
+  const plainStepId = selectedZikr?.id ?? null;
+  if (!derivedFlow && (plainStepId !== plainBoard.stepId || !plainTouchedRef.current)) {
+    const mirror = plainStepId != null && currentSession.zikrId === plainStepId
+      ? currentSession.count
+      : 0;
+    const checkpoint = plainStepId != null ? checkpoints[plainStepId] ?? 0 : 0;
+    const startCount = planSeedFor(plainStepId) + Math.max(mirror, checkpoint);
+    if (plainStepId !== plainBoard.stepId || startCount !== plainBoard.startCount) {
+      setPlainBoard({ stepId: plainStepId, startCount });
+    }
+  }
 
   // ----- Targets -----
   const planStepTarget = currentStepIndex >= 0 ? planSteps[currentStepIndex].target : undefined;
@@ -304,16 +340,8 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
   const handleContinueNext = () => {
     if (!nextStep) return;
     selectionLockedRef.current = true;
-    const unsaved = useSessionStore.getState().currentSession;
-    const nextZikrId = nextStep.zikr.id;
-    setStartCount(
-      nextZikrId != null && unsaved.zikrId === nextZikrId
-        ? unsaved.count
-        : nextZikrId != null
-          ? checkpoints[nextZikrId] ?? 0
-          : 0
-    );
-    interactedRef.current = true;
+    // The next step's board snapshot (its own plan seed + any checkpointed
+    // unsaved count) re-computes during render from the step change.
     setSelectedZikr(nextStep.zikr);
   };
   // The derived flows need no handler: the position IS the derivation, so
@@ -328,9 +356,57 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
       setCurrentSession({ zikrId: derivedStepId, count });
       return;
     }
-    interactedRef.current = true;
+    // First tap freezes the plain/plan snapshot (the render-time block).
+    plainTouchedRef.current = true;
     setCurrentSession({ zikrId: activeZikr?.id || null, count });
   };
+
+  // ----- Exit flush: leaving the counter saves what you counted -----
+  // The board reports its live unsaved remainder; when the flow unmounts
+  // (Close, back, route change) the remainder becomes a real session — so
+  // partial progress (100 of a 1000 target) is on the books everywhere
+  // instead of hiding in a checkpoint. The checkpoint then clears, or the
+  // next open would re-count what was just saved. The mirror rides along
+  // when it belongs to the same zikr. A tab close / app kill can't run
+  // this — the durable checkpoint remains the safety net there.
+  const activeZikrRef = useRef(activeZikr);
+  activeZikrRef.current = activeZikr;
+  const routineIdRef = useRef(routine?.id);
+  routineIdRef.current = routine?.id;
+  const unsavedRef = useRef<{ zikrId: number; zikrName: string; amount: number } | null>(null);
+  const handleUnsavedChange = useCallback((unsaved: number) => {
+    const zikr = activeZikrRef.current;
+    unsavedRef.current =
+      zikr?.id != null && unsaved > 0
+        ? { zikrId: zikr.id, zikrName: zikr.name, amount: unsaved }
+        : null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      const pending = unsavedRef.current;
+      unsavedRef.current = null;
+      if (!pending || pending.amount <= 0) return;
+      void (async () => {
+        try {
+          await useSessionStore.getState().recordCount({
+            zikrId: pending.zikrId,
+            zikrName: pending.zikrName,
+            count: pending.amount,
+            routineId: routineIdRef.current,
+          });
+        } catch (error) {
+          console.error('Failed to save the unsaved count on exit:', error);
+          return; // the checkpoint still holds the remainder
+        }
+        const mirror = useSessionStore.getState().currentSession;
+        if (mirror.zikrId === pending.zikrId) {
+          useSessionStore.getState().clearCurrentSession();
+        }
+        void useSessionStore.getState().clearProgressCheckpoint(pending.zikrId);
+      })();
+    };
+  }, []);
 
   // ----- Render -----
   if (derivedFlow && (derivedDone || !derivedStep)) {
@@ -360,10 +436,13 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
     <CounterSession
       key={activeZikr.id}
       zikr={activeZikr}
-      startCount={derivedFlow ? flowBoard.startCount : startCount}
+      startCount={derivedFlow ? flowBoard.startCount : plainBoard.startCount}
       target={target}
       onCount={handleCount}
       onContinueNext={derivedFlow ? undefined : nextStep ? handleContinueNext : undefined}
+      resumedBase={!derivedFlow && planSeedFor(activeZikr.id) > 0}
+      routineId={routine?.id}
+      onUnsavedChange={handleUnsavedChange}
       flowMode={derivedFlow != null}
       variant="page"
       onFinish={onFinish}

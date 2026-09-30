@@ -6,6 +6,9 @@
 //   - a missing zikr blocks completion with the gentle line (§5.2)
 //   - the plain source still renders CounterSession with Another Round
 //     available (bit-for-bit — no flowMode)
+//   - plan-sourced opens seed the board from the displayed progress and
+//     delta-save; leaving the counter flushes the unsaved remainder as a
+//     session; guided saves carry the routine's attribution
 // Runs against the real stores + fake-indexeddb; group propagation spied.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import 'fake-indexeddb/auto';
@@ -20,8 +23,10 @@ import { useZikrStore } from '../../../src/core/stores/zikrStore';
 import { useSettingsStore } from '../../../src/core/stores/settingsStore';
 import { usePlanStore } from '../../../src/core/stores/planStore';
 import { clearCheckpoint } from '../../../src/core/services/countRecorder';
+import { routineDayTotals } from '../../../src/core/utils/routineUtils';
 import { sharedRoomService } from '../../../src/core/services/sharedRoom';
-import { Routine, Zikr } from '../../../src/core/db/types';
+import { formatDate } from '../../../src/core/utils/dateUtils';
+import { Routine, Plan, Zikr } from '../../../src/core/db/types';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -69,6 +74,39 @@ function sessionFor(zikrId: number, count: number) {
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function makePlan(): Plan {
+  const start = new Date();
+  start.setFullYear(start.getFullYear() - 1);
+  const end = new Date();
+  end.setFullYear(end.getFullYear() + 1);
+  return {
+    id: 'p1',
+    mode: 'per-zikr',
+    period: 'one-time',
+    zikrs: [{ name: 'Zikr One', zikrId: 1, target: 10 }],
+    startDate: start,
+    endDate: end,
+    status: 'active',
+    createdAt: new Date(),
+  };
+}
+
+function countDisplay(): string {
+  return container!.querySelector('.font-headline-lg-mobile')?.textContent ?? '';
+}
+
+/** Tap until the display reads `expected` — a tap whose keydown lands
+ * before the listener attaches (loaded CI) is retried, never doubled. */
+async function tapTo(expected: string) {
+  const start = Date.now();
+  while (countDisplay() !== expected && Date.now() - start < 11_000) {
+    const before = countDisplay();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await waitForDom(() => countDisplay() !== before, 1500).catch(() => {});
+  }
+  await waitForDom(() => countDisplay() === expected);
 }
 
 let container: HTMLDivElement | null = null;
@@ -231,6 +269,92 @@ describe('CounterFlowContainer — routine flow (§5.2, §16.4)', () => {
     await waitForDom(() => container!.textContent!.includes('Target reached — saved!'));
     expect(buttonByText('Another Round')).not.toBeNull();
     expect(buttonByText('Next item')).toBeNull();
+  });
+});
+
+describe('CounterFlowContainer — seeded plan progress + exit flush', () => {
+  it('opens a personal-plan counter at the displayed progress and delta-saves', async () => {
+    useZikrStore.setState({ zikrs: [zikr(1, 'Zikr One')], loading: false });
+    // The plan row shows 6/10 — the counter must open there, and reaching
+    // the target must save exactly the four counted (plan lands on 10/10).
+    useSessionStore.setState({ sessions: [sessionFor(1, 6)], loading: false });
+    usePlanStore.setState({ plans: [makePlan()], loading: false });
+
+    await renderFlow({ zikrIdParam: '1', targetParam: 10, planIdParam: 'p1' });
+    await waitForDom(() => activeStep === 'Zikr One');
+    await waitForDom(() => countDisplay() === '6');
+
+    await tapTo('10');
+    await waitForDom(async () => {
+      const rows = await db.sessions.toArray();
+      return rows.some(s => s.zikrId === 1 && s.count === 4);
+    });
+    expect(await db.sessions.count()).toBe(1);
+  });
+
+  it('a group-mirror planId (absent from the personal store) keeps the round-based counter', async () => {
+    useZikrStore.setState({ zikrs: [zikr(1, 'Zikr One')], loading: false });
+    useSessionStore.setState({ sessions: [sessionFor(1, 6)], loading: false });
+    usePlanStore.setState({ plans: [], loading: false }); // group plans live elsewhere
+
+    await renderFlow({ zikrIdParam: '1', targetParam: 10, planIdParam: 'group-p' });
+    await waitForDom(() => activeStep === 'Zikr One');
+    await waitForDom(() => countDisplay() === '0');
+  });
+
+  it('leaving the counter with an unsaved remainder SAVES it (progress leaves the checkpoint)', async () => {
+    useZikrStore.setState({ zikrs: [zikr(1, 'Zikr One')], loading: false });
+    useSessionStore.setState({ sessions: [], loading: false });
+    usePlanStore.setState({ plans: [], loading: false });
+
+    await renderFlow({ zikrIdParam: '1', targetParam: 100 });
+    await waitForDom(() => activeStep === 'Zikr One');
+    await tapTo('5');
+
+    // Walk away mid-round (top-bar Close = unmount): the 5 counted become a
+    // real session — 5/100 visible in plans, history, and streaks — and the
+    // checkpoint clears so the next open never re-counts them.
+    root!.unmount();
+    root = null;
+
+    await waitForDom(async () => {
+      const rows = await db.sessions.toArray();
+      return rows.some(s => s.zikrId === 1 && s.count === 5);
+    });
+    await waitForDom(async () => (await db.zikrLastCount.get(1)) === undefined);
+  });
+
+  it('guided routine saves carry the attribution; the sibling preset stays pending', async () => {
+    // The morning/evening presets share the same zikr rows — completing the
+    // morning flow must never satisfy the evening preset (§: scoping).
+    const morning = makeRoutine({ id: 'morning', schedule: { part: 'morning' } });
+    const evening = makeRoutine({ id: 'evening', schedule: { part: 'evening' } });
+    useZikrStore.setState({ zikrs: [zikr(1, 'Zikr One'), zikr(2, 'Zikr Two')], loading: false });
+    useSessionStore.setState({ sessions: [], loading: false });
+    useRoutineStore.setState({ routines: [morning, evening], loading: false });
+
+    await renderFlow({ routineIdParam: 'morning' });
+    await waitForDom(() => activeStep === 'Zikr One');
+    await tapTo('3');
+    await waitForDom(async () => {
+      const rows = await db.sessions.toArray();
+      return rows.some(s => s.zikrId === 1 && s.count === 3 && s.routineId === 'morning');
+    });
+
+    // Mirror the persisted history into the store (the app's liveQuery does
+    // this automatically; tests do it explicitly) — the flow's position is
+    // a pure derivation of today's sessions.
+    useSessionStore.setState({ sessions: await db.sessions.toArray() });
+
+    // The attributed save feeds the MORNING derivation (item 2 opens)…
+    await waitForDom(() => activeStep === 'Zikr Two');
+
+    // …but the EVENING preset, scoped to its own routine, sees nothing.
+    const today = formatDate(new Date());
+    expect(routineDayTotals(await db.sessions.toArray(), today, evening).get(1)).toBeUndefined();
+    // And its flow would open at the first item, not the done card.
+    await renderFlow({ routineIdParam: 'evening' });
+    await waitForDom(() => activeStep === 'Zikr One');
   });
 });
 

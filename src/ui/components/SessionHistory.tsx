@@ -11,6 +11,7 @@ import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { formatDate } from '../../core/utils/dateUtils';
 import { groupSessionsByDate } from '../../core/utils/historyGrouping';
+import { DEFAULT_PRAYER_FOR_PART, dayPartOfTime, PRAYER_DAY_PART } from '../../core/utils/routineUtils';
 import { Session } from '../../core/db/types';
 import { useI18n, localeTag } from '../../core/i18n';
 
@@ -27,6 +28,10 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
 
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editCount, setEditCount] = useState('');
+  // Part-of-day edit: preselected from the stored part (app rows derive
+  // from their timestamp); legacy manual rows start unselected — leaving
+  // it untouched preserves their any-time semantics.
+  const [editDayPart, setEditDayPart] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   // Component-owned UI state — a new session re-derives the buckets but
   // never resets which groups the user expanded ('today' starts open).
@@ -56,6 +61,13 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
     }
     setEditingSession(session);
     setEditCount(session.count.toString());
+    setEditDayPart(
+      session.dayPart
+        ? DEFAULT_PRAYER_FOR_PART[session.dayPart]
+        : session.source === 'app'
+          ? DEFAULT_PRAYER_FOR_PART[dayPartOfTime(new Date(session.timestamp))]
+          : null
+    );
   };
 
   const handleSaveEdit = async () => {
@@ -72,11 +84,13 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
     try {
       await useSessionStore.getState().updateSession(editingSession.id!, {
         count: newCount,
+        ...(editDayPart ? { dayPart: PRAYER_DAY_PART[editDayPart] } : {}),
         updatedAt: new Date(),
       });
 
       setEditingSession(null);
       setEditCount('');
+      setEditDayPart(null);
       loadSessions(); // Refresh the list
       if (onRefresh) onRefresh();
     } catch (error) {
@@ -90,6 +104,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
   const handleCancelEdit = () => {
     setEditingSession(null);
     setEditCount('');
+    setEditDayPart(null);
   };
 
   const handleDelete = async (session: Session) => {
@@ -240,19 +255,34 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
                       {isEditing ? (
                         /* Edit Mode */
                         <div className="flex items-center gap-3">
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-0">
                             <p className="font-body-sm text-body-sm text-on-surface-variant mb-1">
                               {zikrName}
                             </p>
-                            <input
-                              type="number"
-                              value={editCount}
-                              onChange={(e) => setEditCount(e.target.value)}
-                              min={1}
-                              max={10000}
-                              className="bg-surface border border-outline-variant/50 rounded-lg px-3 py-2 w-24 font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                              autoFocus
-                            />
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={editCount}
+                                onChange={(e) => setEditCount(e.target.value)}
+                                min={1}
+                                max={10000}
+                                className="bg-surface border border-outline-variant/50 rounded-lg px-3 py-2 w-24 font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                autoFocus
+                              />
+                              <select
+                                value={editDayPart ?? ''}
+                                onChange={(e) => setEditDayPart(e.target.value || null)}
+                                aria-label={t('bulk.dayPart')}
+                                className="bg-surface border border-outline-variant/50 rounded-lg px-2 py-2 font-body-sm text-body-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none max-w-[9rem]"
+                              >
+                                <option value="">{t('bulk.dayPartAny')}</option>
+                                {Object.keys(PRAYER_DAY_PART).map(choice => (
+                                  <option key={choice} value={choice}>
+                                    {choice === 'night' ? t('bulk.partNight') : t(`postSalah.prayer.${choice}`)}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                           <div className="flex items-center gap-2">
                             <button

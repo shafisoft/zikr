@@ -12,6 +12,7 @@ import { useSessionStore } from '../../core/stores/sessionStore';
 import { useSettingsStore } from '../../core/stores/settingsStore';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
+import { DEFAULT_PRAYER_FOR_PART, dayPartOfTime, PRAYER_DAY_PART } from '../../core/utils/routineUtils';
 import { useI18n } from '../../core/i18n';
 
 interface ZikrEntry {
@@ -34,6 +35,12 @@ const BulkEntryForm: React.FC<BulkEntryFormProps> = ({ onSuccess, onCancel }) =>
 
   const [entries, setEntries] = useState<ZikrEntry[]>([]);
   const [date, setDate] = useState(formatDate(getToday()));
+  // Which part of day the entries belong to (prayer-anchored choice, stored
+  // as the mapped part). Defaults to NOW so logging today preselects
+  // sensibly; a backdated date leaves the choice entirely to the user.
+  const [dayPartChoice, setDayPartChoice] = useState<string>(() =>
+    DEFAULT_PRAYER_FOR_PART[dayPartOfTime(new Date())]
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<number, string>>({});
 
@@ -142,6 +149,9 @@ const BulkEntryForm: React.FC<BulkEntryFormProps> = ({ onSuccess, onCancel }) =>
           createdAt: new Date(),
           updatedAt: new Date(),
           countsToGoals: useSettingsStore.getState().settings.countToGoalsAndGroups ?? true,
+          // The prayer-anchored part of day — scopes the entry to matching
+          // scheduled routines (a Fajr entry never completes the evening set).
+          dayPart: PRAYER_DAY_PART[dayPartChoice],
         })
       );
 
@@ -196,6 +206,31 @@ const BulkEntryForm: React.FC<BulkEntryFormProps> = ({ onSuccess, onCancel }) =>
           className="w-full bg-surface-container-low border border-outline-variant/50 rounded-xl px-4 h-touch-target-min font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
           max={formatDate(getToday())}
         />
+      </div>
+
+      {/* Part of day (prayer-anchored) */}
+      <div>
+        <label className="block font-label-md text-label-md text-on-surface mb-2">
+          {t('bulk.dayPart')}
+        </label>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t('bulk.dayPart')}>
+          {Object.keys(PRAYER_DAY_PART).map(choice => (
+            <button
+              key={choice}
+              type="button"
+              role="radio"
+              aria-checked={dayPartChoice === choice}
+              onClick={() => setDayPartChoice(choice)}
+              className={`h-touch-target-min px-4 rounded-full font-label-md text-label-md border transition-colors ${
+                dayPartChoice === choice
+                  ? 'bg-primary-container text-on-primary border-transparent'
+                  : 'bg-surface-container-low border-outline-variant/50 text-on-surface-variant hover:bg-surface-variant/50'
+              }`}
+            >
+              {choice === 'night' ? t('bulk.partNight') : t(`postSalah.prayer.${choice}`)}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Zikr Entries */}

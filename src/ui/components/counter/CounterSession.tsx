@@ -9,15 +9,21 @@
  * - 'personal' (default): startCount is the user's own unsaved progress
  *   (mirrored unsaved round or the durable zikrLastCount checkpoint). The
  *   session auto-saves that progress as it counts, and the whole displayed
- *   count is unsaved, so saves carry it in full.
+ *   count is unsaved, so saves carry it in full. With `resumedBase`, the
+ *   startCount was seeded from ALREADY-SAVED plan progress (the number the
+ *   plan row displayed): saves then carry only the delta, so reaching the
+ *   plan's target lands the plan exactly on it, and take-backs floor at
+ *   the base (saved progress leaves via Undo/edits, never the board).
  * - 'room': startCount is the room's already-saved total. Only THIS
  *   session's taps are ever saved/contributed, and nothing checkpoints.
  *
  * Counting NEVER stops at the target: the board keeps going (1001, 1002,
  * …) and each full target's worth of unsaved counts auto-saves as its own
  * round — the surplus past a target is persisted like any other count.
- * Whatever is still unsaved when the user leaves rides on the durable
- * checkpoint (personal) or the caller's mirror (room).
+ * Whatever is still unsaved when the user leaves is reported through
+ * `onUnsavedChange` (the flow container saves it on exit); the durable
+ * checkpoint (personal) stays as the kill-safety net for tab closes and
+ * app kills.
  *
  * Simplified counting surface: the page variant has no manual save button
  * (auto-save owns saving; leaving mid-round is the top-bar Close) and no
@@ -88,6 +94,24 @@ interface CounterSessionProps {
    */
   onContinueNext?: () => void;
   /**
+   * True when startCount was seeded from already-saved plan progress: saves
+   * carry only the delta above it and take-backs floor at it. Never combine
+   * with progressMode 'room' (that already treats startCount as saved).
+   */
+  resumedBase?: boolean;
+  /**
+   * Guided routine-flow attribution: written onto every session this board
+   * saves, so the routine's day-state counts them and sibling routines
+   * (sharing the same zikrs) don't.
+   */
+  routineId?: string;
+  /**
+   * Reports the board's live unsaved remainder (saveAmount) on every
+   * change. The wrapping container saves it on flow exit; the room modal
+   * leaves it undefined (Finish & Save owns that path).
+   */
+  onUnsavedChange?: (unsaved: number) => void;
+  /**
    * 'page' pins the action area to the viewport bottom (full-screen use);
    * 'modal' keeps it inline at the end of the content (dialog use).
    */
@@ -113,6 +137,9 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   onCount,
   onFinish,
   onContinueNext,
+  resumedBase = false,
+  routineId,
+  onUnsavedChange,
   variant = 'page',
   escapeResets = true,
   flowMode = false,
@@ -173,13 +200,18 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   const isRoomContinuation = progressMode === 'room';
   // The portion of the board that was already persisted before this
   // session opened: nothing for a personal round, the room's total for a
-  // room continuation.
-  const saveableBase = isRoomContinuation ? startCount : 0;
+  // room continuation, the seeded plan progress for a resumed board.
+  const saveableBase = isRoomContinuation || resumedBase ? startCount : 0;
   // What a save would persist right now — the board's unsaved remainder.
   const saveAmount = Math.max(0, count - saveableBase - savedSoFar);
   // A room opened past its target never auto-saves (Finish & Save does);
   // personal rounds always do.
   const canAutoSave = startCount < target;
+
+  // Live unsaved remainder for the caller's exit flush (see prop doc).
+  useEffect(() => {
+    onUnsavedChange?.(saveAmount);
+  }, [saveAmount, onUnsavedChange]);
 
   // Durable auto-save of an in-progress personal round: countRecorder
   // debounces the write per zikr, so a burst of taps is one IndexedDB put.
@@ -196,12 +228,12 @@ const CounterSession: React.FC<CounterSessionProps> = ({
     onCount(isRoomContinuation ? count + 1 : saveAmount + 1);
   };
 
-  // 1.2a (gated): hold-to-take-back. Floored at zero AND at the counts this
-  // session already persisted — saved rounds go through Undo (1.2c) or the
-  // 3-day Progress edit window, never through the board.
+  // 1.2a (gated): hold-to-take-back. Floored at zero AND at everything
+  // already persisted — the seeded base and saved rounds leave through
+  // Undo (1.2c) or the 3-day Progress edit window, never the board.
   const canDecrement = advancedControls && !isRoomContinuation;
   const handleDecrement = () => {
-    if (count <= savedSoFar) return;
+    if (count <= saveableBase + savedSoFar) return;
     setCount(count - 1);
     onCount(saveAmount - 1);
   };
@@ -238,10 +270,15 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   };
 
   // Persist what this session added — the business rules (edit window,
-  // counts-toward-goals default, room propagation) live in the store's
-  // recordCount/countRecorder, not here.
+  // day-part, routine attribution, counts-toward-goals default, room
+  // propagation) live in the store's recordCount/countRecorder, not here.
   const persistCount = (countToSave: number) =>
-    recordCount({ zikrId: zikr.id!, zikrName: zikr.name, count: countToSave });
+    recordCount({
+      zikrId: zikr.id!,
+      zikrName: zikr.name,
+      count: countToSave,
+      routineId,
+    });
 
   // Post-save bookkeeping for a personal round: the durable checkpoint is
   // consumed by the save and re-rides on the remaining unsaved count.
@@ -253,11 +290,17 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   // Each full target's worth of unsaved counts saves itself — no button
   // needed. Saving never pauses the board: savedSoFar advances, the user
   // keeps tapping, and the next segment saves at its own multiple.
+  // The trigger measures the board against the target: a seeded board
+  // (resumed at the plan's displayed progress) fires when the DISPLAY
+  // reaches the target, saving exactly the delta — 260/1000 counts to
+  // 1000 and lands the plan on 1000, not 1260. Rooms keep the legacy
+  // saveAmount trigger (their Finish & Save owns completion).
   useEffect(() => {
+    const roundProgress = isRoomContinuation ? saveAmount : saveAmount + saveableBase;
     if (
       saveAmount > 0 &&
       canAutoSave &&
-      saveAmount >= target &&
+      roundProgress >= target &&
       !isAutoSaving
     ) {
       const autoSave = async () => {
@@ -266,6 +309,9 @@ const CounterSession: React.FC<CounterSessionProps> = ({
           const result = await persistCount(saveAmount);
           setSavedSoFar(savedSoFar => savedSoFar + saveAmount);
           if (progressMode === 'personal') afterPersonalSave();
+          // The remainder just landed on the books — tell the container
+          // before any render/navigation can race its exit flush.
+          onUnsavedChange?.(0);
           isRoundSavedRef.current = true;
           setIsRoundSaved(true);
           haptic('success');
@@ -329,6 +375,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
       await persistCount(saveAmount);
       setSavedSoFar(savedSoFar => savedSoFar + saveAmount);
       if (progressMode === 'personal') afterPersonalSave();
+      onUnsavedChange?.(0); // saved — the exit flush must not re-persist it
       haptic('success');
       onFinish(saveAmount);
     } catch (error) {

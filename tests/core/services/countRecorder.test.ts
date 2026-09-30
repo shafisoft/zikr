@@ -77,6 +77,23 @@ describe('countRecorder', () => {
     // The session itself still landed.
     expect(await db.sessions.count()).toBe(1);
   });
+
+  it('writes routine-flow attribution onto the session', async () => {
+    const { session } = await recordCount({ zikrId: 1, count: 33, routineId: 'morning' });
+    const s = (await db.sessions.get(session.id!))!;
+    expect(s.routineId).toBe('morning');
+  });
+
+  it('derives dayPart from the clock when omitted, and honors an explicit one', async () => {
+    await recordCount({ zikrId: 1, count: 5 });
+    const derived = (await db.sessions.toArray())[0];
+    // Whatever the wall clock says, it must be one of the four civil parts.
+    expect(['morning', 'noon', 'evening', 'night']).toContain(derived.dayPart);
+
+    await recordCount({ zikrId: 2, count: 5, dayPart: 'evening' });
+    const explicit = (await db.sessions.toArray())[1];
+    expect(explicit.dayPart).toBe('evening');
+  });
 });
 
 describe('progress checkpoints', () => {

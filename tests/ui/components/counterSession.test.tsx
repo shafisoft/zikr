@@ -252,8 +252,46 @@ describe('hold-to-take-back (1.2a — gated)', () => {
   });
 });
 
-describe('auto-save Undo toast (1.2c — gated)', () => {
-  it('offers Undo after a non-propagated auto-save; Undo deletes the session and restores the board', async () => {
+describe('resumed base — seeded from the displayed plan progress', () => {
+  it('saves only the DELTA: the display reaches the target, the plan lands exactly on it', async () => {
+    // Board seeded at 90 of a 100 target (what the plan row showed).
+    await renderSession({ startCount: 90, target: 100, resumedBase: true });
+    expect(countDisplay()).toBe('90');
+
+    // Ten taps bring the DISPLAY to 100 — the plan's target — and the
+    // auto-save persists exactly the ten counted, not the whole board.
+    await tapUntil('100');
+    const deltaSaved = async () => {
+      const rows = await db.sessions.toArray();
+      return rows.some(s => s.count === 10);
+    };
+    const start = Date.now();
+    while (!(await deltaSaved()) && Date.now() - start < 4000) await sleep(25);
+    expect(await db.sessions.count()).toBe(1);
+    expect(countDisplay()).toBe('100'); // the display IS the plan progress
+  });
+
+  it('take-back floors at the seeded base — saved progress leaves via Undo, not the board', async () => {
+    useSettingsStore.setState({
+      settings: { advancedCounterControls: true },
+      loading: false,
+    });
+    await renderSession({ startCount: 90, target: 100, resumedBase: true });
+
+    // Holding at the seeded base must not decrement into saved progress.
+    await holdAndRelease();
+    expect(countDisplay()).toBe('90');
+
+    // Above the base the gesture still works, floored at the base.
+    await tapUntil('91');
+    await holdAndRelease();
+    await waitForDom(() => countDisplay() === '90');
+    await holdAndRelease();
+    expect(countDisplay()).toBe('90');
+  });
+});
+
+describe('auto-save Undo toast (1.2c — gated)', () => {  it('offers Undo after a non-propagated auto-save; Undo deletes the session and restores the board', async () => {
     useSettingsStore.setState({
       settings: { advancedCounterControls: true },
       loading: false,

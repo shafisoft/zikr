@@ -482,6 +482,9 @@ export const bn: Dictionary = {
   'history.loadFailed': 'সেশনগুলো পড়তে গিয়ে সমস্যা হয়েছে। আপনার ডেটা নিরাপদ আছে — আবার চেষ্টা করুন।',
 
   'bulk.date': 'জিকিরের তারিখ',
+  'bulk.dayPart': 'দিনের সময়',
+  'bulk.dayPartAny': 'যেকোনো সময়',
+  'bulk.partNight': 'রাত',
   'bulk.hint': 'প্রতিটি জিকিরের সংখ্যা লিখুন (না পড়লে খালি রাখুন)',
   'bulk.toLog': '{{count}} টি জিকির লিখতে হবে',
   'bulk.toLogPlural': '{{count}} টি জিকির লিখতে হবে',

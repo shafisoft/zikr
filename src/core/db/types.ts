@@ -39,7 +39,24 @@ export interface Session {
   updatedAt: Date;         // NEW (v2): Last edit timestamp
   /** Saved while "count towards goals & groups" was on (default true). */
   countsToGoals?: boolean;
+  /**
+   * Guided routine-flow attribution: written by a routine's own counter
+   * flow. A routine's day-state counts its own attributed sessions plus
+   * unattributed ones (never a sibling routine's) — see sessionCounts-
+   * TowardRoutine in routineUtils.ts. Additive, non-indexed (never queried).
+   */
+  routineId?: string;
+  /**
+   * The civil part of day the count belongs to (manual entries carry the
+   * user's prayer-anchored choice; counter saves derive it from the clock).
+   * Scopes unattributed sessions to matching scheduled routines — see
+   * sessionCountsTowardRoutine. Absent on legacy rows (pre-scoping).
+   */
+  dayPart?: DayPart;
 }
+
+/** Civil part of day (scoping parts; noon credits no preset routine). */
+export type DayPart = 'morning' | 'noon' | 'evening' | 'night';
 
 /**
  * LEGACY (pre-v6 personal goal). Superseded by Plan below; the Dexie table
@@ -237,6 +254,8 @@ export interface SessionUpdate {
   zikrId?: number;
   count?: number;
   timestamp?: Date;
+  /** Scoping part of day (manual-entry edit path). */
+  dayPart?: DayPart;
   updatedAt: Date;
 }
 
