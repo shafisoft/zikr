@@ -9,6 +9,35 @@ user-facing change and date it when it ships.
 
 _(nothing yet)_
 
+## [1.7.0] — 2026-09-30
+
+### Fixed
+- **Completing the morning routine no longer marks the evening routine done.**
+  The two presets share the same zikrs, and routine progress used to count
+  every session of those zikrs no matter when or how it happened. A routine's
+  own guided-flow saves now always count for it; free counting (plain
+  counter, post-salah) counts toward a scheduled routine only inside its
+  part of day; manual entries declare theirs (below). Custom routines still
+  credit practice at any time, and yesterday's history is never re-judged.
+- **Leaving the counter mid-round no longer hides your progress.** Closing
+  the counter with an unsaved remainder (100 of a 1000 target) saves it as a
+  real session — visible in plan progress, streaks, and Practice History
+  (editable for 3 days like any entry) — instead of parking it in an
+  invisible checkpoint while every screen showed 0. The checkpoint remains
+  the safety net for tab closes and app kills.
+- **The counter opens at the progress you saw.** Starting a zikr from a
+  personal plan row seeds the board with that row's number (260/1000 opens
+  at 260), and counting to the target saves only the delta — the plan lands
+  exactly on 1000, never 1260. Group targets keep the round-based counter
+  (their total includes other members). Fixing this also uncovered and fixed
+  a latent bug where a resumed checkpoint painted 0 on the board.
+
+### Added
+- **Manual entries now declare when in the day they happened.** The entry
+  form and the history editor offer Fajr / Dhuhr / Asr / Maghrib / Isha /
+  Night (localized), stored as the entry's part of day: a Fajr log completes
+  the morning set, never the evening one.
+
 ## [1.6.0] — 2026-09-28
 
 ### Changed
