@@ -9,6 +9,30 @@ user-facing change and date it when it ships.
 
 _(nothing yet)_
 
+## [1.8.0] — 2026-10-01
+
+### Added
+- **Home now shows the right routine for the right time.** The routines
+  section groups by day context — the window that's open now ("Now"), the
+  nearest upcoming window with its start time ("Up next — This evening ·
+  15:00"), what's finished ("Done today"), and custom routines ("Anytime").
+  A weekday routine like the Friday sunnahs appears only on its weekday
+  instead of cluttering the whole week, and the featured "current ritual"
+  card prefers the fading time-window (the morning set at 9 AM) over the
+  all-day Friday match.
+- **The after-salah set is now a day-long tracker.** When prayer times are
+  enabled, Home shows all five prayers at a glance — which sets are done,
+  which window is live (tap it to start right from the tracker), and which
+  passed. The feature is still opt-in, but a quiet, dismissible offer on
+  Home now points the way to Settings (the feature was previously easy to
+  never discover).
+
+### Changed
+- **One name for one thing: plans.** The Home headings "Daily Goal" and
+  "Your Goals" are now "Daily plan" and "Your plans", matching the Plans
+  tab (they were always the same entity); each Home section gained a
+  one-line subtitle saying what it's for.
+
 ## [1.7.0] — 2026-09-30
 
 ### Fixed
