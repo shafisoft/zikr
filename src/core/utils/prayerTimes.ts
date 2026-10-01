@@ -255,6 +255,84 @@ export function occurrenceDone(
   return resolved.every(item => (counts.get(item.zikr.id!) ?? 0) >= item.target);
 }
 
+// ---------- The day tracker (one practice, five salah slots) ----------
+
+/** One salah's slot of the day tracker — derived, never persisted. */
+export interface PostSalahSlot {
+  prayer: PrayerName;
+  start: Date;
+  end: Date;
+  /** The 30-minute window contains `now` (start inclusive, end exclusive). */
+  active: boolean;
+  /** The set is complete for this occurrence (occurrenceDone). */
+  done: boolean;
+  /** 0..1 — reached fraction of the resolved set's total target. */
+  progress: number;
+  /** Window fully past and NOT done. */
+  missed: boolean;
+  /** Window has not opened yet. */
+  upcoming: boolean;
+}
+
+/**
+ * The day's five after-salah slots from a gathered occurrence list (the
+ * `all` of postSalahWindow, which carries yesterday's midnight-crossing
+ * Isha). One slot per prayer: the ACTIVE occurrence wins; otherwise the
+ * latest (today's). At 00:10 the Isha slot therefore shows yesterday's
+ * still-open window — the same moment the R1 card leads with — instead of
+ * a confusing "upcoming" state for a prayer whose window is live.
+ */
+export function postSalahSlots(
+  occurrences: PrayerOccurrence[],
+  now: Date,
+  sessions: Session[],
+  zikrs: Zikr[]
+): PostSalahSlot[] {
+  const resolved = resolvePostSalahSet(zikrs);
+  const totalTarget = resolved.reduce((n, item) => n + item.target, 0);
+  const t = now.getTime();
+
+  const isInside = (o: PrayerOccurrence) =>
+    o.start.getTime() <= t && t < o.end.getTime();
+  const byPrayer = new Map<PrayerName, PrayerOccurrence>();
+  for (const occ of occurrences) {
+    const existing = byPrayer.get(occ.prayer);
+    if (!existing) {
+      byPrayer.set(occ.prayer, occ);
+      continue;
+    }
+    if (isInside(occ) || (!isInside(existing) && occ.start.getTime() > existing.start.getTime())) {
+      byPrayer.set(occ.prayer, occ);
+    }
+  }
+
+  const slots: PostSalahSlot[] = [];
+  for (const prayer of PRAYER_FIELDS) {
+    const occ = byPrayer.get(prayer);
+    if (!occ) continue;
+    const counts = windowCounts(occ, sessions);
+    const reached = resolved.reduce(
+      (n, item) => n + Math.min(item.target, counts.get(item.zikr.id!) ?? 0),
+      0
+    );
+    const done =
+      resolved.length > 0 &&
+      resolved.every(item => (counts.get(item.zikr.id!) ?? 0) >= item.target);
+    const active = isInside(occ);
+    slots.push({
+      prayer,
+      start: occ.start,
+      end: occ.end,
+      active,
+      done,
+      progress: totalTarget > 0 ? reached / totalTarget : 0,
+      missed: !active && !done && occ.end.getTime() <= t,
+      upcoming: occ.start.getTime() > t,
+    });
+  }
+  return slots;
+}
+
 // ---------- The guided-flow sequence (§4.6/§16.4) ----------
 
 /** One countable step of the post-salah flow. */

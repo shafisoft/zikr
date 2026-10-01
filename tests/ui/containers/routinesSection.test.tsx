@@ -70,8 +70,9 @@ let root: Root | null = null;
 let pressed: RoutineRowView | null = null;
 const createPreset = vi.fn<(key: 'morning' | 'evening') => Promise<string>>();
 const softDelete = vi.fn<(id: string) => Promise<void>>();
+const offerVisibility = vi.fn<(visible: boolean) => void>();
 
-async function renderSection(opts: { hideQuietOffer?: boolean } = {}) {
+async function renderSection(opts: { hideQuietOffer?: boolean; now?: Date } = {}) {
   if (root) {
     root.unmount();
     root = null;
@@ -91,6 +92,8 @@ async function renderSection(opts: { hideQuietOffer?: boolean } = {}) {
         },
         onEditRoutine: () => {},
         hideQuietOffer: opts.hideQuietOffer,
+        onOfferVisibilityChange: offerVisibility,
+        now: opts.now,
       }),
       React.createElement(ConfirmDialogHost)
     )
@@ -110,6 +113,7 @@ beforeEach(async () => {
   await db.delete();
   await db.open();
   vi.restoreAllMocks();
+  offerVisibility.mockClear();
   createPreset.mockResolvedValue('new-routine');
   softDelete.mockResolvedValue(undefined);
 });
@@ -140,6 +144,9 @@ describe('RoutinesSectionContainer — the quiet offer (AC2.4.2)', () => {
     buttonByText('Morning adhkar')!.click();
     await waitForDom(() => createPreset.mock.calls.length > 0);
     expect(createPreset).toHaveBeenCalledWith('morning');
+    // The chrome bridge reports the offer's presence (Home defers the
+    // after-salah offer while this one shows).
+    expect(offerVisibility).toHaveBeenCalledWith(true);
 
     // Dismissal persists via the settings KV (the dismiss control is the
     // icon button labelled "Maybe later").
@@ -299,5 +306,118 @@ describe('RoutinesSectionContainer — glance rows (AC2.4.1)', () => {
     buttonByText('Delete')!.click();
     await waitForDom(() => softDelete.mock.calls.length > 0);
     expect(softDelete).toHaveBeenCalledWith('r1');
+  });
+});
+
+describe('RoutinesSectionContainer — the day-context groups', () => {
+  const zikrs: Zikr[] = [zikr(1, 'Zikr One'), zikr(2, 'Zikr Two'), zikr(3, 'Zikr Three')];
+
+  /** Wednesday 2026-09-23 10:00 (inside the morning window) / Friday 09-25. */
+  const WED_1000 = new Date(2026, 8, 23, 10, 0, 0, 0);
+  const FRI_1300 = new Date(2026, 8, 25, 13, 0, 0, 0);
+
+  function presetRoutine(
+    key: 'morning' | 'evening' | 'night' | 'friday',
+    items: Array<{ zikrId: number; target: number }>
+  ): Routine {
+    const schedules = {
+      morning: { part: 'morning' as const },
+      evening: { part: 'evening' as const },
+      night: { part: 'night' as const },
+      friday: { part: 'any' as const, weekday: 5 },
+    };
+    return {
+      id: `r-${key}`,
+      source: 'preset',
+      presetKey: key,
+      schedule: schedules[key],
+      items: items.map(i => ({ ...i, name: `Zikr ${i.zikrId}` })),
+      createdAt: new Date(),
+    };
+  }
+
+  /** Sessions stamped onto the GROUPING day (the container derives `day` from `now`). */
+  function sessionsOn(now: Date, entries: Array<{ zikrId: number; count: number }>): Session[] {
+    const midnight = new Date(now);
+    midnight.setHours(0, 0, 0, 0);
+    const stamp = new Date(now);
+    stamp.setHours(7, 0, 0, 0);
+    return entries.map((e, i) => ({
+      id: i + 1,
+      zikrId: e.zikrId,
+      count: e.count,
+      source: 'app' as const,
+      timestamp: stamp,
+      date: midnight,
+      editableUntil: stamp,
+      createdAt: stamp,
+      updatedAt: stamp,
+    }));
+  }
+
+  it('Wednesday morning: morning is Now, evening is Up next (time-labelled), friday is hidden', async () => {
+    useZikrStore.setState({ zikrs, loading: false });
+    useSessionStore.setState({ sessions: [], loading: false });
+    useRoutineStore.setState({
+      routines: [
+        presetRoutine('morning', [{ zikrId: 1, target: 3 }]),
+        presetRoutine('evening', [{ zikrId: 2, target: 7 }]),
+        presetRoutine('friday', [{ zikrId: 3, target: 100 }]),
+      ],
+      loading: false,
+    });
+    useSettingsStore.setState({ settings: {}, loading: false });
+
+    await renderSection({ now: WED_1000 });
+    await waitForDom(() => container!.textContent!.includes('Morning adhkar'));
+
+    expect(container!.textContent).toContain('Now');
+    expect(container!.textContent).toContain('Evening adhkar');
+    // The upcoming window label carries the time ("This evening · 15:00").
+    expect(container!.textContent).toContain('This evening · 15:00');
+    expect(container!.textContent).toContain('Up next');
+    // The weekday-bound routine is invisible on a Wednesday.
+    expect(container!.textContent).not.toContain('Friday sunnahs');
+  });
+
+  it('Friday midday gap: friday owns the moment, morning is Up next', async () => {
+    useZikrStore.setState({ zikrs, loading: false });
+    useSessionStore.setState({ sessions: [], loading: false });
+    useRoutineStore.setState({
+      routines: [
+        presetRoutine('morning', [{ zikrId: 1, target: 3 }]),
+        presetRoutine('friday', [{ zikrId: 3, target: 100 }]),
+      ],
+      loading: false,
+    });
+    useSettingsStore.setState({ settings: {}, loading: false });
+
+    await renderSection({ now: FRI_1300 });
+    await waitForDom(() => container!.textContent!.includes('Friday sunnahs'));
+
+    expect(container!.textContent).toContain('Now');
+    expect(container!.textContent).toContain('Morning adhkar');
+    expect(container!.textContent).toContain('03:30'); // tomorrow's window start
+  });
+
+  it('a completed scheduled routine renders under Done today', async () => {
+    useZikrStore.setState({ zikrs, loading: false });
+    useSessionStore.setState({ sessions: sessionsOn(WED_1000, [{ zikrId: 1, count: 3 }]), loading: false });
+    useRoutineStore.setState({
+      routines: [
+        presetRoutine('morning', [{ zikrId: 1, target: 3 }]),
+        presetRoutine('evening', [{ zikrId: 2, target: 7 }]),
+      ],
+      loading: false,
+    });
+    useSettingsStore.setState({ settings: {}, loading: false });
+
+    await renderSection({ now: WED_1000 });
+    await waitForDom(() => container!.textContent!.includes('Done today'));
+
+    expect(container!.textContent).toContain('Morning adhkar');
+    expect(container!.textContent).toContain('Evening adhkar'); // still Up next
+    // Nothing matches now — no Now group, hence no Now label.
+    expect(container!.textContent).not.toContain('Now');
   });
 });

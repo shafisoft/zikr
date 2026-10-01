@@ -26,6 +26,7 @@ import {
   gatherOccurrences,
   occurrenceDone,
   postSalahSequence,
+  postSalahSlots,
   postSalahWindow,
   windowCounts,
   resolvePostSalahSet,
@@ -464,6 +465,91 @@ describe('postSalahSequence — the 33 → 33 → 34 → 100 flow source (AC1.3.
 
   it('the catalog set itself is 33/33/34/100', () => {
     expect(POST_SALAH_SET.map(i => i.target)).toEqual([33, 33, 34, 100]);
+  });
+});
+
+describe('postSalahSlots — the day tracker (five salah, one set)', () => {
+  const setZikrs: Zikr[] = [
+    zikr(1, 'SubhanAllah'),
+    zikr(2, 'Alhamdulillah'),
+    zikr(3, 'Allahu Akbar'),
+    zikr(4, 'La ilaha illallah'),
+  ];
+  const W = POST_SALAH_WINDOW_MS;
+  // A synthetic day: fajr 03:00, dhuhr 06:00, asr 09:00, maghrib 12:00,
+  // isha 13:30 UTC — with yesterday's isha one day earlier.
+  const t = (day: number, h: number, m = 0) => new Date(Date.UTC(2026, 2, day, h, m));
+  const occurrences = [
+    ...(['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'] as const).map(prayer => ({
+      prayer,
+      start: t(20, { fajr: 3, dhuhr: 6, asr: 9, maghrib: 12, isha: 13 }[prayer], prayer === 'isha' ? 30 : 0),
+      end: t(20, { fajr: 3, dhuhr: 6, asr: 9, maghrib: 12, isha: 13 }[prayer], prayer === 'isha' ? 30 : 0),
+    })),
+  ].map(o => ({ ...o, end: new Date(o.end.getTime() + W) }));
+
+  it('yields exactly five slots in prayer order with the right coarse states', () => {
+    const slots = postSalahSlots(occurrences, t(20, 9, 10), [], setZikrs);
+    expect(slots.map(s => s.prayer)).toEqual(['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']);
+    expect(slots.map(s => s.done)).toEqual([false, false, false, false, false]);
+    // At 09:10: fajr/dhuhr passed undone (missed), asr is LIVE, rest upcoming.
+    expect(slots.map(s => s.missed)).toEqual([true, true, false, false, false]);
+    expect(slots.find(s => s.prayer === 'asr')!.active).toBe(true);
+    expect(slots.filter(s => s.upcoming).map(s => s.prayer)).toEqual(['maghrib', 'isha']);
+  });
+
+  it('in-window sessions drive progress and done per slot, never across slots', () => {
+    const sessions: Session[] = [
+      session(1, 33, new Date(t(20, 9).getTime() + 60_000)), // asr window
+      session(2, 33, new Date(t(20, 9).getTime() + 60_000)),
+      session(3, 34, new Date(t(20, 12).getTime() + 60_000)), // maghrib window
+    ];
+    const slots = postSalahSlots(occurrences, t(20, 12, 1), sessions, setZikrs);
+    const asr = slots.find(s => s.prayer === 'asr')!;
+    const maghrib = slots.find(s => s.prayer === 'maghrib')!;
+    // Asr: 2 of 4 items complete → (33+33)/(33+33+34+100).
+    expect(asr.done).toBe(false);
+    expect(asr.progress).toBeCloseTo(66 / 200, 10);
+    // Maghrib: only Allahu Akbar so far → 34/200; NOT credited to asr.
+    expect(maghrib.progress).toBeCloseTo(34 / 200, 10);
+    expect(maghrib.done).toBe(false);
+
+    // Completing the set inside the maghrib window flips exactly that slot.
+    const complete = [
+      ...sessions,
+      session(1, 33, new Date(t(20, 12).getTime() + 120_000)),
+      session(2, 33, new Date(t(20, 12).getTime() + 120_000)),
+      session(4, 100, new Date(t(20, 12).getTime() + 120_000)),
+    ];
+    const after = postSalahSlots(occurrences, t(20, 12, 5), complete, setZikrs);
+    expect(after.find(s => s.prayer === 'maghrib')!.done).toBe(true);
+    expect(after.find(s => s.prayer === 'maghrib')!.missed).toBe(false);
+    // Asr stays undone — now in the past → missed.
+    expect(after.find(s => s.prayer === 'asr')!.missed).toBe(true);
+  });
+
+  it('collapses the midnight-crossing isha: the live yesterday window wins at 00:10', () => {
+    const yIsha = t(19, 23, 50);
+    const todayIsha = t(20, 23, 50);
+    const midnightGather = [
+      ...occurrences,
+      { prayer: 'isha' as const, start: yIsha, end: new Date(yIsha.getTime() + W) },
+    ];
+    const now0010 = new Date(yIsha.getTime() + 20 * 60_000);
+    const slots = postSalahSlots(midnightGather, now0010, [], setZikrs);
+    const isha = slots.find(s => s.prayer === 'isha')!;
+    expect(isha.active).toBe(true);
+    expect(isha.start.getTime()).toBe(yIsha.getTime()); // NOT today's 23:50
+    expect(isha.upcoming).toBe(false);
+    // Sanity: with only today's isha present (noon query) it is upcoming.
+    const noon = postSalahSlots(occurrences, t(20, 6, 0), [], setZikrs);
+    expect(noon.find(s => s.prayer === 'isha')!.upcoming).toBe(true);
+    void todayIsha;
+  });
+
+  it('an unresolved set (empty library match) never reports done and progress stays 0', () => {
+    const slots = postSalahSlots(occurrences, t(20, 12, 1), [], [zikr(9, 'Something else')]);
+    expect(slots.every(s => !s.done)).toBe(true);
+    expect(slots.every(s => s.progress === 0)).toBe(true);
   });
 });
 

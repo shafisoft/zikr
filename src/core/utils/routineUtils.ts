@@ -374,6 +374,18 @@ function nextPartOf(schedule: RoutineSchedule): RoutineNextPart | null {
 }
 
 /**
+ * Which schedule owns the moment, when several match at once. A time-bound
+ * window (morning/evening/night) is fading — it must lead. A weekday-bound
+ * all-day schedule (friday) can wait its turn; a custom routine matches
+ * every instant, so it yields to both (it is never "going away").
+ */
+function momentRank(schedule: RoutineSchedule | undefined): number {
+  if (!schedule) return 2;
+  if (schedule.part === 'any') return 1;
+  return 0;
+}
+
+/**
  * One entry of the Home "current ritual" derivation (Feature B): the
  * routine plus its today-progress and whether it is NOW or upcoming.
  */
@@ -401,6 +413,11 @@ export interface RoutineNowEntry {
  *      reinforcement matters for habit; rendered compactly),
  *   3. then the upcoming scheduled routines, ordered by window start.
  *
+ * Tiers 1–2 rank by momentRank (momentRank in the schedule section): the
+ * time-bound window leads, the weekday-bound all-day routine (friday)
+ * follows, customs last — a friday row must never bury the morning set
+ * just because both match at 09:00.
+ *
  * Customs (no schedule) always match now, so they land in tiers 1–2 in
  * creation order. Done-state is the single counting truth (§2.3): a
  * day-scoped aggregation over sessions via routineTodayState.
@@ -412,7 +429,7 @@ export function routineNowState(
   now: Date
 ): RoutineNowEntry[] {
   const day = formatDate(now);
-  const nowEntries: RoutineNowEntry[] = [];
+  const nowEntries: Array<RoutineNowEntry & { rank: number }> = [];
   const nextEntries: Array<RoutineNowEntry & { nextAt: number }> = [];
 
   for (const routine of routines) {
@@ -430,7 +447,7 @@ export function routineNowState(
       missingCount: state.missingCount,
     };
     if (routineScheduleMatches(routine.schedule, now)) {
-      nowEntries.push(base);
+      nowEntries.push({ ...base, rank: momentRank(routine.schedule) });
     } else if (routine.schedule) {
       const nextAt = routineNextOccurrence(routine.schedule, now);
       const nextPart = nextPartOf(routine.schedule);
@@ -440,12 +457,82 @@ export function routineNowState(
     }
   }
 
-  const currentUndone = nowEntries.filter(e => !e.doneToday);
-  const currentDone = nowEntries.filter(e => e.doneToday);
+  // Stable: same-rank entries keep their input (creation) order.
+  const byRank = (a: { rank: number }, b: { rank: number }) => a.rank - b.rank;
+  const currentUndone = nowEntries.filter(e => !e.doneToday).sort(byRank);
+  const currentDone = nowEntries.filter(e => e.doneToday).sort(byRank);
   const upcoming = nextEntries
     .sort((a, b) => a.nextAt - b.nextAt)
     .map(({ nextAt: _nextAt, ...entry }) => entry);
   return [...currentUndone, ...currentDone, ...upcoming];
+}
+
+// ---------- The day-context sections (Home routines list) ----------
+
+/**
+ * The Home routines section's context groups. Where routineNowState feeds
+ * the ONE featured card, this buckets the WHOLE list so the section only
+ * shows what the day makes relevant:
+ *
+ *   now     — schedule matches this moment, not done yet (actionable),
+ *             moment-ranked like the ritual card;
+ *   upNext  — the single nearest upcoming time-window routine (its label
+ *             names the window; everything further out is noise);
+ *   done    — completed today, whenever their window is;
+ *   anytime — custom routines (no schedule): relevant all day.
+ *
+ * A weekday-bound all-day routine (friday) appears ONLY on its weekday —
+ * on other days it is neither now, next, nor done, and disappears instead
+ * of cluttering every other day of the week.
+ */
+export interface RoutineSections {
+  now: Routine[];
+  upNext: Array<{ routine: Routine; nextPart: RoutineNextPart; nextAt: Date }>;
+  done: Routine[];
+  anytime: Routine[];
+}
+
+export function routineSections(
+  routines: Routine[],
+  sessions: Session[],
+  zikrs: Zikr[],
+  now: Date
+): RoutineSections {
+  const day = formatDate(now);
+  const sections: RoutineSections = { now: [], upNext: [], done: [], anytime: [] };
+  const nowRanked: Array<{ routine: Routine; rank: number }> = [];
+  const upcoming: Array<{ routine: Routine; nextPart: RoutineNextPart; nextAt: number }> = [];
+
+  for (const routine of routines) {
+    if (!routine.schedule) {
+      sections.anytime.push(routine);
+      continue;
+    }
+    const doneToday = routineTodayState(routine, zikrs, sessions, day).done;
+    if (doneToday) {
+      sections.done.push(routine);
+    } else if (routineScheduleMatches(routine.schedule, now)) {
+      nowRanked.push({ routine, rank: momentRank(routine.schedule) });
+    } else if (routine.schedule.weekday != null) {
+      // Weekday-bound all-day (friday): irrelevant until the day arrives.
+      continue;
+    } else {
+      const nextAt = routineNextOccurrence(routine.schedule, now);
+      const nextPart = nextPartOf(routine.schedule);
+      if (nextAt && nextPart) {
+        upcoming.push({ routine, nextPart, nextAt: nextAt.getTime() });
+      }
+    }
+  }
+
+  sections.now = nowRanked.sort((a, b) => a.rank - b.rank).map(e => e.routine);
+  const nearest = upcoming.sort((a, b) => a.nextAt - b.nextAt)[0];
+  if (nearest) {
+    sections.upNext = [
+      { routine: nearest.routine, nextPart: nearest.nextPart, nextAt: new Date(nearest.nextAt) },
+    ];
+  }
+  return sections;
 }
 
 /** Display title: presets localize via presetKey; customs store a user title. */

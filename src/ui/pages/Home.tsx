@@ -32,6 +32,7 @@ import RoutinesSectionContainer, {
 import RitualNowContainer from '../containers/routines/RitualNowContainer';
 import RoutineEditorContainer from '../containers/routines/RoutineEditorContainer';
 import PostSalahCardContainer from '../containers/postSalah/PostSalahCardContainer';
+import PostSalahTrackerContainer from '../containers/postSalah/PostSalahTrackerContainer';
 import { todayTotal as metricsTodayTotal, planRingProgress } from '../../core/utils/metrics';
 import { buildGoalRows, GoalZikrRow } from '../../core/utils/planUtils';
 import { Routine, Zikr } from '../../core/db/types';
@@ -81,6 +82,10 @@ const Home: React.FC = () => {
   // preset offer (the user already has routines; never two offers of the
   // same thing).
   const [ritualPresent, setRitualPresent] = useState(false);
+  // The same bridge in the other direction: while the routines section's
+  // quiet preset offer shows, the after-salah offer defers (still never
+  // two quiet offers at once).
+  const [routinesOfferVisible, setRoutinesOfferVisible] = useState(false);
   // Routine editor flow state (§16.3): the page decides WHEN the dialog is
   // open; the container owns the data.
   const [routineEditor, setRoutineEditor] = useState<{
@@ -290,6 +295,15 @@ const Home: React.FC = () => {
           onStart={handleRitualStart}
         />
 
+        {/* After salah (R1 day view): the five-salah tracker when the
+            feature is enabled, else the single quiet opt-in offer (which
+            defers while the routines preset offer above is showing). */}
+        <PostSalahTrackerContainer
+          deferOffer={routinesOfferVisible}
+          onStartFlow={handleStartPostSalah}
+          onOpenSettings={() => navigate('/settings')}
+        />
+
         {/* Daily Goal Progress — mihrab arch */}
         {plans.length > 0 && (
           <section className="relative w-full max-w-[300px] mx-auto flex flex-col items-center rounded-t-full rounded-b-2xl border border-tertiary-container/30 bg-surface-container-low shadow-card px-6 pt-20 pb-8 overflow-hidden">
@@ -315,7 +329,12 @@ const Home: React.FC = () => {
             toward its own target; tapping starts the counter on it */}
         {goalRows.length > 0 && (
           <section className="flex flex-col gap-4 w-full">
-            <h3 className="font-headline-md text-headline-md text-primary">{t('home.yourGoals')}</h3>
+            <div className="flex flex-col gap-0.5">
+              <h3 className="font-headline-md text-headline-md text-primary">{t('home.yourGoals')}</h3>
+              <p className="font-caption text-caption text-on-surface-variant">
+                {t('home.yourGoalsSub')}
+              </p>
+            </div>
             <div className="flex flex-col gap-2">
               {goalRows.map(row => (
                 <GoalRowCard key={row.key} row={row} onPress={startGoal} />
@@ -331,6 +350,7 @@ const Home: React.FC = () => {
             suppressed — the user already has routines. */}
         <RoutinesSectionContainer
           hideQuietOffer={ritualPresent}
+          onOfferVisibilityChange={setRoutinesOfferVisible}
           onRoutinePress={handleRoutinePress}
           onEditRoutine={(routine) => setRoutineEditor({ open: true, editing: routine })}
           onCreateRoutine={() => setRoutineEditor({ open: true, editing: null })}

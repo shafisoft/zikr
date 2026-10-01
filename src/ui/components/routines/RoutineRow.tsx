@@ -19,6 +19,11 @@ interface RoutineRowProps {
   missingCount: number;
   /** The routine's own daily streak (shown as quiet subtext when > 0). */
   streak: number;
+  /**
+   * Upcoming-window label (already localized + timed, e.g. "This evening ·
+   * 15:00") — shown as the leading subtext on an Up-next row.
+   */
+  nextLabel?: string;
   onPress: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -31,6 +36,7 @@ const RoutineRow: React.FC<RoutineRowProps> = ({
   done,
   missingCount,
   streak,
+  nextLabel,
   onPress,
   onEdit,
   onDelete,
@@ -78,8 +84,14 @@ const RoutineRow: React.FC<RoutineRowProps> = ({
             <MaterialIcon icon="play_arrow" className="text-[20px] text-tertiary" />
           </span>
         </div>
-        {(streak > 0 || missing) && (
+        {(nextLabel || streak > 0 || missing) && (
           <div className="mt-0.5 flex items-center gap-2 font-caption text-caption text-on-surface-variant/80">
+            {nextLabel && (
+              <span className="flex items-center gap-1">
+                <MaterialIcon icon="schedule" className="text-[14px]" />
+                {nextLabel}
+              </span>
+            )}
             {streak > 0 && (
               <span className="flex items-center gap-1">
                 <MaterialIcon icon="local_fire_department" filled className="text-[14px] text-tertiary" />

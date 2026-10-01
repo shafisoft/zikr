@@ -28,6 +28,7 @@ import {
   routineNextOccurrence,
   routineNowState,
   routineScheduleMatches,
+  routineSections,
   routineSequence,
   routineStreakStatus,
   routineTodayState,
@@ -647,6 +648,105 @@ describe('routineNowState — now / done / next ordering', () => {
     expect(onFriday[0].routine.id).toBe('routine-friday');
     expect(onFriday[0].when).toBe('now');
     expect(onFriday[1].when).toBe('next');
+  });
+
+  it('a time-bound window outranks the friday all-day match, whatever the creation order', () => {
+    // Friday 09:00: both morning and friday match and are undone. The
+    // fading morning window owns the moment; friday (all day) follows —
+    // even though friday comes FIRST in the list here.
+    const fridayRoutine = presetRoutine('friday', [{ zikrId: 1, target: 100 }]);
+    const entries = routineNowState([fridayRoutine, morningRoutine], [], zikrs, at(25, 9, 0));
+    expect(entries.map(e => e.routine.id)).toEqual(['routine-morning', 'routine-friday']);
+    expect(entries.every(e => e.when === 'now')).toBe(true);
+  });
+});
+
+describe('routineSections — the day-context groups (Now / Up next / Done / Anytime)', () => {
+  const zikrs = [zikr(1), zikr(2), zikr(3)];
+  const morningRoutine = presetRoutine('morning', [{ zikrId: 1, target: 3 }]);
+  const eveningRoutine = presetRoutine('evening', [{ zikrId: 2, target: 7 }]);
+  const nightRoutine = presetRoutine('night', [{ zikrId: 3, target: 1 }]);
+  const fridayRoutine = presetRoutine('friday', [{ zikrId: 1, target: 100 }]);
+  const customRoutine: Routine = {
+    id: 'routine-custom',
+    source: 'custom',
+    title: 'My set',
+    items: [{ zikrId: 2, name: 'Zikr 2', target: 10 }],
+    createdAt: new Date(),
+  };
+
+  it('Wednesday morning: morning is Now, evening is the single Up next, friday hides', () => {
+    const sections = routineSections(
+      [morningRoutine, eveningRoutine, nightRoutine, fridayRoutine],
+      [],
+      zikrs,
+      at(23, 10, 0) // Wednesday 10:00
+    );
+    expect(sections.now.map(r => r.id)).toEqual(['routine-morning']);
+    expect(sections.upNext).toHaveLength(1);
+    expect(sections.upNext[0].routine.id).toBe('routine-evening');
+    expect(sections.upNext[0].nextPart).toBe('evening');
+    expect(formatDate(sections.upNext[0].nextAt)).toBe('2026-09-23');
+    expect(sections.upNext[0].nextAt.getHours()).toBe(15);
+    expect(sections.done).toEqual([]);
+    expect(sections.anytime).toEqual([]);
+    // The weekday-bound all-day routine vanishes on non-Friday days.
+    const ids = [
+      ...sections.now,
+      ...sections.upNext.map(u => u.routine),
+      ...sections.done,
+      ...sections.anytime,
+    ].map(r => r.id);
+    expect(ids).not.toContain('routine-friday');
+  });
+
+  it('Friday morning: friday matches too, but the fading morning window ranks first', () => {
+    const sections = routineSections(
+      [fridayRoutine, morningRoutine, eveningRoutine],
+      [],
+      zikrs,
+      at(25, 9, 0)
+    );
+    expect(sections.now.map(r => r.id)).toEqual(['routine-morning', 'routine-friday']);
+  });
+
+  it('Friday midday gap: only friday owns the moment (evening is Up next)', () => {
+    const sections = routineSections(
+      [morningRoutine, eveningRoutine, fridayRoutine],
+      [],
+      zikrs,
+      at(25, 13, 0)
+    );
+    expect(sections.now.map(r => r.id)).toEqual(['routine-friday']);
+    expect(sections.upNext[0].routine.id).toBe('routine-evening');
+  });
+
+  it('night at 21:30 is Now; the nearest Up next is tomorrow morning, not evening', () => {
+    const sections = routineSections(
+      [morningRoutine, eveningRoutine, nightRoutine],
+      [],
+      zikrs,
+      at(23, 21, 30)
+    );
+    expect(sections.now.map(r => r.id)).toEqual(['routine-night']);
+    expect(sections.upNext).toHaveLength(1);
+    expect(sections.upNext[0].nextPart).toBe('morning');
+    expect(formatDate(sections.upNext[0].nextAt)).toBe('2026-09-24');
+  });
+
+  it('a completed scheduled routine lands in Done whatever its window', () => {
+    const sessions = [session(1, 3, at(23, 7, 0))]; // morning item complete
+    const sections = routineSections(
+      [morningRoutine, eveningRoutine, customRoutine],
+      sessions,
+      zikrs,
+      at(23, 10, 0)
+    );
+    expect(sections.done.map(r => r.id)).toEqual(['routine-morning']);
+    expect(sections.now).toEqual([]);
+    // Customs never leave Anytime — their row shows its own done state.
+    expect(sections.anytime.map(r => r.id)).toEqual(['routine-custom']);
+    expect(sections.upNext[0].routine.id).toBe('routine-evening');
   });
 });
 
