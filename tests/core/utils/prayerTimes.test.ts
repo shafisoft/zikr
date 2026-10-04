@@ -474,6 +474,41 @@ describe('attributedCounts / occurrenceDone — flow-attributed truth (AC1.2.3, 
     expect(occurrenceDone(occ, sessions, setZikrs)).toBe(false);
   });
 
+  it('a mark on a far-west device (UTC) counts — the fajr instant is the previous UTC day', () => {
+    // The CI-repro vector: for a Dhaka location on a UTC device, fajr of
+    // "March 20" falls at ~23:00Z on March 19. A mark at 12:40Z on March
+    // 20 (the user's Dhaka-evening) is a DIFFERENT device-local day than
+    // the occurrence's start instant — a calendar-day check would drop it.
+    // Date is faked to the mark instant; the occurrence is derived the way
+    // the tracker derives it.
+    process.env.TZ = 'UTC';
+    try {
+      const times = dayPrayerTimes(loc(), new Date(2026, 2, 20, 12))!;
+      const markAt = new Date(times.maghrib.getTime() + 60_000);
+      const fajrOcc = {
+        prayer: 'fajr' as const,
+        start: times.fajr,
+        end: times.dhuhr,
+      };
+      const sessions: Session[] = [1, 2, 3, 4]
+        .map(i => session(i, [33, 33, 34, 100][i - 1], markAt, 'fajr'));
+      expect(new Date(fajrOcc.start).getDate()).not.toBe(markAt.getDate()); // prev UTC day
+      expect(occurrenceDone(fajrOcc, sessions, setZikrs)).toBe(true);
+    } finally {
+      process.env.TZ = REAL_TZ;
+    }
+  });
+
+  it('a mark beyond 24h after the prayer never counts', () => {
+    const sessions: Session[] = [
+      session(1, 33, new Date(occ.start.getTime() + 25 * 3_600_000), 'maghrib'),
+      session(2, 33, new Date(occ.start.getTime() + 25 * 3_600_000), 'maghrib'),
+      session(3, 34, new Date(occ.start.getTime() + 25 * 3_600_000), 'maghrib'),
+      session(4, 100, new Date(occ.start.getTime() + 25 * 3_600_000), 'maghrib'),
+    ];
+    expect(occurrenceDone(occ, sessions, setZikrs)).toBe(false);
+  });
+
   it('name matching is case/whitespace-insensitive; soft-deleted zikrs vanish', () => {
     const oddNames: Zikr[] = [
       zikr(1, '  subhanallah '),

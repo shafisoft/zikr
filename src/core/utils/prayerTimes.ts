@@ -44,7 +44,6 @@ import {
   PrayerTimes,
 } from 'adhan';
 import type { PrayerLocation, PostSalahPrayer } from '../db/types';
-import { formatDate } from './dateUtils';
 import type { Session, Zikr } from '../db/types';
 
 /** The five prayers of the after-salah set (the union lives in db/types —
@@ -252,24 +251,27 @@ export function postSalahWindow(loc: PrayerLocation, now: Date): PostSalahWindow
  * flow and the offline mark-done dialog attributed to that prayer
  * (session.postSalah). Attribution replaced the older "any session inside
  * the 30-minute window counts" rule: all-day free counting was completing
- * sets the user never ran. A session counts when it falls INSIDE the
- * prayer's period (the guided flow, even past midnight on Isha) OR was
- * logged later the same day after its start (an offline completion the
- * user marked once the period moved on). Unattributed sessions never
- * count.
+ * sets the user never ran. A session counts when its timestamp falls
+ * within 24h AFTER the prayer's start — covering the guided flow inside
+ * the period, the overnight Isha run, and an offline completion the user
+ * marked once the period moved on. Purely absolute instants: no
+ * device-local day math, so a device in any timezone attributes honestly.
+ * Unattributed sessions never count.
  */
 export function attributedCounts(occ: PrayerOccurrence, sessions: Session[]): Map<number, number> {
   const totals = new Map<number, number>();
   const start = occ.start.getTime();
   const end = occ.end.getTime();
-  const day = formatDate(occ.start);
+  // Marks are accepted for 24h after the prayer's START — absolute
+  // instants, never device-local calendar days. A local-day check breaks
+  // for devices far west of the saved location (CI's UTC clock caught
+  // exactly this: Dhaka's fajr is ~23:00Z, the PREVIOUS UTC day, so a
+  // same-local-day mark for the after-Fajr set never matched).
+  const markDeadline = start + 24 * 60 * 60 * 1000;
   for (const session of sessions) {
     if (session.postSalah !== occ.prayer) continue;
     const t = new Date(session.timestamp).getTime();
-    const inPeriod = t >= start && t < end;
-    const markedLaterSameDay =
-      t >= start && formatDate(new Date(session.date)) === day;
-    if (inPeriod || markedLaterSameDay) {
+    if (t >= start && t < Math.max(end, markDeadline)) {
       totals.set(session.zikrId, (totals.get(session.zikrId) ?? 0) + session.count);
     }
   }
