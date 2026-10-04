@@ -7,6 +7,10 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
+_(nothing yet)_
+
+## [1.9.0] — 2026-10-04
+
 ### Changed
 - **The after-salah card now speaks in two voices.** While the prayer's own
   time is still valid (Fajr until sunrise; the others until the next
