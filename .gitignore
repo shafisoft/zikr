@@ -57,3 +57,6 @@ coverage/
 
 # vite-plugin-pwa dev service worker output
 dev-dist/
+
+# Hisn-ul-Muslim print PDF — 5.3MB; re-download per docs/reference/hisnul-muslim/README.md
+docs/reference/hisnul-muslim/*.pdf
