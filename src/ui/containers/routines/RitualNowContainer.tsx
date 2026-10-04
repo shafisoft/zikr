@@ -8,9 +8,10 @@
  * Render decision: the FIRST entry of the ordered now-state — current and
  * undone first, then current-but-done (compact reinforcement), then the
  * next-upcoming with its window label. While R1's post-salah card is
- * active the moment is already spoken for, so the card shows the NEXT
- * routine instead (never two cards claiming the same moment); with nothing
- * upcoming it renders nothing.
+ * active the moment is spoken for — but a fading time-bound routine that
+ * is still undone (the morning set late in its window) still leads; only
+ * otherwise does the card show the NEXT routine (never two cards claiming
+ * the same moment). With nothing to show it renders nothing.
  *
  * `onPresentChange` is the §16.1 chrome bridge: the page suppresses the
  * quiet preset offer while this card shows (the user already has
@@ -60,14 +61,25 @@ const RitualNowContainer: React.FC<RitualNowContainerProps> = ({
     [routines, sessions, zikrs, now]
   );
 
-  // R1 owns the "moment": while its card is active, skip the now-tier.
-  const view = useMemo(
-    () =>
-      postSalahActive
-        ? entries.find(entry => entry.when === 'next')
-        : entries[0],
-    [entries, postSalahActive]
-  );
+  // R1 owns the moment — but a FADING time-bound routine that is still
+  // undone outranks the demotion: the morning set at 11 AM must not be
+  // buried under "this evening" just because the after-salah card (a
+  // different practice, and one that now stays up for the whole prayer
+  // period) is leading. All-day weekday routines and customs have no
+  // closing window, so they still yield to the next routine.
+  const view = useMemo(() => {
+    if (!postSalahActive) return entries[0];
+    const fading = (e: RoutineNowEntry) =>
+      e.when === 'now' &&
+      !e.doneToday &&
+      e.routine.schedule != null &&
+      e.routine.schedule.part !== 'any';
+    return (
+      entries.find(fading) ??
+      entries.find(entry => entry.when === 'next') ??
+      entries[0]
+    );
+  }, [entries, postSalahActive]);
 
   const day = useMemo(() => formatDate(now), [now]);
   const today = useMemo(

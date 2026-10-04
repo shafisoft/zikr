@@ -83,6 +83,7 @@ interface SessionState {
     count: number;
     routineId?: string;
     dayPart?: Session['dayPart'];
+    postSalah?: Session['postSalah'];
   }) => Promise<RecordCountResult>;
 }
 

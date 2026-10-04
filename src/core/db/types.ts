@@ -53,7 +53,19 @@ export interface Session {
    * sessionCountsTowardRoutine. Absent on legacy rows (pre-scoping).
    */
   dayPart?: DayPart;
+  /**
+   * Guided post-salah-flow attribution: the prayer whose set this session
+   * belongs to, written by the ?postSalah= counter flow. After-salah
+   * completion is derived ONLY from these attributed sessions — free
+   * counting during a prayer's period never completes a set the user
+   * never ran. Additive, non-indexed (never queried). Absent on legacy
+   * rows — see attributedCounts in prayerTimes.ts.
+   */
+  postSalah?: PostSalahPrayer;
 }
+
+/** The five prayers of the after-salah set (prayerTimes re-exports this). */
+export type PostSalahPrayer = 'fajr' | 'dhuhr' | 'asr' | 'maghrib' | 'isha';
 
 /** Civil part of day (scoping parts; noon credits no preset routine). */
 export type DayPart = 'morning' | 'noon' | 'evening' | 'night';

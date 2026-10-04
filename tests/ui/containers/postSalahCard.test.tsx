@@ -9,12 +9,16 @@
 //   - outside any window → nothing (AC1.2.4)
 // Time is pinned by mocking useNow (container plumbing); the window comes
 // from the real adhan computation for Dhaka, 2026-03-20 (maghrib 12:09Z).
+// The pinned instant is mutable (vi.hoisted) so one test can sit later in
+// a period — Fajr after sunrise — to verify the softened ask copy.
+const MOCK_NOW = vi.hoisted(() => ({ value: new Date('2026-03-20T12:15:00.000Z') }));
+
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 
 vi.mock('../../../src/ui/hooks/useNow', () => ({
-  default: () => new Date('2026-03-20T12:15:00.000Z'), // inside Dhaka's maghrib window
+  default: () => MOCK_NOW.value,
 }));
 
 import PostSalahCardContainer from '../../../src/ui/containers/postSalah/PostSalahCardContainer';
@@ -29,7 +33,12 @@ function zikr(id: number, name: string): Zikr {
   return { id, name, custom: false, createdAt: new Date() };
 }
 
-function session(zikrId: number, count: number, timestamp: Date): Session {
+function session(
+  zikrId: number,
+  count: number,
+  timestamp: Date,
+  postSalah?: Session['postSalah']
+): Session {
   const midnight = new Date(timestamp);
   midnight.setHours(0, 0, 0, 0);
   return {
@@ -42,6 +51,7 @@ function session(zikrId: number, count: number, timestamp: Date): Session {
     editableUntil: timestamp,
     createdAt: timestamp,
     updatedAt: timestamp,
+    postSalah,
   };
 }
 
@@ -99,6 +109,7 @@ function startButton(): HTMLButtonElement | null {
 }
 
 beforeEach(() => {
+  MOCK_NOW.value = new Date('2026-03-20T12:15:00.000Z'); // inside maghrib
   vi.restoreAllMocks();
 });
 
@@ -168,17 +179,38 @@ describe('PostSalahCardContainer — the active moment (AC1.2.1 / §16.6.3)', ()
     expect(started).toEqual({ prayer: 'maghrib', zikrId: 1 });
   });
 
-  it('shows the quiet completed state when the set is done in-window only (AC1.2.3)', async () => {
+  it('past the prayer’s own time (Fajr after sunrise), the offer softens into the ask', async () => {
+    // 03:00Z = 09:00 local — inside Fajr's period but past sunrise (00:05Z):
+    // "It's Fajr" would read broken; the card asks instead.
+    MOCK_NOW.value = new Date('2026-03-20T03:00:00.000Z');
     useZikrStore.setState({ zikrs: SET_ZIKRS, loading: false });
-    // All four items at target from sessions INSIDE the window
-    // (2026-03-20 12:09–12:39Z); morning sessions must not count.
+    useSessionStore.setState({ sessions: [], loading: false });
+    useSettingsStore.setState(
+      { settings: { prayerLocation: dhaka, postSalahEnabled: true }, loading: false }
+    );
+
+    await renderCard();
+    expect(container!.textContent).toContain('Did you complete your after-Fajr azkars?');
+    expect(container!.textContent).toContain('If not, you can still do it now');
+    expect(container!.textContent).not.toContain('It’s Fajr');
+    expect(active).toBe(true);
+
+    startButton()!.click();
+    await sleep(20);
+    expect(started).toEqual({ prayer: 'fajr', zikrId: 1 });
+  });
+
+  it('shows the quiet completed state when the attributed set is done (AC1.2.3)', async () => {
+    useZikrStore.setState({ zikrs: SET_ZIKRS, loading: false });
+    // All four items at target from sessions the guided flow attributed to
+    // maghrib; free counting and other prayers' attribution must not count.
     useSessionStore.setState({
       sessions: [
-        session(1, 500, new Date('2026-03-20T09:00:00.000Z')), // morning noise
-        session(1, 33, new Date('2026-03-20T12:10:00.000Z')),
-        session(2, 33, new Date('2026-03-20T12:15:00.000Z')),
-        session(3, 34, new Date('2026-03-20T12:20:00.000Z')),
-        session(4, 100, new Date('2026-03-20T12:30:00.000Z')),
+        session(1, 500, new Date('2026-03-20T09:00:00.000Z')), // free counting — ignored
+        session(1, 33, new Date('2026-03-20T12:10:00.000Z'), 'maghrib'),
+        session(2, 33, new Date('2026-03-20T12:15:00.000Z'), 'maghrib'),
+        session(3, 34, new Date('2026-03-20T12:20:00.000Z'), 'maghrib'),
+        session(4, 100, new Date('2026-03-20T12:30:00.000Z'), 'maghrib'),
       ],
       loading: false,
     });

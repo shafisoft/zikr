@@ -88,8 +88,9 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
     nameBn: 'লা ইলাহা ইল্লাল্লাহু ওয়াহদাহু',
     arabicText: 'لَا إِلَٰهَ إِلَّا ٱللَّٰهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ ٱلْمُلْكُ وَلَهُ ٱلْحَمْدُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ',
     isQuickStarter: false,
-    translation: 'Allah alone, no partner — His is the dominion and the praise',
-    translationBn: 'একমাত্র আল্লাহই উপাস্য, কোনো অংশীদার নেই — রাজত্ব ও প্রশংসা তাঁরই',
+    translation:
+      'None has the right to be worshipped except Allah, alone, without any partner. His is the dominion and His is the praise, and He is over all things omnipotent',
+    translationBn: 'আল্লাহ ছাড়া কোনো উপাস্য নেই, তিনি একক, কোনো অংশীদার নেই; রাজত্ব ও সকল প্রশংসা তাঁরই, এবং তিনি সব কিছুর উপর ক্ষমতাবান',
     defaultTarget: 10,
   },
   'La hawla wa la quwwata illa Billah': {
@@ -112,23 +113,26 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
     nameBn: 'হাসবিয়াল্লাহ',
     arabicText: 'حَسْبِيَ ٱللَّٰهُ لَا إِلَٰهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ ٱلْعَرْشِ ٱلْعَظِيمِ',
     isQuickStarter: false,
-    translation: 'Allah is sufficient for me; in Him I trust',
-    translationBn: 'আল্লাহই আমার জন্য যথেষ্ট; আমি তাঁর উপরই ভরসা করি',
+    translation:
+      'Allah is sufficient for me; none has the right to be worshipped except Him. Upon Him I rely, and He is the Lord of the exalted Throne',
+    translationBn: 'আল্লাহই আমার জন্য যথেষ্ট; তিনি ছাড়া কোনো ইলাহ নেই। আমি তাঁর উপরই ভরসা করি, আর তিনিই মহান আরশের রব',
     defaultTarget: 7,
   },
   'Bismillahilladhi la Yadurru': {
     nameBn: 'বিসমিল্লাহিল্লাজি লা ইয়াদুররু',
     arabicText: 'بِسْمِ ٱللَّٰهِ ٱلَّذِي لَا يَضُرُّ مَعَ اسْمِهِ شَيْءٌ فِي ٱلْأَرْضِ وَلَا فِي ٱلسَّمَاءِ وَهُوَ ٱلسَّمِيعُ ٱلْعَلِيمُ',
     isQuickStarter: true,
-    translation: "In Allah's name — nothing can harm",
-    translationBn: 'আল্লাহর নামে — যাঁর নামে কিছুই ক্ষতি করতে পারে না',
+    translation:
+      "In the name of Allah, with whose name nothing on earth or in heaven can cause harm — and He is the All-Hearing, the All-Knowing",
+    translationBn: 'আল্লাহর নামে — যাঁর নামে আসমান-জমিনে কিছুই ক্ষতি করতে পারে না, আর তিনিই সর্বশ্রোতা, সর্বজ্ঞ',
     defaultTarget: 3,
   },
   'Radhitu Billahi Rabba': {
     nameBn: 'রাদিতু বিল্লাহি রাব্বা',
     arabicText: 'رَضِيتُ بِٱللَّٰهِ رَبًّا وَبِٱلْإِسْلَامِ دِينًا وَبِمُحَمَّدٍ صَلَّىٰ ٱللَّٰهُ عَلَيْهِ وَسَلَّمَ نَبِيًّا',
     isQuickStarter: false,
-    translation: 'I am pleased with Allah as my Lord, Islam as my religion',
+    translation:
+      'I am pleased with Allah as my Lord, Islam as my religion, and Muhammad ﷺ as my Prophet',
     translationBn: 'আল্লাহই আমার রব, ইসলামই আমার দীন, মুহাম্মদ ﷺ আমার নবী',
     defaultTarget: 3,
   },
@@ -144,8 +148,9 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
     nameBn: 'সাইয়েদুল ইস্তিগফার',
     arabicText: 'ٱللَّٰهُمَّ أَنْتَ رَبِّي لَا إِلَٰهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ، وَأَنَا عَلَىٰ عَهْدِكَ وَوَعْدِكَ مَا ٱسْتَطَعْتُ، أَعُوذُ بِكَ مِنْ شَرِّ مَا صَنَعْتُ، أَبُوءُ لَكَ بِنِعْمَتِكَ عَلَيَّ، وَأَبُوءُ بِذَنْبِي، فَٱغْفِرْ لِي فَإِنَّهُ لَا يَغْفِرُ ٱلذُّنُوبَ إِلَّا أَنْتَ',
     isQuickStarter: true,
-    translation: 'O Allah, You are my Lord — forgive me, for none forgives sins but You',
-    translationBn: 'হে আল্লাহ, আপনিই আমার রব — আমাকে ক্ষমা করুন, ক্ষমাকারী কেবল আপনি',
+    translation:
+      'O Allah, You are my Lord; none has the right to be worshipped except You. You created me and I am Your servant, and I abide by Your covenant and promise as best I can. I take refuge in You from the evil of what I have done. I acknowledge Your favour upon me, and I acknowledge my sin — so forgive me, for none forgives sins except You',
+    translationBn: 'হে আল্লাহ, আপনিই আমার রব, আপনি ছাড়া কোনো ইলাহ নেই। আপনিই আমাকে সৃষ্টি করেছেন এবং আমি আপনারই বান্দা; সাধ্যমতো আমি আপনার চুক্তি ও ওয়াদার উপর অটল। আপনার কাছে আমি আমার করা কুকর্মের অনিষ্ট থেকে আশ্রয় চাই, আপনার নিয়ামত স্বীকার করছি এবং আমার গুনাহ স্বীকার করছি — আমাকে ক্ষমা করুন, ক্ষমাকারী কেবল আপনি',
     defaultTarget: 1,
   },
   "Hasbunallahu wa Ni'mal Wakeel": {
@@ -207,9 +212,8 @@ const ZIKR_MAPPING: Record<string, ZikrMeanings> = {
     arabicText: 'ٱللَّٰهُمَّ أَسْلَمْتُ نَفْسِيٓ إِلَيْكَ وَفَوَّضْتُ أَمْرِيٓ إِلَيْكَ وَوَجَّهْتُ وَجْهِيٓ إِلَيْكَ وَأَلْجَأْتُ ظَهْرِيٓ إِلَيْكَ رَغْبَةً إِلَيْكَ وَرَهْبَةً مِنْكَ لَا مَلْجَأَ وَلَا مَنْجَا مِنْكَ إِلَّآ إِلَيْكَ آمَنْتُ بِكِتَابِكَ ٱلَّذِيٓ أَنزَلْتَ وَبِنَبِيِّكَ ٱلَّذِيٓ أَرْسَلْتَ',
     isQuickStarter: false,
     translation:
-      'O Allah, I submit myself to You, entrust my affairs to You, and seek Your refuge — no refuge or salvation from You except through You',
-    translationBn:
-      'হে আল্লাহ, আমি আপনার কাছে আত্মসমর্পণ করলাম, আমার সব ভরসা আপনারই উপর ছেড়ে দিলাম — আপনার কাছ ছাড়া কোনো আশ্রয় বা মুক্তি নেই',
+      'O Allah, I submit myself to You, entrust my affairs to You, turn my face towards You, and commit my back to You — in hope of You and fear of You. There is no refuge nor salvation from You except with You. I believe in Your Book which You revealed, and in Your Prophet whom You sent',
+    translationBn: 'হে আল্লাহ, আমি আপনার কাছে আত্মসমর্পণ করলাম, আমার সব বিষয় আপনারই উপর ছেড়ে দিলাম, আমার মুখ আপনারই দিকে ফিরালাম এবং প্রত্যাশা ও ভয়ে আপনারই কাছে গিয়ে দাঁড়ালাম। আপনার কাছ ছাড়া কোনো আশ্রয় বা মুক্তি নেই। আমি আপনার নায়েলকৃত কিতাবের উপর এবং আপনার প্রেরিত নবীর উপর ঈমান আনলাম',
     defaultTarget: 1,
   },
   'Surah Al-Kahf': {

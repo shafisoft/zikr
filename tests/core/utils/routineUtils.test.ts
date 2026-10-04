@@ -342,7 +342,7 @@ describe('routineStreakStatus — the R3 walk over a practiced-day predicate (AC
   });
 });
 
-describe('resolveRoutinePreset — Hisn-ul-Muslim order, catalog counts (AC2.1.1/2.1.3)', () => {
+describe("resolveRoutinePreset — preset order, catalog counts (AC2.1.1/2.1.3)", () => {
   const seeded: Zikr[] = [
     // Deliberately NOT in liturgical order, names padded to prove the
     // case/whitespace-insensitive match (the seeder's own key).
@@ -351,10 +351,11 @@ describe('resolveRoutinePreset — Hisn-ul-Muslim order, catalog counts (AC2.1.1
     { id: 12, name: 'Radhitu Billahi Rabba', custom: false, createdAt: new Date(), defaultTarget: 3 },
     { id: 13, name: 'Allahumma Ajirni Minan-Nar', custom: false, createdAt: new Date(), defaultTarget: 7 },
     { id: 14, name: 'Hasbiyallahu La ilaha illa Huwa', custom: false, createdAt: new Date(), defaultTarget: 7 },
-    { id: 15, name: "Allahumma A'inni ala Dhikrika", custom: false, createdAt: new Date(), defaultTarget: 10 },
+    // defaultTarget 1 mirrors the catalog (Abu Dawud 1522 fixes no count).
+    { id: 15, name: "Allahumma A'inni ala Dhikrika", custom: false, createdAt: new Date(), defaultTarget: 1 },
   ];
 
-  it('resolves the six items in Hisn-ul-Muslim order with defaultTarget counts', () => {
+  it('resolves the six items in preset order with defaultTarget counts', () => {
     const { items, unresolved } = resolveRoutinePreset(seeded);
     expect(unresolved).toEqual([]);
     // Denormalized names are the matched rows' own names — compare
@@ -369,7 +370,7 @@ describe('resolveRoutinePreset — Hisn-ul-Muslim order, catalog counts (AC2.1.1
         "Allahumma A'inni ala Dhikrika",
       ].map(n => n.toLowerCase())
     );
-    expect(items.map(i => i.target)).toEqual([3, 3, 7, 7, 1, 10]);
+    expect(items.map(i => i.target)).toEqual([3, 3, 7, 7, 1, 1]);
     expect(items.map(i => i.zikrId)).toEqual([11, 12, 13, 14, 10, 15]);
   });
 

@@ -13,13 +13,15 @@
  * next render (OQ-3), and a quit-and-return resumes exactly there
  * (AC2.3.2 / AC1.3.3).
  *
- * The post-salah flow (R1, §4.6) attributes to the PRAYER OCCURRENCE:
- * a step's remaining count is the catalog target minus the sessions whose
- * TIMESTAMP falls inside the occurrence's 30-minute window (§2.3), so
- * ordinary earlier-today sessions can never masquerade as the set
- * (AC1.2.3). Flow visibility is ROUTE state — ambient window expiry does
- * not unmount the flow (§4.6); attribution keeps using the occurrence
- * interval.
+ * The post-salah flow (R1, §4.6) attributes to the PRAYER: every save this
+ * run makes (auto-saved rounds and the exit flush alike) carries
+ * `postSalah: <prayer>`, and a step's remaining count is the catalog target
+ * minus the sessions attributed to that prayer within its period
+ * (attributedCounts) — so ordinary all-day counting can never masquerade
+ * as the set (AC1.2.3, as revised: window-presence alone completed sets
+ * the user never ran). Flow visibility is ROUTE state — the ambient offer
+ * moving on does not unmount the flow (§4.6); attribution keeps working
+ * after the period.
  *
  * The plain and plan logic below is Counter.tsx's page logic moved
  * verbatim (§16.4) — a plain source renders today's counter bit-for-bit.
@@ -43,7 +45,7 @@ import {
 import {
   postSalahSequence,
   postSalahWindow,
-  windowCounts,
+  attributedCounts,
 } from '../../../core/utils/prayerTimes';
 import type { PrayerLocation } from '../../../core/db/types';
 import type { PrayerName } from '../../../core/utils/prayerTimes';
@@ -140,10 +142,10 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
     [routine, zikrs]
   );
 
-  // ----- Post-salah flow: DERIVED position over the occurrence (§4.6) -----
-  // The occurrence this run attributes to: the ACTIVE window when open,
+  // ----- Post-salah flow: DERIVED position over the prayer period (§4.6) -----
+  // The occurrence this run attributes to: the CURRENT period when open,
   // else the most recent occurrence of the prayer that already started —
-  // the route state outlives the card's ambient window (§4.6).
+  // the route state outlives the card's ambient offer (§4.6).
   const postSalahOccurrence = useMemo(() => {
     if (!postSalahPrayer || !prayerLocation) return null;
     const win = postSalahWindow(prayerLocation, new Date());
@@ -156,29 +158,53 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
       null
     );
     // Recomputed when the source changes; `new Date()` is the route-open
-    // "now" — flow visibility is route state, not window state (§16.4).
+    // "now" — flow visibility is route state, not period state (§16.4).
   }, [postSalahPrayer, prayerLocation]);
-  const postSalahInWindow = useMemo(
+  const postSalahAttributed = useMemo(
     () =>
       postSalahOccurrence
-        ? windowCounts(postSalahOccurrence, sessions)
+        ? attributedCounts(postSalahOccurrence, sessions)
         : new Map<number, number>(),
     [postSalahOccurrence, sessions]
   );
   const postSalahSteps = useMemo(
-    () => postSalahSequence(zikrs, postSalahInWindow),
-    [zikrs, postSalahInWindow]
+    () => postSalahSequence(zikrs, postSalahAttributed),
+    [zikrs, postSalahAttributed]
   );
 
   // ----- The derived step (both flows: first incomplete, from sessions) -----
   const derivedSteps = routineFlow ? routineSteps : postSalahSteps;
-  const derivedPositionIndex = derivedSteps.findIndex(step => step.target > 0);
-  const derivedStep = derivedPositionIndex >= 0 ? derivedSteps[derivedPositionIndex] : undefined;
+  // Remaining steps in flow order — what skip/previous navigation moves
+  // across (completed items drop out of the list, the way the derivation
+  // itself moves past them).
+  const remainingSteps = useMemo(
+    () => derivedSteps.filter(step => step.target > 0),
+    [derivedSteps]
+  );
+  // Explicit in-session navigation (the rail's ‹ ›): the overridden step's
+  // zikr id. Session-scoped by design — a fresh open always lands on the
+  // derivation's own first-incomplete item. Cleared when the source changes
+  // or the overridden step completes (it leaves remainingSteps).
+  const [navOverride, setNavOverride] = useState<number | null>(null);
+  useEffect(() => {
+    setNavOverride(null);
+  }, [routineIdParam, postSalahParam, planIdParam, zikrIdParam]);
+  const overrideIndex =
+    navOverride != null
+      ? remainingSteps.findIndex(step => step.zikr.id === navOverride)
+      : -1;
+  if (navOverride != null && overrideIndex === -1) {
+    // Render-time adjustment (the flowBoard idiom): the step the user was
+    // parked on just completed or vanished — follow the derivation again.
+    setNavOverride(null);
+  }
+  const navIndex = overrideIndex >= 0 ? overrideIndex : 0;
+  const derivedStep = remainingSteps[navIndex];
   // Done-today = every resolvable step complete AND nothing missing (a
   // missing zikr blocks completion, §5.2). The stuck case renders the calm
   // done card with the gentle missing line.
   const derivedDone =
-    derivedFlow != null && derivedSteps.length > 0 && derivedPositionIndex === -1;
+    derivedFlow != null && derivedSteps.length > 0 && remainingSteps.length === 0;
 
   // The derived flow's board snapshot re-derives with its step: the mirror
   // (unsaved round) first, then the durable checkpoint (the resume, §2.3).
@@ -344,10 +370,19 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
     // unsaved count) re-computes during render from the step change.
     setSelectedZikr(nextStep.zikr);
   };
-  // The derived flows need no handler: the position IS the derivation, so
-  // the auto-save's session write advances the flow on the next render
-  // (and an Undo steps it back the same way — OQ-3). No onContinueNext
-  // is passed.
+  // The derived flows need no advancement handler: the position IS the
+  // derivation, so the auto-save's session write advances the flow on the
+  // next render (and an Undo steps it back the same way — OQ-3). Explicit
+  // ‹ › navigation rides the navOverride above; skipping NEVER marks an
+  // item done — it only moves the board.
+  const handlePrevStep = useCallback(() => {
+    setNavOverride(remainingSteps[Math.max(0, navIndex - 1)]?.zikr.id ?? null);
+  }, [remainingSteps, navIndex]);
+  const handleNextStep = useCallback(() => {
+    setNavOverride(
+      remainingSteps[Math.min(remainingSteps.length - 1, navIndex + 1)]?.zikr.id ?? null
+    );
+  }, [remainingSteps, navIndex]);
 
   const handleCount = (count: number) => {
     if (derivedFlow) {
@@ -373,6 +408,8 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
   activeZikrRef.current = activeZikr;
   const routineIdRef = useRef(routine?.id);
   routineIdRef.current = routine?.id;
+  const postSalahRef = useRef(postSalahPrayer);
+  postSalahRef.current = postSalahPrayer;
   const unsavedRef = useRef<{ zikrId: number; zikrName: string; amount: number } | null>(null);
   const handleUnsavedChange = useCallback((unsaved: number) => {
     const zikr = activeZikrRef.current;
@@ -394,6 +431,7 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
             zikrName: pending.zikrName,
             count: pending.amount,
             routineId: routineIdRef.current,
+            postSalah: postSalahRef.current ?? undefined,
           });
         } catch (error) {
           console.error('Failed to save the unsaved count on exit:', error);
@@ -442,8 +480,13 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
       onContinueNext={derivedFlow ? undefined : nextStep ? handleContinueNext : undefined}
       resumedBase={!derivedFlow && planSeedFor(activeZikr.id) > 0}
       routineId={routine?.id}
-      onUnsavedChange={handleUnsavedChange}
+      postSalah={postSalahFlow ? postSalahPrayer : undefined}
       flowMode={derivedFlow != null}
+      stepIndex={derivedFlow ? navIndex + 1 : undefined}
+      stepCount={derivedFlow ? remainingSteps.length : undefined}
+      onPrevStep={derivedFlow ? handlePrevStep : undefined}
+      onNextStep={derivedFlow ? handleNextStep : undefined}
+      onUnsavedChange={handleUnsavedChange}
       variant="page"
       onFinish={onFinish}
     />

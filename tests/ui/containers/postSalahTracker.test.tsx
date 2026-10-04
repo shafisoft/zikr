@@ -1,7 +1,11 @@
 // PostSalahTrackerContainer render decisions (R1 day view):
-//   - enabled + location + computed windows → the five-salah tracker; the
-//     LIVE slot is a button that bubbles onStartFlow(prayer, firstZikrId)
-//   - the set completed inside the live window → that slot reads Done
+//   - enabled + location + computed periods → the five-salah tracker; the
+//     CURRENT slot is a button that bubbles onStartFlow(prayer, firstZikrId)
+//   - a PAST, not-done slot is also a button: it opens the offline mark-done
+//     ask; confirming records attributed sessions for the remaining amounts
+//     and the slot reads Done (a set the user never finished is never
+//     labeled missed — it moves on silently)
+//   - the set completed for the current prayer → that slot reads Done
 //   - feature off + set resolvable + not dismissed + not deferred → the
 //     ONE quiet opt-in offer; CTA bubbles onOpenSettings; dismiss persists
 //     the postSalahOffer KV (no nag)
@@ -14,6 +18,7 @@ import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 
 import PostSalahTrackerContainer from '../../../src/ui/containers/postSalah/PostSalahTrackerContainer';
+import ConfirmDialogHost from '../../../src/ui/components/ConfirmDialog';
 import { db } from '../../../src/core/db/db';
 import { useSessionStore } from '../../../src/core/stores/sessionStore';
 import { useZikrStore } from '../../../src/core/stores/zikrStore';
@@ -47,7 +52,11 @@ const SET_ZIKRS: Zikr[] = [
   { id: 4, name: 'La ilaha illallah', custom: false, createdAt: new Date() },
 ];
 
-function sessionsAt(entries: Array<{ zikrId: number; count: number }>, at: Date): Session[] {
+function sessionsAt(
+  entries: Array<{ zikrId: number; count: number }>,
+  at: Date,
+  postSalah?: Session['postSalah']
+): Session[] {
   const midnight = new Date(at);
   midnight.setHours(0, 0, 0, 0);
   return entries.map((e, i) => ({
@@ -60,6 +69,7 @@ function sessionsAt(entries: Array<{ zikrId: number; count: number }>, at: Date)
     editableUntil: at,
     createdAt: at,
     updatedAt: at,
+    postSalah,
   }));
 }
 
@@ -91,13 +101,19 @@ async function renderTracker(opts: {
   document.body.appendChild(container);
   root = createRoot(container);
   root.render(
-    React.createElement(PostSalahTrackerContainer, {
-      onStartFlow,
-      onOpenSettings: () => {
-        settingsOpened = true;
-      },
-      deferOffer: opts.deferOffer,
-    })
+    React.createElement(
+      React.Fragment,
+      null,
+      React.createElement(PostSalahTrackerContainer, {
+        onStartFlow,
+        onOpenSettings: () => {
+          settingsOpened = true;
+        },
+        deferOffer: opts.deferOffer,
+      }),
+      // The app-wide dialog host — the offline mark-done ask renders here.
+      React.createElement(ConfirmDialogHost)
+    )
   );
   await sleep(50);
   return { mockedNow };
@@ -147,7 +163,7 @@ afterEach(async () => {
 describe('PostSalahTrackerContainer — the enabled tracker', () => {
   it('renders the five salah chips and the live slot starts the flow', async () => {
     await renderTracker({ settings: { postSalahEnabled: true, prayerLocation: DHAKA } });
-    await waitForDom(() => container!.textContent!.includes('After salah today'));
+    await waitForDom(() => container!.textContent!.includes('After salah azkars'));
 
     for (const prayer of ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha']) {
       expect(container!.textContent).toContain(prayer);
@@ -170,7 +186,8 @@ describe('PostSalahTrackerContainer — the enabled tracker', () => {
         { zikrId: 3, count: 34 },
         { zikrId: 4, count: 100 },
       ],
-      new Date(times.maghrib.getTime() + 60_000)
+      new Date(times.maghrib.getTime() + 60_000),
+      'maghrib'
     );
     await renderTracker({
       settings: { postSalahEnabled: true, prayerLocation: DHAKA },
@@ -180,6 +197,52 @@ describe('PostSalahTrackerContainer — the enabled tracker', () => {
 
     expect(elementByAria('Maghrib — Done')).not.toBeNull();
     expect(buttonByAria('Start the after-salah set for Maghrib')).toBeNull();
+  });
+
+  it('a past prayer’s chip asks, then marks the offline completion', async () => {
+    // Date is mocked at maghrib+1min: Fajr/Dhuhr/Asr moved on undone —
+    // they are tappable with the offline ask, never labeled "missed".
+    await renderTracker({ settings: { postSalahEnabled: true, prayerLocation: DHAKA } });
+    await waitForDom(() => container!.textContent!.includes('0 of 5 complete'));
+
+    const fajrChip = buttonByAria('Mark the after-Fajr set as done');
+    expect(fajrChip).not.toBeNull();
+    fajrChip!.click();
+    await waitForDom(() =>
+      container!.textContent!.includes('Did you already offer the after-Fajr set?')
+    );
+
+    buttonByText('Yes, mark done')!.click();
+    // The store mirrors db writes through its liveQuery subscription in the
+    // app; the test emulates that push once the rows land.
+    await waitForDom(async () => {
+      const all = await db.sessions.toArray();
+      useSessionStore.setState({ sessions: all });
+      return all.filter(s => s.postSalah === 'fajr').length === 4;
+    });
+    await waitForDom(() => container!.textContent!.includes('1 of 5 complete'));
+
+    // The mark recorded the set's remaining amounts, attributed to Fajr.
+    const sessions = await db.sessions.toArray();
+    const fajrSets = sessions.filter(s => s.postSalah === 'fajr');
+    expect(fajrSets.map(s => s.count).sort((a, b) => a - b)).toEqual([33, 33, 34, 100]);
+    expect(elementByAria('Fajr — Done')).not.toBeNull();
+    // The other moved-on prayers stay pending (tappable asks).
+    expect(buttonByAria('Mark the after-Dhuhr set as done')).not.toBeNull();
+  });
+
+  it('cancelling the offline ask records nothing', async () => {
+    await renderTracker({ settings: { postSalahEnabled: true, prayerLocation: DHAKA } });
+    await waitForDom(() => container!.textContent!.includes('0 of 5 complete'));
+
+    buttonByAria('Mark the after-Fajr set as done')!.click();
+    await waitForDom(() =>
+      container!.textContent!.includes('Did you already offer the after-Fajr set?')
+    );
+    buttonByText('Cancel')!.click();
+    await sleep(60);
+    expect((await db.sessions.toArray()).filter(s => s.postSalah === 'fajr')).toHaveLength(0);
+    expect(container!.textContent).toContain('0 of 5 complete');
   });
 });
 

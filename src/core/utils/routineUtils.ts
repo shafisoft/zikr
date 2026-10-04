@@ -65,9 +65,16 @@ export function newRoutineId(): string {
 // ---------- Preset (Hisn-ul-Muslim order — engineer review binding) ----------
 
 /**
- * The six-item morning/evening cluster in HISN-UL-MUSLIM liturgical order
- * (AC2.1.1 — NOT the catalog object's own order). Per-item counts resolve
- * from the catalog `defaultTarget` at creation time; this list is the ORDER.
+ * The six-item morning/evening cluster (AC2.1.1 — NOT the catalog object's
+ * own order). Provenance (verified against the book —
+ * docs/reference/hisnul-muslim/): bismillahilladhi + radhitu are ADJACENT
+ * in Hisn-ul-Muslim's morning/evening chapter (#13/#14); hasbiyallah (#10)
+ * and sayyidul istighfar (#6) are from the same chapter but earlier in the
+ * book's sequence; ajirni minan-nar (Abu Dawud 5081) and a'inni ala
+ * dhikrika (Abu Dawud 1522) are authentic adhkar the book does NOT list.
+ * So the flow order is the app's curation, not the book's sequence.
+ * Per-item counts resolve from the catalog `defaultTarget` at creation
+ * time; this list is the ORDER.
  */
 export const ROUTINE_PRESET_ORDER: ReadonlyArray<string> = [
   'Bismillahilladhi la Yadurru',                    // ×3
@@ -75,14 +82,16 @@ export const ROUTINE_PRESET_ORDER: ReadonlyArray<string> = [
   'Allahumma Ajirni Minan-Nar',                     // ×7
   'Hasbiyallahu La ilaha illa Huwa',                // ×7
   'Sayyidul Istighfar',                             // ×1
-  "Allahumma A'inni ala Dhikrika",                  // ×10
+  "Allahumma A'inni ala Dhikrika",                  // ×1
 ];
 
 /**
- * The BEFORE-SLEEP preset in the Hisn-ul-Muslim "أذكار النوم" order: the
- * three surahs pulled together (pooled into one chest, Bukhari), Tasbih
- * Fatimah, and the two bedtime duas — Quranic items reference the complete
- * catalog entries; SubhanAllah/Alhamdulillah/Allahu Akbar REUSE the
+ * The BEFORE-SLEEP preset from the Hisn-ul-Muslim "أذكار النوم" chapter:
+ * the three surahs pulled together (pooled into one chest, Bukhari), Tasbih
+ * Fatimah, and the two bedtime duas. Every item exists in the chapter with
+ * these counts; the one deviation from the book's sequence is Kursi first
+ * (the book opens surahs #1, then Kursi #2). Quranic items reference the
+ * complete catalog entries; SubhanAllah/Alhamdulillah/Allahu Akbar REUSE the
  * existing seeded rows (never duplicated).
  */
 export const ROUTINE_PRESET_ORDER_NIGHT: ReadonlyArray<string> = [
@@ -144,7 +153,8 @@ const PRESET_FALLBACK_TARGETS: Readonly<Record<string, number>> = {
   'Allahumma Ajirni Minan-Nar': 7,
   'Hasbiyallahu La ilaha illa Huwa': 7,
   'Sayyidul Istighfar': 1,
-  "Allahumma A'inni ala Dhikrika": 10,
+  // Abu Dawud 1522 fixes no count — 1× (contentIntegrity pins this: never 10×).
+  "Allahumma A'inni ala Dhikrika": 1,
   'Ayat al-Kursi': 1,
   'Surah Al-Ikhlas': 3,
   'Surah Al-Falaq': 3,

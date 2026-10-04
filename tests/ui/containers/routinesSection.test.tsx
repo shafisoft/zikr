@@ -45,7 +45,8 @@ const CLUSTER = [
   ['Allahumma Ajirni Minan-Nar', 7],
   ['Hasbiyallahu La ilaha illa Huwa', 7],
   ['Sayyidul Istighfar', 1],
-  ["Allahumma A'inni ala Dhikrika", 10],
+  // Catalog defaultTarget is 1 (Abu Dawud 1522 fixes no count — never 10×).
+  ["Allahumma A'inni ala Dhikrika", 1],
 ] as const;
 
 function todaySessions(entries: Array<{ zikrId: number; count: number }>): Session[] {

@@ -37,7 +37,12 @@ function zikr(id: number, name: string): Zikr {
   return { id, name, custom: false, createdAt: new Date() };
 }
 
-function session(zikrId: number, count: number, timestamp: Date): Session {
+function session(
+  zikrId: number,
+  count: number,
+  timestamp: Date,
+  postSalah?: Session['postSalah']
+): Session {
   const midnight = new Date(timestamp);
   midnight.setHours(0, 0, 0, 0);
   return {
@@ -50,6 +55,7 @@ function session(zikrId: number, count: number, timestamp: Date): Session {
     editableUntil: timestamp,
     createdAt: timestamp,
     updatedAt: timestamp,
+    postSalah,
   };
 }
 
@@ -122,16 +128,16 @@ afterEach(async () => {
 });
 
 describe('CounterFlowContainer — post-salah source (§16.4)', () => {
-  it('opens on SubhanAllah and advances by in-window derivation (AC1.3.1/AC1.3.3)', async () => {
+  it('opens on SubhanAllah and advances by attributed derivation (AC1.3.1/AC1.3.3)', async () => {
     await renderFlow();
     await waitForDom(() => activeStep === 'SubhanAllah');
     expect(activeStep).toBe('SubhanAllah');
 
-    // A partial in-window set: items 1–2 complete → position jumps to item 3.
+    // A partial attributed set: items 1–2 complete → position jumps to item 3.
     useSessionStore.setState({
       sessions: [
-        session(1, 33, new Date('2026-03-20T12:10:00.000Z')),
-        session(2, 33, new Date('2026-03-20T12:12:00.000Z')),
+        session(1, 33, new Date('2026-03-20T12:10:00.000Z'), 'maghrib'),
+        session(2, 33, new Date('2026-03-20T12:12:00.000Z'), 'maghrib'),
       ],
       loading: false,
     });
@@ -140,10 +146,10 @@ describe('CounterFlowContainer — post-salah source (§16.4)', () => {
     // Completing everything lands on the calm done card (AC1.3.6).
     useSessionStore.setState({
       sessions: [
-        session(1, 33, new Date('2026-03-20T12:10:00.000Z')),
-        session(2, 33, new Date('2026-03-20T12:12:00.000Z')),
-        session(3, 34, new Date('2026-03-20T12:20:00.000Z')),
-        session(4, 100, new Date('2026-03-20T12:30:00.000Z')),
+        session(1, 33, new Date('2026-03-20T12:10:00.000Z'), 'maghrib'),
+        session(2, 33, new Date('2026-03-20T12:12:00.000Z'), 'maghrib'),
+        session(3, 34, new Date('2026-03-20T12:20:00.000Z'), 'maghrib'),
+        session(4, 100, new Date('2026-03-20T12:30:00.000Z'), 'maghrib'),
       ],
       loading: false,
     });
@@ -151,9 +157,9 @@ describe('CounterFlowContainer — post-salah source (§16.4)', () => {
     expect(activeStep).toBe('After-salah set');
   });
 
-  it('does NOT credit sessions from outside the window (AC1.2.3)', async () => {
-    // Plenty of set zikr earlier today — before the 12:09Z window — and
-    // Isha-window sessions from "yesterday evening": none of it counts.
+  it('does NOT credit free (unattributed) counting (AC1.2.3, revised)', async () => {
+    // Plenty of set zikr earlier today and none of it went through the
+    // guided flow — unattributed sessions never complete a set.
     useSessionStore.setState({
       sessions: [
         session(1, 500, new Date('2026-03-20T09:00:00.000Z')),

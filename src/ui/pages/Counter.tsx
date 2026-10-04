@@ -102,6 +102,10 @@ const Counter: React.FC = () => {
     );
   }
 
+  // Viewport-locked counting screen: a definite height (viewport minus the
+  // top-bar clearance) makes every flex-1 below bounded, so the reference
+  // region scrolls instead of the page growing into a scrollable void
+  // under the circle.
   return (
     <AppLayout
       topBar={{
@@ -118,15 +122,22 @@ const Counter: React.FC = () => {
       }}
       contentClassName="px-container-padding-mobile"
     >
-      <CounterFlowContainer
-        zikrIdParam={zikrIdParam}
-        targetParam={targetParam}
-        planIdParam={planIdParam}
-        routineIdParam={routineIdParam}
-        postSalahParam={postSalahParam}
-        onFinish={leaveCounter}
-        onActiveStep={setActiveStepName}
-      />
+      {/* Viewport-locked counting screen: a definite height (viewport minus
+          the top-bar clearance) bounds every flex-1 below, so the reference
+          region scrolls instead of the page growing into a scrollable void
+          under the circle. (main's own flex-1 defeats a height class — the
+          definite box has to be this child.) */}
+      <div className="h-[calc(100dvh-4rem)] flex flex-col overflow-hidden">
+        <CounterFlowContainer
+          zikrIdParam={zikrIdParam}
+          targetParam={targetParam}
+          planIdParam={planIdParam}
+          routineIdParam={routineIdParam}
+          postSalahParam={postSalahParam}
+          onFinish={leaveCounter}
+          onActiveStep={setActiveStepName}
+        />
+      </div>
     </AppLayout>
   );
 };

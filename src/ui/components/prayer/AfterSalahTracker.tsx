@@ -1,9 +1,11 @@
 /**
  * AfterSalahTracker — the day view of the after-salah practice (R1):
- * five salah chips showing which prayers' sets are done, which window is
- * live, and which passed. Presentational only — labels and states arrive
- * via props; the live chip's tap bubbles up as onStart (the leading
- * PostSalahCard remains the moment's primary surface).
+ * five salah chips showing which prayers' sets are done, which prayer is
+ * current, and which passed. Presentational only — labels and states
+ * arrive via props; taps bubble up as onPress (the current prayer's chip
+ * starts the set; a past prayer's chip asks to mark an offline
+ * completion). A past, not-done prayer is never labeled "missed" — the
+ * offer moved on silently.
  */
 
 import React from 'react';
@@ -12,14 +14,17 @@ import PatternBackdrop from '../decor/PatternBackdrop';
 import { useI18n } from '../../../core/i18n';
 import type { PrayerName } from '../../../core/utils/prayerTimes';
 
-export type AfterSalahSlotState = 'done' | 'active' | 'missed' | 'upcoming';
+export type AfterSalahSlotState = 'done' | 'active' | 'past' | 'upcoming';
 
 export interface AfterSalahSlotView {
   prayer: PrayerName;
   /** Localized prayer name. */
   label: string;
   state: AfterSalahSlotState;
-  /** Only the live slot is tappable (start that prayer's set). */
+  /**
+   * Tap action: the CURRENT prayer starts its set; a PAST prayer opens
+   * the offline mark-done ask. Done and upcoming chips are not tappable.
+   */
   onPress?: () => void;
 }
 
@@ -32,7 +37,7 @@ interface AfterSalahTrackerProps {
 const SLOT_ICON: Record<AfterSalahSlotState, { icon: string; filled: boolean }> = {
   done: { icon: 'check_circle', filled: true },
   active: { icon: 'radio_button_checked', filled: true },
-  missed: { icon: 'radio_button_unchecked', filled: false },
+  past: { icon: 'radio_button_unchecked', filled: false },
   upcoming: { icon: 'radio_button_unchecked', filled: false },
 };
 
@@ -59,40 +64,53 @@ const AfterSalahTracker: React.FC<AfterSalahTrackerProps> = ({ slots, progressLi
           {slots.map(slot => {
             const stateLabel = t(`postSalah.tracker.state.${slot.state}`);
             const { icon, filled } = SLOT_ICON[slot.state];
-            const live = slot.state === 'active' && slot.onPress != null;
+            const tappable = slot.onPress != null && (slot.state === 'active' || slot.state === 'past');
             const chip = (
               <>
                 <MaterialIcon
                   icon={icon}
                   filled={filled}
                   className={`text-[18px] ${
-                    slot.state === 'done'
+                    slot.state === 'done' || slot.state === 'active'
                       ? 'text-tertiary'
-                      : slot.state === 'active'
-                        ? 'text-tertiary'
+                      : slot.state === 'past'
+                        ? 'text-on-surface-variant'
                         : 'text-on-surface-variant/50'
                   }`}
                 />
                 <span
                   className={`font-caption text-caption ${
-                    slot.state === 'active' ? 'text-primary font-medium' : 'text-on-surface-variant/80'
+                    slot.state === 'active'
+                      ? 'text-primary font-medium'
+                      : slot.state === 'past'
+                        ? 'text-on-surface'
+                        : 'text-on-surface-variant/80'
                   }`}
                 >
                   {slot.label}
                 </span>
               </>
             );
+            // Upcoming stays visually inert (solid hairline, dimmed). A PAST
+            // prayer reads as "action available" — undimmed content on a
+            // dashed border — so the offline mark-done tap is discoverable.
             const tone =
               slot.state === 'active'
                 ? 'bg-tertiary-container/25 border-tertiary-container/60'
-                : 'border-outline-variant/20';
-            return live ? (
+                : slot.state === 'past'
+                  ? 'border-dashed border-on-surface-variant/40'
+                  : 'border-outline-variant/20';
+            return tappable ? (
               <button
                 key={slot.prayer}
                 type="button"
                 onClick={slot.onPress}
                 className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 rounded-xl border px-1 py-2 active:scale-[0.97] transition-all ${tone}`}
-                aria-label={t('postSalah.tracker.startAria', { prayer: slot.label })}
+                aria-label={
+                  slot.state === 'active'
+                    ? t('postSalah.tracker.startAria', { prayer: slot.label })
+                    : t('postSalah.tracker.markAria', { prayer: slot.label })
+                }
               >
                 {chip}
               </button>

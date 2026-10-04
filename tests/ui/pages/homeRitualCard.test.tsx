@@ -4,8 +4,9 @@
 //     the (mocked) current time, with its Now chip and today progress;
 //   - Start navigates to the routine's counter flow deep link;
 //   - upcoming ordering at the midday gap, and the R1 hand-off: while the
-//     post-salah card is active the card shows the NEXT routine instead
-//     (container-level — no two cards claiming the same moment).
+//     post-salah card is active the card yields to the NEXT routine —
+//     unless a fading time-bound routine is still undone (the morning set
+//     late in its window), which leads even then (container-level).
 // Home runs against the real page in MemoryRouter with ONLY Date faked
 // (timers stay real so the DOM waits behave; waits use performance.now,
 // which the Date fake does not touch). The container tests pass the
@@ -161,7 +162,7 @@ describe('Home — the current ritual card (Feature C)', () => {
   });
 });
 
-describe('RitualNowContainer — the R1 hand-off (no duplicate "moment" cards)', () => {
+describe('RitualNowContainer — the R1 hand-off (fading window outranks the demotion)', () => {
   async function renderRitual(props: { postSalahActive?: boolean; now: Date }) {
     let started: { routineId: string; zikrId: number | null } | null = null;
     container = document.createElement('div');
@@ -180,13 +181,60 @@ describe('RitualNowContainer — the R1 hand-off (no duplicate "moment" cards)',
     return () => started as { routineId: string; zikrId: number | null } | null;
   }
 
-  it('while the post-salah card is active, shows the NEXT routine instead of the current one', async () => {
+  it('R1 active + a fading undone window routine → it still shows as Now', async () => {
+    // The morning set at 07:00 must not be buried under "this evening" just
+    // because the after-salah card (a different practice) is leading.
+    useRoutineStore.setState({ routines: [MORNING_ROUTINE, EVENING_ROUTINE] });
+    const getStarted = await renderRitual({ now: SUNDAY_0700, postSalahActive: true });
+    await waitForDom(() => container!.textContent!.includes('Morning adhkar'));
+
+    expect(container!.textContent).toContain('Now');
+    expect(container!.textContent).not.toContain('This evening');
+
+    buttonByText('Start')!.click();
+    expect(getStarted()).toEqual({ routineId: 'r1', zikrId: 1 });
+  });
+
+  it('R1 active + the fading routine already done → the NEXT routine fills the card', async () => {
+    const midnight = new Date(SUNDAY_0700);
+    midnight.setHours(0, 0, 0, 0);
+    const done: Session[] = [1, 2].map(i => ({
+      id: i,
+      zikrId: i,
+      count: 3,
+      source: 'app' as const,
+      timestamp: SUNDAY_0700,
+      date: midnight,
+      editableUntil: SUNDAY_0700,
+      createdAt: SUNDAY_0700,
+      updatedAt: SUNDAY_0700,
+      routineId: 'r1',
+    }));
+    useSessionStore.setState({ sessions: done, loading: false });
     useRoutineStore.setState({ routines: [MORNING_ROUTINE, EVENING_ROUTINE] });
     const getStarted = await renderRitual({ now: SUNDAY_0700, postSalahActive: true });
     await waitForDom(() => container!.textContent!.includes('Evening adhkar'));
 
-    expect(container!.textContent).not.toContain('Morning adhkar');
     expect(container!.textContent).toContain('This evening'); // upcoming label, not "Now"
+
+    buttonByText('Start')!.click();
+    expect(getStarted()).toEqual({ routineId: 'r2', zikrId: 2 });
+  });
+
+  it('R1 active + only an all-day routine current → yields to the next routine', async () => {
+    const fridayAnyDay: Routine = {
+      id: 'r3',
+      source: 'preset',
+      presetKey: 'friday',
+      schedule: { part: 'any', weekday: 0 }, // Sunday, all day — not fading
+      items: [{ zikrId: 1, name: 'Zikr One', target: 100 }],
+      createdAt: new Date(2026, 8, 19),
+    };
+    useRoutineStore.setState({ routines: [fridayAnyDay, EVENING_ROUTINE] });
+    const getStarted = await renderRitual({ now: SUNDAY_0700, postSalahActive: true });
+    await waitForDom(() => container!.textContent!.includes('Evening adhkar'));
+
+    expect(container!.textContent).toContain('This evening');
 
     buttonByText('Start')!.click();
     expect(getStarted()).toEqual({ routineId: 'r2', zikrId: 2 });

@@ -15,6 +15,8 @@ interface PostSalahCardProps {
   prayerLabel: string;
   /** The full situational title line, composed by the container. */
   titleLine: string;
+  /** The body line (fresh offer copy or the mid-period ask). */
+  bodyLine: string;
   /** Set already complete for this occurrence → the quiet state (AC1.2.3). */
   done: boolean;
   onStart: () => void;
@@ -23,6 +25,7 @@ interface PostSalahCardProps {
 const PostSalahCard: React.FC<PostSalahCardProps> = ({
   prayerLabel,
   titleLine,
+  bodyLine,
   done,
   onStart,
 }) => {
@@ -51,7 +54,7 @@ const PostSalahCard: React.FC<PostSalahCardProps> = ({
         ) : (
           <>
             <p className="font-body-md text-body-md text-on-surface-variant">
-              {t('postSalah.card.body')}
+              {bodyLine}
             </p>
             <button
               type="button"

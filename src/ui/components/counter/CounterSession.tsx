@@ -57,7 +57,7 @@ import { useI18n } from '../../../core/i18n';
 import { useSessionStore } from '../../../core/stores/sessionStore';
 import { useSettingsStore } from '../../../core/stores/settingsStore';
 import { getZikrDisplayInfoFromZikr } from '../../utils/zikrMapping';
-import { Zikr } from '../../../core/db/types';
+import { PostSalahPrayer, Zikr } from '../../../core/db/types';
 
 /** The gated "Round saved — Undo" toast stays up for about this long. */
 const UNDO_TOAST_MS = 6000;
@@ -106,6 +106,13 @@ interface CounterSessionProps {
    */
   routineId?: string;
   /**
+   * Guided post-salah-flow attribution: the prayer whose set this run is.
+   * After-salah completion derives ONLY from these attributed sessions
+   * (attributedCounts, prayerTimes.ts) — free counting never completes
+   * sets the user never ran.
+   */
+  postSalah?: PostSalahPrayer;
+  /**
    * Reports the board's live unsaved remainder (saveAmount) on every
    * change. The wrapping container saves it on flow exit; the room modal
    * leaves it undefined (Finish & Save owns that path).
@@ -127,6 +134,15 @@ interface CounterSessionProps {
    * source leaves this undefined and renders exactly as before.
    */
   flowMode?: boolean;
+  /**
+   * Guided-flow step rail (1-based index over the REMAINING items). When
+   * present the rail renders above the zikr block and its ‹ › bubble up —
+   * skipping moves the board, it never marks an item done.
+   */
+  stepIndex?: number;
+  stepCount?: number;
+  onPrevStep?: () => void;
+  onNextStep?: () => void;
 }
 
 const CounterSession: React.FC<CounterSessionProps> = ({
@@ -139,10 +155,15 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   onContinueNext,
   resumedBase = false,
   routineId,
+  postSalah,
   onUnsavedChange,
   variant = 'page',
   escapeResets = true,
   flowMode = false,
+  stepIndex,
+  stepCount,
+  onPrevStep,
+  onNextStep,
 }) => {
   const { lang, t } = useI18n();
   const clearCurrentSession = useSessionStore(state => state.clearCurrentSession);
@@ -169,10 +190,35 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   } | null>(null);
   // The one-time "Hold to take one back" hint (1.2a).
   const [holdHintVisible, setHoldHintVisible] = useState(false);
+  // The reference region's scroll affordance: a bottom fade appears only
+  // while its content actually overflows, so a long verse reads as
+  // "scrolls for the rest" instead of silently cut off. (The measure
+  // effect lives below, once the zikr content is in scope.)
+  const regionRef = useRef<HTMLDivElement>(null);
+  const [regionOverflows, setRegionOverflows] = useState(false);
+  const measureRegion = React.useCallback(() => {
+    const el = regionRef.current;
+    setRegionOverflows(el != null && el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+  }, []);
   // Counter-simplification: the meaning line is reference material, not
   // counting material — hidden behind a toggle so the screen stays a
   // counter. Default hidden every session.
   const [showTranslation, setShowTranslation] = useState(false);
+  const translationRef = useRef<HTMLParagraphElement>(null);
+  // Opening scrolls the meaning into view (it mounts below the fold of the
+  // reference region — without this it reads as clipped mid-sentence);
+  // closing returns to the verse.
+  const toggleTranslation = () => {
+    if (showTranslation) {
+      setShowTranslation(false);
+      regionRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      setShowTranslation(true);
+      requestAnimationFrame(() => {
+        translationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  };
 
   // Haptics come straight from settings so a toggle anywhere applies live.
   const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
@@ -190,13 +236,21 @@ const CounterSession: React.FC<CounterSessionProps> = ({
 
   const zikrDisplayInfo = getZikrDisplayInfoFromZikr(zikr, lang);
   // Long content (Ayat al-Kursi ≈ 570 chars, the long duas) cannot render at
-  // the 48px display size inside this overflow-hidden screen — it would clip
-  // mid-verse and push the count circle off-screen. Scale by length; the
-  // medium/long tiers scroll inside a bounded block so the circle always
-  // stays on screen.
+  // the 48px display size — scale by length so the lines stay readable. The
+  // reference region around the circle scrolls as ONE block, so a long text
+  // never clips mid-verse and never pushes the circle off-screen.
   const arabicLength = zikrDisplayInfo.arabicText?.length ?? 0;
   const arabicTone: 'short' | 'medium' | 'long' =
     arabicLength <= 90 ? 'short' : arabicLength <= 220 ? 'medium' : 'long';
+
+  // Re-measure the scroll fade whenever the content (or its visibility)
+  // changes — including the first paint, so a mounting long verse gets its
+  // affordance immediately.
+  useEffect(() => {
+    measureRegion();
+    window.addEventListener('resize', measureRegion);
+    return () => window.removeEventListener('resize', measureRegion);
+  }, [measureRegion, zikrDisplayInfo.arabicText, showTranslation]);
   const isRoomContinuation = progressMode === 'room';
   // The portion of the board that was already persisted before this
   // session opened: nothing for a personal round, the room's total for a
@@ -278,6 +332,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
       zikrName: zikr.name,
       count: countToSave,
       routineId,
+      postSalah,
     });
 
   // Post-save bookkeeping for a personal round: the durable checkpoint is
@@ -425,47 +480,77 @@ const CounterSession: React.FC<CounterSessionProps> = ({
         />
       )}
 
-      {/* Zikr Info — the Arabic block scales with content length; long texts
-          scroll within a bounded region so the count circle stays on screen
-          (this container is overflow-hidden — see arabicTone above). */}
-      <div className={`text-center z-10 flex flex-col gap-3 ${arabicTone === 'short' ? 'mb-12' : 'mb-6'} max-w-full`}>
-        {zikrDisplayInfo.arabicText && (
-          <h1
-            className={`font-display-arabic text-primary mx-auto w-full ${
-              arabicTone === 'short'
-                ? 'text-display-arabic'
-                : arabicTone === 'medium'
-                  ? 'text-3xl leading-[1.9] max-h-[30vh] overflow-y-auto px-2'
-                  : 'text-2xl leading-[1.9] max-h-[32vh] overflow-y-auto px-2'
-            }`}
-            lang="ar"
-            dir="rtl"
+      {/* Zikr reference — ONE flexible region: the step rail, the Arabic,
+          the ornament and the translation share whatever space the count
+          circle leaves, and the REGION scrolls when content is long — no
+          fixed vh caps inside an overflow-hidden screen, so long texts
+          never clip mid-verse and the circle always stays on screen.
+          (Modal keeps the compact capped h1: its panel scrolls as a whole.) */}
+      <div className="relative z-10 flex flex-col items-center gap-2 w-full flex-1 min-h-0 pt-2">
+        {stepIndex != null && stepCount != null && stepCount > 1 && (
+          <StepRail
+            index={stepIndex}
+            count={stepCount}
+            onPrev={onPrevStep}
+            onNext={onNextStep}
+          />
+        )}
+        <div className="relative w-full flex-1 min-h-0 flex">
+          <div
+            ref={regionRef}
+            onScroll={measureRegion}
+            className="w-full flex-1 min-h-0 overflow-y-auto flex px-2"
           >
-            {zikrDisplayInfo.arabicText}
-          </h1>
-        )}
-        <OrnamentDivider className="w-44 mx-auto" />
-        {zikrDisplayInfo.translation && (
-          <>
-            {showTranslation && (
-              <p className="font-body-lg text-body-lg text-on-surface-variant max-w-full px-2">
-                {zikrDisplayInfo.translation}
-              </p>
-            )}
-            <button
-              onClick={() => setShowTranslation(open => !open)}
-              aria-expanded={showTranslation}
-              className="mx-auto flex items-center gap-1.5 px-3 py-1 rounded-full text-on-surface-variant/70 hover:bg-surface-variant/50 active:scale-95 transition-colors z-10"
-            >
-              <MaterialIcon icon="translate" className="text-[16px]" />
-              <span className="font-caption text-caption">{t('counter.translation')}</span>
-              <MaterialIcon
-                icon={showTranslation ? 'expand_less' : 'expand_more'}
-                className="text-[16px]"
-              />
-            </button>
-          </>
-        )}
+            <div className="m-auto flex flex-col items-center gap-3 text-center max-w-full py-2">
+              {zikrDisplayInfo.arabicText && (
+                <h1
+                  className={`font-display-arabic text-primary mx-auto w-full ${
+                    arabicTone === 'short'
+                      ? 'text-display-arabic'
+                      : arabicTone === 'medium'
+                        ? 'text-3xl leading-[1.9]'
+                        : 'text-2xl leading-[1.9]'
+                  } ${variant === 'modal' && arabicTone !== 'short' ? 'max-h-[30vh] overflow-y-auto' : ''}`}
+                  lang="ar"
+                  dir="rtl"
+                >
+                  {zikrDisplayInfo.arabicText}
+                </h1>
+              )}
+              <OrnamentDivider className="w-44 shrink-0" />
+              {zikrDisplayInfo.translation && (
+                <>
+                  {showTranslation && (
+                    <p
+                      ref={translationRef}
+                      className="font-body-lg text-body-lg text-on-surface-variant max-w-full"
+                    >
+                      {zikrDisplayInfo.translation}
+                    </p>
+                  )}
+                  <button
+                    onClick={toggleTranslation}
+                    aria-expanded={showTranslation}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full text-on-surface-variant/70 hover:bg-surface-variant/50 active:scale-95 transition-colors"
+                  >
+                    <MaterialIcon icon="translate" className="text-[16px]" />
+                    <span className="font-caption text-caption">{t('counter.translation')}</span>
+                    <MaterialIcon
+                      icon={showTranslation ? 'expand_less' : 'expand_more'}
+                      className="text-[16px]"
+                    />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          {regionOverflows && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-surface via-surface/80 to-transparent"
+            />
+          )}
+        </div>
       </div>
 
       {/* Counter Circle — onDecrement arms the gated hold-to-take-back */}
@@ -475,6 +560,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
         onIncrement={handleIncrement}
         onDecrement={canDecrement ? handleDecrement : undefined}
         hapticsEnabled={hapticsEnabled}
+        className="shrink-0"
       />
 
       {/* One-time hold hint (1.2a, gated) */}
@@ -554,6 +640,47 @@ const CounterSession: React.FC<CounterSessionProps> = ({
           />
         </div>
       )}
+    </div>
+  );
+};
+
+/** Guided-flow step rail: ‹ position/total › — skip around the remaining
+ *  items freely; moving never marks an item done (only counting does). */
+const StepRail: React.FC<{
+  index: number;
+  count: number;
+  onPrev?: () => void;
+  onNext?: () => void;
+}> = ({ index, count, onPrev, onNext }) => {
+  const { t } = useI18n();
+  const chevronClass =
+    'w-9 h-9 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-variant/50 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none';
+  return (
+    <div className="flex items-center gap-1 shrink-0" role="navigation" aria-label={t('counter.stepNav')}>
+      <button
+        type="button"
+        onClick={onPrev}
+        disabled={index <= 1 || !onPrev}
+        aria-label={t('counter.prevItem')}
+        className={chevronClass}
+      >
+        <MaterialIcon icon="chevron_right" className="text-[22px] rotate-180" />
+      </button>
+      <span
+        className="font-label-md text-label-md text-on-surface-variant tabular-nums min-w-[4rem] text-center"
+        aria-live="polite"
+      >
+        {t('counter.stepOf', { index, total: count })}
+      </span>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={index >= count || !onNext}
+        aria-label={t('counter.nextItem')}
+        className={chevronClass}
+      >
+        <MaterialIcon icon="chevron_right" className="text-[22px]" />
+      </button>
     </div>
   );
 };

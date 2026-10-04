@@ -13,7 +13,7 @@
  * or the app is killed. A round that actually saves clears its checkpoint.
  */
 
-import { DayPart, Session } from '../db/types';
+import { DayPart, PostSalahPrayer, Session } from '../db/types';
 import { db } from '../db/db';
 import { add as addSession } from './sessionService';
 import { sharedRoomService } from './sharedRoom';
@@ -48,6 +48,12 @@ export async function recordCount(input: {
    * matching scheduled routines (sessionCountsTowardRoutine).
    */
   dayPart?: DayPart;
+  /**
+   * Guided post-salah-flow attribution (the prayer whose set this run is).
+   * After-salah completion counts ONLY these attributed sessions — see
+   * attributedCounts in prayerTimes.ts.
+   */
+  postSalah?: PostSalahPrayer;
   /** Resolves the countsToGoalsAndGroups setting (default true). */
   countsToGoalsResolver?: () => boolean | undefined;
 }): Promise<RecordCountResult> {
@@ -66,6 +72,7 @@ export async function recordCount(input: {
     countsToGoals,
     routineId: input.routineId,
     dayPart: input.dayPart ?? dayPartOfTime(now),
+    postSalah: input.postSalah,
   };
   const id = await addSession(session);
   const saved = { ...session, id } as Session;

@@ -7,7 +7,47 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
-_(nothing yet)_
+### Changed
+- **The after-salah card now speaks in two voices.** While the prayer's own
+  time is still valid (Fajr until sunrise; the others until the next
+  prayer) it says "It's Fajr — your after-salah set". Later in the period
+  it softens into a gentle nudge: "Did you complete your after-Fajr
+  azkars? If not, you can still do it now." Same offer, honest phrasing.
+- **The after-salah offer now follows the whole prayer period.** From each
+  prayer until the next (the after-Isha set stays offered overnight, until
+  Fajr), Home shows that prayer's set until you complete it — then the
+  quiet completed state until the next prayer takes over. A set you never
+  finished moves on silently: no "missed" label anywhere, and its chip in
+  the day tracker stays tappable — tap it and Zikr asks whether you
+  already offered it offline, then records it as complete.
+- **The counter screen now fits its content.** The Arabic text, ornament
+  and translation share one flexible, scrollable region instead of fixed
+  size caps — long texts (Ayat al-Kursi, the long duas) scroll instead of
+  clipping mid-verse, the count circle always stays on screen, and the
+  dead margins around short content are gone.
+- **Translations are complete, not gists.** The meanings of the longer
+  adhkar (Sayyidul Istighfar, Hasbiyallah, Bismillahilladhi la Yadurru,
+  Radhitu Billahi Rabba, Allahumma Aslamtu Nafsi Ilayk, La ilaha illallahu
+  wahdahu la sharika lah) now carry the full transmitted translation in
+  English and Bangla instead of an abbreviated gist.
+
+### Added
+- **Skip and step through a routine.** Guided flows (routines and the
+  after-salah set) now show a step rail — "2 of 6" with previous/next —
+  so you can move to any remaining zikr without counting it to its target
+  first. Skipping never marks an item done; only counting does.
+
+### Fixed
+- **The current-ritual card no longer buries the morning set.** While the
+  after-salah card is up (now for the whole prayer period), a fading
+  time-bound routine that is still undone — the morning set late in its
+  window — leads the card as "Now" instead of being pushed aside for
+  "this evening". All-day and custom routines still yield.
+- **The after-salah tracker no longer marks prayers done by themselves.**
+  Completion of a prayer's 33·33·34·100 set now requires the guided set
+  for THAT prayer (or an explicit offline mark) — free counting during
+  the day (and routine practice near a prayer time, e.g. the nightly
+  Tasbih Fatimah) no longer completes a set the user never ran.
 
 ## [1.8.0] — 2026-10-01
 
