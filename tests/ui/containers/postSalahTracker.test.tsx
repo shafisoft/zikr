@@ -213,14 +213,16 @@ describe('PostSalahTrackerContainer — the enabled tracker', () => {
     );
 
     buttonByText('Yes, mark done')!.click();
-    // The store mirrors db writes through its liveQuery subscription in the
-    // app; the test emulates that push once the rows land.
+    // One self-healing wait against the effect-attach race on loaded CI
+    // runners (97298d0 idiom): each poll reads the db, pushes it into the
+    // store the way the app's liveQuery subscription would, and only
+    // succeeds when the RENDER has caught up — ordering-proof, generous
+    // budget.
     await waitForDom(async () => {
       const all = await db.sessions.toArray();
       useSessionStore.setState({ sessions: all });
-      return all.filter(s => s.postSalah === 'fajr').length === 4;
-    });
-    await waitForDom(() => container!.textContent!.includes('1 of 5 complete'));
+      return container!.textContent!.includes('1 of 5 complete');
+    }, 5000);
 
     // The mark recorded the set's remaining amounts, attributed to Fajr.
     const sessions = await db.sessions.toArray();
