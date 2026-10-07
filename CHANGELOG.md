@@ -7,7 +7,16 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
+_(nothing yet)_
+
+## [1.9.1] — 2026-10-07
+
 ### Fixed
+- **Offline marks for an after-salah set now attribute honestly across
+  timezones.** A mark-done record is accepted up to 24h after the prayer's
+  start, compared as absolute instants — the old device-local calendar-day
+  rule rejected honest marks on devices far west of the saved location
+  (Dhaka's Fajr falls on the previous UTC day, for example).
 - **Icons no longer break offline.** Icons were the Google-hosted Material
   Symbols icon font; the service worker cached its ~50 unicode-range font
   slices, but the slice carrying the ligature data intermittently missed the
