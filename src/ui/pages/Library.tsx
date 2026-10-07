@@ -62,7 +62,7 @@ const Library: React.FC = () => {
       await showAlert({ message: t('library.deleted'), icon: 'check_circle' });
     } catch (error) {
       console.error('Failed to delete zikr:', error);
-      await showAlert({ message: t('zikrForm.saveFailed'), icon: 'error_outline' });
+      await showAlert({ message: t('zikrForm.saveFailed'), icon: 'error' });
     }
   };
 

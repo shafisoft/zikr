@@ -88,11 +88,14 @@ async function renderAndCapture(): Promise<string> {
 
   return new Promise<string>((resolve, reject) => {
     const host = document.createElement('div');
+    // Raw-HTML template (not React), so the shield icon is an inline SVG here —
+    // core can't import the ui icon component, and the icon webfont is gone.
+    // Path matches @material-symbols/svg-400/outlined/shield.svg.
     host.innerHTML = `
       <div class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <div class="relative bg-surface rounded-2xl shadow-xl border border-outline-variant/20 p-5 w-full max-w-sm">
           <p class="font-label-md text-label-md text-primary mb-1 flex items-center gap-2">
-            <span class="material-symbols-outlined text-[18px] text-tertiary">shield</span>
+            <svg viewBox="0 -960 960 960" width="18" height="18" fill="currentColor" aria-hidden="true" class="text-tertiary shrink-0"><path d="M480-81q-140-35-230-162.5T160-523v-238l320-120 320 120v238q0 152-90 279.5T480-81Zm0-62q115-38 187.5-143.5T740-523v-196l-260-98-260 98v196q0 131 72.5 236.5T480-143Zm0-337Z"/></svg>
             Security check
           </p>
           <p class="font-caption text-caption text-on-surface-variant mb-3 flex items-center gap-2" data-verifying>

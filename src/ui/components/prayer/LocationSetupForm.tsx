@@ -159,7 +159,7 @@ const LocationSetupForm: React.FC<LocationSetupFormProps> = ({
         {draft ? (
           <>
             <p className="font-caption text-caption text-on-surface-variant flex items-center gap-1.5">
-              <MaterialIcon icon="place" className="text-[14px]" />
+              <MaterialIcon icon="location_on" className="text-[14px]" />
               {draft.label}
             </p>
             <div className="flex gap-3">

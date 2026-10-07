@@ -7,7 +7,20 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
-_(nothing yet)_
+### Fixed
+- **Icons no longer break offline.** Icons were the Google-hosted Material
+  Symbols icon font; the service worker cached its ~50 unicode-range font
+  slices, but the slice carrying the ligature data intermittently missed the
+  cache, and offline the app showed raw ligature text ("cloud_off") or blank
+  glyphs instead of icons. Every icon is now an inline SVG baked into the app
+  bundle (Material Symbols, weight 400, outlined + filled variants) — identical
+  rendering with no font, network, or cache involved. A few icons were renamed
+  to their current Material Symbols equivalents in the process (visually the
+  same glyph): expand_more/expand_less → keyboard_arrow_down/up, place →
+  location_on, vibration → mobile_vibrate, smartphone → mobile, error_outline
+  → error, info_outline → info, delete_outline → delete, auto_awesome →
+  auto_awesome_motion, add_to_home_screen → ios_share, nights_stay →
+  nightlight.
 
 ## [1.9.0] — 2026-10-04
 

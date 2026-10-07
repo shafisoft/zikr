@@ -169,7 +169,7 @@ const BulkEntryForm: React.FC<BulkEntryFormProps> = ({ onSuccess, onCancel }) =>
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error('Failed to save bulk entries:', error);
-      await showAlert({ message: t('bulk.saveFailed'), icon: 'error_outline' });
+      await showAlert({ message: t('bulk.saveFailed'), icon: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -178,7 +178,7 @@ const BulkEntryForm: React.FC<BulkEntryFormProps> = ({ onSuccess, onCancel }) =>
   if (entries.length === 0) {
     return (
       <div className="text-center py-12">
-        <MaterialIcon icon="error_outline" className="text-6xl text-tertiary-container mb-4 mx-auto" />
+        <MaterialIcon icon="error" className="text-6xl text-tertiary-container mb-4 mx-auto" />
         <h3 className="font-headline-md text-headline-md text-primary mb-2">
           {t('bulk.noZikrs')}
         </h3>

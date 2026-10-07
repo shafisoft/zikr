@@ -121,7 +121,7 @@ const Progress: React.FC = () => {
       await showAlert({ message: t('progress.saved'), icon: 'check_circle' });
     } catch (error) {
       console.error('Failed to save progress:', error);
-      await showAlert({ message: t('bulk.saveFailed'), icon: 'error_outline' });
+      await showAlert({ message: t('bulk.saveFailed'), icon: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -292,7 +292,7 @@ const Progress: React.FC = () => {
               className="text-on-surface-variant flex items-center gap-2 px-4 py-2 rounded-full hover:bg-surface-variant/50 transition-colors font-caption text-caption"
             >
               {showHistory ? t('progress.hide') : t('progress.show')}
-              <MaterialIcon icon={showHistory ? 'expand_less' : 'expand_more'} className="text-[18px]" />
+              <MaterialIcon icon={showHistory ? 'keyboard_arrow_up' : 'keyboard_arrow_down'} className="text-[18px]" />
             </button>
           </div>
 

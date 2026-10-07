@@ -197,7 +197,7 @@ const PlanFormModal: React.FC<PlanFormModalProps> = ({
       onClose();
     } catch (error) {
       console.error('Failed to save plan:', error);
-      await showAlert({ message: t('planForm.saveFailed'), icon: 'error_outline' });
+      await showAlert({ message: t('planForm.saveFailed'), icon: 'error' });
     } finally {
       setIsSaving(false);
     }

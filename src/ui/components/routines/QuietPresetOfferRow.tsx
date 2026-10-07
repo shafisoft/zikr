@@ -52,7 +52,7 @@ const QuietPresetOfferRow: React.FC<QuietPresetOfferRowProps> = ({ onPreset, onD
           onClick={() => onPreset('evening')}
           className="flex-1 h-touch-target-min rounded-xl border border-outline-variant/40 text-on-surface font-label-md text-label-md flex items-center justify-center gap-2 hover:bg-surface-variant/40 active:scale-[0.98] transition-all"
         >
-          <MaterialIcon icon="nights_stay" className="text-[20px]" />
+          <MaterialIcon icon="nightlight" className="text-[20px]" />
           {t('routine.preset.evening')}
         </button>
       </div>

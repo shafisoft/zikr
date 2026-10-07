@@ -364,7 +364,7 @@ const Room: React.FC = () => {
                     {t('room.pastPlans', { count: endedPlans.length })}
                   </span>
                   <MaterialIcon
-                    icon={historyExpanded ? 'expand_less' : 'expand_more'}
+                    icon={historyExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
                     className="text-on-surface-variant"
                   />
                 </button>
@@ -416,7 +416,7 @@ const Room: React.FC = () => {
                     {myContributionTotal.toLocaleString()}
                   </span>
                   <MaterialIcon
-                    icon={contributionExpanded ? 'expand_less' : 'expand_more'}
+                    icon={contributionExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
                     className="text-on-surface-variant"
                   />
                 </span>

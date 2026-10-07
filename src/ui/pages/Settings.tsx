@@ -90,7 +90,7 @@ const Settings: React.FC = () => {
       await exportData();
     } catch (error) {
       console.error('Failed to export data:', error);
-      await showAlert({ message: t('settings.exportFailed'), icon: 'error_outline' });
+      await showAlert({ message: t('settings.exportFailed'), icon: 'error' });
     } finally {
       setIsExporting(false);
     }
@@ -119,7 +119,7 @@ const Settings: React.FC = () => {
         window.location.reload();
       } catch (error) {
         console.error('Failed to import data:', error);
-        await showAlert({ message: t('settings.importFailed'), icon: 'error_outline' });
+        await showAlert({ message: t('settings.importFailed'), icon: 'error' });
       } finally {
         setIsImporting(false);
       }
@@ -148,7 +148,7 @@ const Settings: React.FC = () => {
       window.location.reload();
     } catch (error) {
       console.error('Failed to clear data:', error);
-      await showAlert({ message: t('settings.clearFailed'), icon: 'error_outline' });
+      await showAlert({ message: t('settings.clearFailed'), icon: 'error' });
     }
   };
 
@@ -204,7 +204,7 @@ const Settings: React.FC = () => {
             >
               <div className="flex items-center gap-4">
                 <div className="bg-surface-container-high p-2 rounded-lg">
-                  <MaterialIcon icon="vibration" className="text-primary text-[20px]" />
+                  <MaterialIcon icon="mobile_vibrate" className="text-primary text-[20px]" />
                 </div>
                 <div>
                   <p className="font-body-md text-body-md text-on-surface">{t('settings.haptics')}</p>

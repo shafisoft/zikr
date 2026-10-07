@@ -225,7 +225,7 @@ const PrayerTimeSettingsContainer: React.FC = () => {
       <div className="flex flex-col gap-2">
         {!available && (
           <p className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-4 flex items-start gap-3 font-caption text-caption text-on-surface-variant">
-            <MaterialIcon icon="info_outline" className="text-[18px] shrink-0 mt-0.5" />
+            <MaterialIcon icon="info" className="text-[18px] shrink-0 mt-0.5" />
             {t('settings.prayerUnavailable')}
           </p>
         )}

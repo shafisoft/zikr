@@ -536,7 +536,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
                     <MaterialIcon icon="translate" className="text-[16px]" />
                     <span className="font-caption text-caption">{t('counter.translation')}</span>
                     <MaterialIcon
-                      icon={showTranslation ? 'expand_less' : 'expand_more'}
+                      icon={showTranslation ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
                       className="text-[16px]"
                     />
                   </button>

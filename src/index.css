@@ -176,17 +176,6 @@ body {
 }
 
 /* ============================================================
-   Icons
-   ============================================================ */
-.material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-}
-
-.material-symbols-outlined.icon-filled {
-  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-}
-
-/* ============================================================
    Islamic pattern — 8-pointed star (khatam) lattice.
    Rendered via CSS mask so the theme controls its color.
    ============================================================ */

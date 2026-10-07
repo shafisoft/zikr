@@ -39,7 +39,7 @@ const PostSalahCard: React.FC<PostSalahCardProps> = ({
       <PatternBackdrop className="absolute inset-0" variant="green" />
       <div className="relative flex flex-col items-center text-center gap-3 px-6 py-6">
         <MaterialIcon
-          icon={done ? 'task_alt' : 'auto_awesome'}
+          icon={done ? 'task_alt' : 'auto_awesome_motion'}
           filled={done}
           className="text-3xl text-tertiary"
         />

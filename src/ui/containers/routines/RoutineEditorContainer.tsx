@@ -125,7 +125,7 @@ const RoutineEditorContainer: React.FC<RoutineEditorContainerProps> = ({
           : code === 'ROUTINE_MAX_ITEMS'
             ? t('routine.editor.maxItems')
             : t('routine.editor.failed');
-      await showAlert({ message, icon: 'error_outline' });
+      await showAlert({ message, icon: 'error' });
     } finally {
       setIsSaving(false);
     }

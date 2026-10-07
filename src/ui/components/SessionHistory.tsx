@@ -95,7 +95,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Failed to update session:', error);
-      await showAlert({ message: t('history.updateFailed'), icon: 'error_outline' });
+      await showAlert({ message: t('history.updateFailed'), icon: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -136,7 +136,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Failed to delete session:', error);
-      await showAlert({ message: t('history.deleteFailed'), icon: 'error_outline' });
+      await showAlert({ message: t('history.deleteFailed'), icon: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -154,7 +154,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
     switch (source) {
       case 'app': return 'touch_app';
       case 'manual': return 'edit_document';
-      default: return 'smartphone';
+      default: return 'mobile';
     }
   };
 
@@ -225,7 +225,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ onRefresh }) => {
             >
               <div className="flex items-center gap-3">
                 <MaterialIcon
-                  icon={isExpanded(groupKey) ? 'expand_more' : 'chevron_right'}
+                  icon={isExpanded(groupKey) ? 'keyboard_arrow_down' : 'chevron_right'}
                   className="text-on-surface-variant"
                 />
                 <span className="font-label-md text-label-md text-on-surface">

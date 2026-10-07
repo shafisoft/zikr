@@ -81,7 +81,7 @@ const CounterModal: React.FC<CounterModalProps> = ({ isOpen, onClose, zikr, star
               aria-label="Toggle haptic feedback"
               className="text-primary hover:opacity-80 active:scale-95 transition-all w-touch-target-min h-touch-target-min flex items-center justify-center"
             >
-              <MaterialIcon icon={hapticsEnabled ? 'vibration' : 'smartphone'} className="text-2xl" />
+              <MaterialIcon icon={hapticsEnabled ? 'mobile_vibrate' : 'mobile'} className="text-2xl" />
             </button>
             <button
               onClick={onClose}

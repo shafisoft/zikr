@@ -42,7 +42,7 @@ async function renderForm() {
 }
 
 function buttonByText(text: string): HTMLButtonElement | null {
-  // MaterialIcon renders the icon ligature inside the button, so match by
+  // Icons are inline SVG (no text content), so match by visible label text
   // containment (the chips' labels stay unambiguous).
   return (
     ([...container!.querySelectorAll('button')] as HTMLButtonElement[]).find(

@@ -60,9 +60,11 @@ export default defineConfig({
           {
             // The font binaries live on gstatic, not googleapis — without this
             // rule the CSS above gets cached but the woff2 never does, and
-            // offline every MaterialIcon ligature renders as raw text.
-            // Icon/text fonts arrive as many unicode-range slices (~50 across
-            // the five families), so cap the cache well above that count.
+            // offline the Noor text fonts fall back to system faces.
+            // (Icons no longer ride these caches at all: MaterialIcon renders
+            // inline SVG baked into the bundle — see scripts/generate-icons.mjs.)
+            // Text fonts arrive as many unicode-range slices (~50 across the
+            // five families), so cap the cache well above that count.
             // gstatic URLs are immutable, so CacheFirst never goes stale.
             urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
             handler: 'CacheFirst',

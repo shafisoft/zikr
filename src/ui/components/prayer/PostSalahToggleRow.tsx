@@ -28,7 +28,7 @@ const PostSalahToggleRow: React.FC<PostSalahToggleRowProps> = ({
     >
       <div className="flex items-center gap-4">
         <div className="bg-surface-container-high p-2 rounded-lg">
-          <MaterialIcon icon="auto_awesome" className="text-primary text-[20px]" />
+          <MaterialIcon icon="auto_awesome_motion" className="text-primary text-[20px]" />
         </div>
         <div>
           <p className="font-body-md text-body-md text-on-surface">

@@ -163,7 +163,7 @@ export const InstallBanner: React.FC = () => {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2 min-w-0">
-          <MaterialIcon icon="add_to_home_screen" className="text-[18px] text-tertiary mt-0.5 shrink-0" />
+          <MaterialIcon icon="ios_share" className="text-[18px] text-tertiary mt-0.5 shrink-0" />
           <div className="min-w-0">
             <p className="font-label-md text-label-md text-on-surface">{t('install.title')}</p>
             <p className="font-caption text-caption text-on-surface-variant">

@@ -50,7 +50,7 @@ const PrayerLocationRow: React.FC<PrayerLocationRowProps> = ({
           className="text-error p-2 hover:bg-error/10 rounded-lg transition-colors"
           aria-label={t('settings.prayerLocationRemove')}
         >
-          <MaterialIcon icon="delete_outline" className="text-[20px]" />
+          <MaterialIcon icon="delete" className="text-[20px]" />
         </button>
       </div>
     </div>

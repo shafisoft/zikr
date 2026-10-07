@@ -157,7 +157,7 @@ const ZikrFormModal: React.FC<ZikrFormModalProps> = ({
         setErrors({ name: t('zikrForm.duplicateName') });
       } else {
         console.error('Failed to save zikr:', error);
-        await showAlert({ message: t('zikrForm.saveFailed'), icon: 'error_outline' });
+        await showAlert({ message: t('zikrForm.saveFailed'), icon: 'error' });
       }
     } finally {
       setIsSaving(false);

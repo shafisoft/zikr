@@ -85,7 +85,7 @@ const Counter: React.FC = () => {
   if (!zikrsLoading && zikrs.length === 0) {
     return (
       <div className="min-h-screen bg-surface text-on-surface antialiased flex flex-col items-center justify-center p-8 text-center">
-        <MaterialIcon icon="error_outline" className="text-6xl text-tertiary-container mb-4" />
+        <MaterialIcon icon="error" className="text-6xl text-tertiary-container mb-4" />
         <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-primary mb-2">
           {t('counter.noZikrs')}
         </h2>
@@ -114,7 +114,7 @@ const Counter: React.FC = () => {
         onClose: leaveCounter,
         actions: [
           {
-            icon: hapticsEnabled ? 'vibration' : 'smartphone',
+            icon: hapticsEnabled ? 'mobile_vibrate' : 'mobile',
             onClick: handleToggleHaptics,
             ariaLabel: 'Toggle haptic feedback',
           },

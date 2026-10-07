@@ -119,7 +119,7 @@ const RoutineRow: React.FC<RoutineRowProps> = ({
           className="p-2 rounded-full text-on-surface-variant hover:bg-surface-variant/50 transition-colors shrink-0"
           aria-label={t('routine.deleteAria')}
         >
-          <MaterialIcon icon="delete_outline" className="text-[18px]" />
+          <MaterialIcon icon="delete" className="text-[18px]" />
         </button>
       )}
     </div>
