@@ -7,6 +7,10 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
+_(nothing yet)_
+
+## [1.10.0] - 2026-10-14
+
 ### Changed
 - **Backend moved onto the shared platform Supabase project** (internal).
   The sync/feedback API surface moved from `public` to the exposed
