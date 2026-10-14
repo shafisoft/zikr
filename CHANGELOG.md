@@ -24,6 +24,21 @@ user-facing change and date it when it ships.
   day on the server. Feedback is the only new networked flow — everything
   else keeps working fully offline.
 
+### Fixed
+- **The home daily-plan ring no longer resets to 0% when a plan is
+  completed.** A plan auto-flips to "completed" the moment its target is
+  reached, and the ring (and the "Your plans" rows) dropped it at exactly
+  that moment — the completion looked like a wipe. Completed plans keep
+  counting until the owner pauses them; a completed plan past its
+  one-time window still leaves the list.
+- **The counter's step rail now tells the truth about position.** In a
+  guided routine the rail indexed the shrinking remainder — "1 of 6",
+  then "1 of 5" as items completed. It now shows the place in the full
+  sequence: "2 of 7", "3 of 7". Multi-zikr personal plans get the same
+  rail in the counter (with the ‹ › skip navigation), which they never
+  had. The Bangla rail string reads naturally now
+  ("মোট 7টির 2 নম্বর").
+
 ## [1.9.1] - 2026-10-07
 
 ### Fixed

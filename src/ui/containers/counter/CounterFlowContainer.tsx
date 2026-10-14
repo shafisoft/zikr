@@ -176,9 +176,15 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
   const derivedSteps = routineFlow ? routineSteps : postSalahSteps;
   // Remaining steps in flow order — what skip/previous navigation moves
   // across (completed items drop out of the list, the way the derivation
-  // itself moves past them).
+  // works). Each step keeps its position in the FULL sequence so the rail
+  // reads "2 of 7" as you advance — indexing the shrinking remainder
+  // instead read "1 of 6", "1 of 5"… as items completed, which said
+  // nothing about how much of the set was actually done.
   const remainingSteps = useMemo(
-    () => derivedSteps.filter(step => step.target > 0),
+    () =>
+      derivedSteps
+        .map((step, flowIndex) => ({ ...step, flowIndex }))
+        .filter(step => step.target > 0),
     [derivedSteps]
   );
   // Explicit in-session navigation (the rail's ‹ ›): the overridden step's
@@ -289,9 +295,9 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
       return;
     }
     onActiveStep(activeZikr ? getZikrDisplayInfoFromZikr(activeZikr, lang).localizedName : null);
-    // Report whenever any of the underlying inputs change; the page only
-    // mirrors the name into chrome.
-  }, [derivedFlow, derivedDone, derivedStep, activeZikr, activeStepName, routineTitle, onActiveStep, t]);
+    // Report whenever any of the underlying inputs change (lang included —
+    // the name must re-localize); the page only mirrors the name into chrome.
+  }, [derivedFlow, derivedDone, derivedStep, activeZikr, activeStepName, routineTitle, onActiveStep, t, lang]);
 
   // ----- Plain + plan resolution (page logic, verbatim; flows derive) -----
   useEffect(() => {
@@ -370,6 +376,23 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
     // unsaved count) re-computes during render from the step change.
     setSelectedZikr(nextStep.zikr);
   };
+
+  // Multi-zikr plan flows get the guided flows' step rail: ‹ › moves the
+  // selection across the plan's zikrs (the rail itself renders in
+  // CounterSession). Same lock as continue-next so the resolution effect
+  // never fights the explicit selection.
+  const handlePlanPrevStep = useCallback(() => {
+    const prev = currentStepIndex > 0 ? planSteps[currentStepIndex - 1] : undefined;
+    if (!prev) return;
+    selectionLockedRef.current = true;
+    setSelectedZikr(prev.zikr);
+  }, [planSteps, currentStepIndex]);
+  const handlePlanNextStep = useCallback(() => {
+    const next = planSteps[currentStepIndex + 1];
+    if (!next) return;
+    selectionLockedRef.current = true;
+    setSelectedZikr(next.zikr);
+  }, [planSteps, currentStepIndex]);
   // The derived flows need no advancement handler: the position IS the
   // derivation, so the auto-save's session write advances the flow on the
   // next render (and an Undo steps it back the same way — OQ-3). Explicit
@@ -470,6 +493,20 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
     return null;
   }
 
+  // The rail's numbers: guided flows show the step's position in the FULL
+  // sequence (done items included — "2 of 7", never the remainder's
+  // "1 of 6"); a multi-zikr personal plan gets the same rail over the
+  // plan's zikr sequence, ‹ › moving the selection.
+  const planRail = !derivedFlow && currentStepIndex >= 0 && planSteps.length > 1;
+  const railIndex = derivedFlow
+    ? derivedStep != null
+      ? derivedStep.flowIndex + 1
+      : null
+    : planRail
+      ? currentStepIndex + 1
+      : null;
+  const railCount = derivedFlow ? derivedSteps.length : planRail ? planSteps.length : null;
+
   return (
     <CounterSession
       key={activeZikr.id}
@@ -482,10 +519,10 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
       routineId={routine?.id}
       postSalah={postSalahFlow ? postSalahPrayer : undefined}
       flowMode={derivedFlow != null}
-      stepIndex={derivedFlow ? navIndex + 1 : undefined}
-      stepCount={derivedFlow ? remainingSteps.length : undefined}
-      onPrevStep={derivedFlow ? handlePrevStep : undefined}
-      onNextStep={derivedFlow ? handleNextStep : undefined}
+      stepIndex={railIndex ?? undefined}
+      stepCount={railCount ?? undefined}
+      onPrevStep={derivedFlow ? handlePrevStep : planRail ? handlePlanPrevStep : undefined}
+      onNextStep={derivedFlow ? handleNextStep : planRail ? handlePlanNextStep : undefined}
       onUnsavedChange={handleUnsavedChange}
       variant="page"
       onFinish={onFinish}

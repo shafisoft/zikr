@@ -30,18 +30,24 @@ export interface PlanRing {
 }
 
 /**
- * Home's daily ring: aggregate across ALL active personal plans (only
+ * Home's daily ring: aggregate across ALL countable personal plans (only
  * looking at the first one showed 0% whenever the day's practice belonged
- * to another plan). Overlapping zikrs between plans are counted once (Set)
- * and — for per-zikr plans — demanded once: the same round cannot fill two
- * copies of a target, so a zikr listed by several plans contributes its
- * largest per-zikr target, not their sum. Combined plans keep their
- * whole-plan target (it has no per-zikr split to dedupe against).
+ * to another plan). Countable = active OR completed: a plan auto-flips to
+ * 'completed' the moment its target is reached, and dropping it here would
+ * reset the ring to 0% exactly when the user finishes — the goal counts
+ * until the owner pauses it. Overlapping zikrs between plans are counted
+ * once (Set) and — for per-zikr plans — demanded once: the same round
+ * cannot fill two copies of a target, so a zikr listed by several plans
+ * contributes its largest per-zikr target, not their sum. Combined plans
+ * keep their whole-plan target (it has no per-zikr split to dedupe
+ * against).
  */
 export function planRingProgress(plans: Plan[], sessions: Session[]): PlanRing {
   const todayStr = formatDate(getToday());
   const todaySessions = sessions.filter(s => formatDate(s.date) === todayStr);
-  const activePlans = plans.filter(p => p.status === 'active');
+  const activePlans = plans.filter(
+    p => p.status === 'active' || p.status === 'completed'
+  );
   const coveredZikrIds = new Set(
     activePlans.flatMap(p => p.zikrs.map(z => z.zikrId).filter((id): id is number => id != null))
   );

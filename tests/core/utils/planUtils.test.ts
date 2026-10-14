@@ -344,9 +344,25 @@ describe('buildGoalRows', () => {
     ]);
   });
 
-  it('hides paused and completed personal plans even inside a live window', () => {
+  it('hides paused plans; COMPLETED plans stay as rows inside a live window', () => {
     expect(build({ personalPlans: [plan({ status: 'paused' })] })).toEqual([]);
-    expect(build({ personalPlans: [plan({ status: 'completed' })] })).toEqual([]);
+    // A plan auto-flips to 'completed' when its target is reached — the row
+    // must NOT vanish at that moment (the 100% row IS the completion
+    // feedback, and recurring plans restart from it tomorrow).
+    const done = plan({
+      status: 'completed',
+      zikrs: [{ name: 'SubhanAllah', zikrId: 1 }],
+    });
+    expect(build({ personalPlans: [done] })).toEqual([
+      {
+        key: `p:${done.id}`,
+        zikrId: 1,
+        title: 'SubhanAllah',
+        current: 40,
+        target: 100,
+        planId: done.id,
+      },
+    ]);
   });
 
   it('hides personal plans whose one-time window has ended', () => {
@@ -354,6 +370,19 @@ describe('buildGoalRows', () => {
       build({
         personalPlans: [
           plan({ startDate: new Date('2026-09-01'), endDate: new Date('2026-09-10') }),
+        ],
+      })
+    ).toEqual([]);
+    // A completed plan past its window is done AND over — hidden too.
+    expect(
+      build({
+        personalPlans: [
+          plan({
+            status: 'completed',
+            zikrs: [{ name: 'SubhanAllah', zikrId: 1 }],
+            startDate: new Date('2026-09-01'),
+            endDate: new Date('2026-09-10'),
+          }),
         ],
       })
     ).toEqual([]);

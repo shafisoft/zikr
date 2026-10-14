@@ -113,6 +113,19 @@ describe('metrics', () => {
     expect(ring.percent).toBe(0);
   });
 
+  it('planRingProgress keeps counting COMPLETED plans (the ring must not reset on completion)', () => {
+    // A plan auto-flips to 'completed' the moment its target is reached;
+    // dropping it there would reset the ring to 0% exactly when the user
+    // finishes. The goal counts until the owner pauses it.
+    const ring = planRingProgress(
+      [plan({ status: 'completed', target: 100 })],
+      [session({ count: 100 })]
+    );
+    expect(ring.target).toBe(100);
+    expect(ring.todayCount).toBe(100);
+    expect(ring.percent).toBe(100);
+  });
+
   it('planRingProgress sums per-zikr targets for per-zikr plans', () => {
     const perZikr = plan({
       mode: 'per-zikr',

@@ -191,7 +191,7 @@ export const bn: Dictionary = {
   'counter.roundSharedNoUndo': 'রাউন্ড সংরক্ষিত — গ্রুপের সাথে শেয়ার হয়ে গেছে, তাই এখান থেকে এটি ফেরানো যাবে না।',
   'counter.nextItem': 'পরের আইটেম',
   'counter.stepNav': 'রুটিনের ধাপ',
-  'counter.stepOf': '{{total}}-এর মধ্যে {{index}}',
+  'counter.stepOf': 'মোট {{total}}টির {{index}} নম্বর',
   'counter.prevItem': 'পূর্ববর্তী জিকির',
 
   'welcome.skip': 'এড়িয়ে যান',

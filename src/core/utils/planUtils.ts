@@ -144,8 +144,11 @@ interface PersonalPlanProgressLike {
 /**
  * The "Your Goals" rows: every zikr the user's countable plans cover —
  * personal plans first, then group targets — each with its live progress.
- * Personal rows require status 'active' (paused/completed plans are not
- * something to count toward; getPlanPhase alone only reads the window).
+ * Personal rows require an ACTIVE WINDOW and a countable status — active
+ * or completed. A plan auto-flips to 'completed' when its target is
+ * reached; hiding it there would make the goal vanish the moment it is
+ * won (the row at 100% IS the completion feedback, and for recurring
+ * plans tomorrow's attempt starts from it). Paused plans stay hidden.
  * Group rows additionally require an active room: propagation skips
  * closed rooms, so their rows must not offer counting either. Group rows
  * need a local zikr sharing the plan zikr's name — that match is also
@@ -165,7 +168,12 @@ export function buildGoalRows(input: {
   const rows: GoalZikrRow[] = [];
 
   for (const plan of personalPlans) {
-    if (plan.status !== 'active' || getPlanPhase(plan, now) !== 'active') continue;
+    if (
+      (plan.status !== 'active' && plan.status !== 'completed') ||
+      getPlanPhase(plan, now) !== 'active'
+    ) {
+      continue;
+    }
     const progress = progressOf(plan, sessions);
     if (plan.mode === 'per-zikr') {
       for (const pz of progress.perZikr) {

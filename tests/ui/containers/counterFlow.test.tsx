@@ -146,6 +146,11 @@ function circleButton(): HTMLElement {
   return (container!.querySelector('button[aria-label^="Tap to count"]') ?? null) as HTMLElement;
 }
 
+/** The step rail's "N of M" label (the only polite live region in the flow). */
+function railLabel(): string {
+  return container!.querySelector('[aria-live="polite"]')?.textContent ?? '';
+}
+
 beforeEach(async () => {
   await db.delete();
   await db.open();
@@ -269,6 +274,63 @@ describe('CounterFlowContainer — routine flow (§5.2, §16.4)', () => {
     await waitForDom(() => container!.textContent!.includes('Target reached — saved!'));
     expect(buttonByText('Another Round')).not.toBeNull();
     expect(buttonByText('Next item')).toBeNull();
+  });
+});
+
+describe('CounterFlowContainer — step rail (position over the FULL sequence)', () => {
+  it('routine rail counts DONE items: "2 of 2" after the first completes, not "1 of 1"', async () => {
+    useZikrStore.setState({ zikrs: [zikr(1, 'Zikr One'), zikr(2, 'Zikr Two')], loading: false });
+    useSessionStore.setState({ sessions: [], loading: false });
+    useRoutineStore.setState({ routines: [makeRoutine()], loading: false });
+
+    await renderFlow({ routineIdParam: 'r1' });
+    await waitForDom(() => activeStep === 'Zikr One');
+    await waitForDom(() => railLabel() === '1 of 2');
+
+    // Complete item 1; the derivation moves the flow onto item 2.
+    await tapTo('3');
+    useSessionStore.setState({ sessions: await db.sessions.toArray() });
+    await waitForDom(() => activeStep === 'Zikr Two');
+
+    // The rail keeps the FULL sequence as the total — the old remainder
+    // index collapsed to "1 of 1" the moment item 1 completed.
+    await waitForDom(() => railLabel() === '2 of 2');
+  });
+
+  it('a multi-zikr plan flow gets the rail over the plan zikrs; ‹ › moves the selection', async () => {
+    const start = new Date();
+    start.setFullYear(start.getFullYear() - 1);
+    const end = new Date();
+    end.setFullYear(end.getFullYear() + 1);
+    const twoZikrPlan: Plan = {
+      id: 'p2',
+      mode: 'per-zikr',
+      period: 'one-time',
+      zikrs: [
+        { name: 'Zikr One', zikrId: 1, target: 10 },
+        { name: 'Zikr Two', zikrId: 2, target: 5 },
+      ],
+      startDate: start,
+      endDate: end,
+      status: 'active',
+      createdAt: new Date(),
+    };
+    useZikrStore.setState({ zikrs: [zikr(1, 'Zikr One'), zikr(2, 'Zikr Two')], loading: false });
+    useSessionStore.setState({ sessions: [], loading: false });
+    usePlanStore.setState({ plans: [twoZikrPlan], loading: false });
+
+    await renderFlow({ planIdParam: 'p2' });
+    await waitForDom(() => activeStep === 'Zikr One');
+    await waitForDom(() => railLabel() === '1 of 2');
+
+    // › jumps to the plan's second zikr…
+    (container!.querySelector('button[aria-label="Next item"]') as HTMLButtonElement).click();
+    await waitForDom(() => activeStep === 'Zikr Two');
+    await waitForDom(() => railLabel() === '2 of 2');
+
+    // …and ‹ comes back to the first.
+    (container!.querySelector('button[aria-label="Previous zikr"]') as HTMLButtonElement).click();
+    await waitForDom(() => activeStep === 'Zikr One');
   });
 });
 
