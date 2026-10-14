@@ -1,4 +1,4 @@
-// MaterialIcon — inline SVG rendering. Icons must render without any network
+// MaterialIcon - inline SVG rendering. Icons must render without any network
 // or font dependency (the old icon-font ligatures degraded to raw text
 // offline), so the component draws committed path data from
 // iconPaths.generated.ts.
@@ -20,7 +20,7 @@ async function renderIcon(props: { icon: string; filled?: boolean; className?: s
   document.body.appendChild(container);
   root = createRoot(container);
   root.render(React.createElement(MaterialIcon, props));
-  // createRoot renders are async — wait for the svg (or its absence) to land.
+  // createRoot renders are async - wait for the svg (or its absence) to land.
   await sleep(25);
 }
 

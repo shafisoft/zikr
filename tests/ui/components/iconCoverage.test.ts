@@ -1,4 +1,4 @@
-// Icon coverage guard — every icon name referenced in src/ must have committed
+// Icon coverage guard - every icon name referenced in src/ must have committed
 // inline-SVG path data. A name missing from iconPaths.generated.ts renders as
 // nothing (silent visual regression offline, where there is no font to fall
 // back to). If this fails, add the name to the ICONS list in
@@ -50,7 +50,7 @@ describe('icon coverage', () => {
     const missing = [...used.keys()].filter((name) => !(name in ICON_PATHS));
     expect(
       missing.map((name) => `${name} (${used.get(name)})`),
-      'icons used in src/ but missing from iconPaths.generated.ts — run npm run gen:icons'
+      'icons used in src/ but missing from iconPaths.generated.ts - run npm run gen:icons'
     ).toEqual([]);
   });
 
@@ -59,7 +59,7 @@ describe('icon coverage', () => {
     const offenders = files.filter((f) => readFileSync(f, 'utf8').includes('material-symbols-outlined'));
     expect(
       offenders,
-      'the Material Symbols icon font breaks offline — use <MaterialIcon> (inline SVG)'
+      'the Material Symbols icon font breaks offline - use <MaterialIcon> (inline SVG)'
     ).toEqual([]);
   });
 });

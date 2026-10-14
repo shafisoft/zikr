@@ -1,13 +1,23 @@
 #!/usr/bin/env node
 /**
- * Migration drift guard.
+ * Migration invariant guard (consolidated-stream edition).
  *
- * 0001_init.sql (fresh installs) and 0002_group_plans.sql (v1 → canonical
- * upgrade) must define the SAME functions with the SAME bodies — they are
- * two paths to one canonical server. This script extracts every function
- * definition from both files, normalizes whitespace, and fails on:
- *   - a function defined in only one of the two files, or
- *   - a body that differs between them.
+ * The standalone stream (0001–0004) was retired 2026-10-14: fresh
+ * environments — the platform compose stack and the local-test harness —
+ * run ONLY `20261014000000_zikr_platform_init.sql` (the retired files
+ * live in `migrations/_archive_standalone/` and must never replay). The
+ * old job of this script (byte-parity between 0001 and 0002 as "two
+ * paths to one server") died with that consolidation.
+ *
+ * What MUST stay true of the consolidated init:
+ *   1. no duplicate function definitions (a stray second body silently
+ *      wins depending on statement order), and
+ *   2. schema hygiene: no object placed in or referencing the retired
+ *      `public` schema (`public.*` names, `search_path = public`).
+ *
+ * The client-side counterpart — SQL names/params vs the typed surface —
+ * is guarded by `supabaseTypes.ts` + `tests/core/services/
+ * supabaseRpcSurface.test.ts` against `supabaseDatabase.generated.ts`.
  *
  * Run: npm run check:migrations (also wired into `npm run lint`).
  */
@@ -17,60 +27,54 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const files = [
-  join(root, 'supabase/migrations/0001_init.sql'),
-  join(root, 'supabase/migrations/0002_group_plans.sql'),
-];
+const initPath = join(
+  root,
+  'supabase/migrations/20261014000000_zikr_platform_init.sql'
+);
 
 // `create [or replace] function schema.name(args) ... $$ body $$;`
 // Bodies never contain a nested `$$` (only dollar-quoted with tags would
 // break this — don't introduce them).
-const FN_RE = /create (?:or replace )?function\s+(\w+)\.(\w+)[\s\S]*?\$\$([\s\S]*?)\$\$;/g;
+const FN_RE = /create (?:or replace )?function\s+([\w]+)\.([\w]+)[\s\S]*?\$\$([\s\S]*?)\$\$;/g;
 
-const normalize = (s) =>
-  s
-    // `create function` vs `create or replace function` is not drift —
-    // 0001 (fresh installs) may use plain create where 0002 must restate.
-    .replace(/^create (?:or replace )?function/i, 'create function')
-    .replace(/\s+/g, ' ')
-    .trim();
+const sql = readFileSync(initPath, 'utf8');
+let ok = true;
+const seen = new Map();
 
-function extract(path) {
-  const sql = readFileSync(path, 'utf8');
-  const map = new Map();
-  for (const m of sql.matchAll(FN_RE)) {
-    const key = `${m[1]}.${m[2]}`.toLowerCase();
-    if (map.has(key)) {
-      console.error(`✗ ${path}: duplicate definition of ${key}`);
-      process.exitCode = 1;
-    }
-    map.set(key, normalize(m[0]));
+for (const m of sql.matchAll(FN_RE)) {
+  const key = `${m[1]}.${m[2]}`.toLowerCase();
+  if (seen.has(key)) {
+    console.error(`✗ duplicate definition of ${key}`);
+    ok = false;
   }
-  return map;
+  seen.set(key, true);
+
+  if (m[1].toLowerCase() === 'public') {
+    console.error(`✗ ${key}: defined in the retired public schema — use zikr (app-facing) or zikr_app (helpers)`);
+    ok = false;
+  }
+  if (!/set\s+search_path\s*=/i.test(m[0])) {
+    console.error(`✗ ${key}: missing a pinned search_path`);
+    ok = false;
+  }
 }
 
-const [canon, upgrade] = files.map(extract);
-let ok = true;
+if (/search_path\s*=\s*public/i.test(sql)) {
+  console.error('✗ found `search_path = public` — public is retired on the shared project');
+  ok = false;
+}
 
-for (const key of new Set([...canon.keys(), ...upgrade.keys()])) {
-  const inCanon = canon.get(key);
-  const inUpgrade = upgrade.get(key);
-  if (inCanon && !inUpgrade) {
-    console.error(`✗ ${key}: defined in 0001 but missing from 0002`);
-    ok = false;
-  } else if (!inCanon && inUpgrade) {
-    console.error(`✗ ${key}: defined in 0002 but missing from 0001`);
-    ok = false;
-  } else if (inCanon !== inUpgrade) {
-    console.error(`✗ ${key}: body differs between 0001 and 0002 — pick one, keep both identical`);
-    ok = false;
-  }
+const appFacing = [...seen.keys()].filter((k) => k.startsWith('zikr.'));
+if (appFacing.length !== 15) {
+  console.error(
+    `✗ expected 14 app-facing RPCs + zikr_purge_expired in schema zikr, found ${appFacing.length}: ${appFacing.join(', ')}`
+  );
+  ok = false;
 }
 
 if (ok) {
-  console.log(`✓ migrations in sync: ${canon.size} shared function definitions match`);
+  console.log(`✓ consolidated init invariants hold (${seen.size} function definitions, none duplicated, search_path pinned everywhere)`);
 } else {
-  console.error('\nThe two migration files are two paths to ONE canonical server.');
-  console.error('Fix the drift: edit one file, mirror the change in the other, re-run.');
+  console.error('\nFix the drift in 20261014000000_zikr_platform_init.sql, then re-run.');
   process.exit(1);
 }

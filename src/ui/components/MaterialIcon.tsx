@@ -1,13 +1,13 @@
 /**
- * Material Icon Component — inline SVG (Material Symbols, weight 400).
+ * Material Icon Component - inline SVG (Material Symbols, weight 400).
  *
  * Path data comes from iconPaths.generated.ts (baked into the JS bundle by
- * scripts/generate-icons.mjs), so icons render identically offline — there is
+ * scripts/generate-icons.mjs), so icons render identically offline - there is
  * no icon webfont to fetch.
  *
- * Sizing/coloring: the svg is 1em × 1em with fill=currentColor, so the same
+ * Sizing/coloring: the svg is 1em x 1em with fill=currentColor, so the same
  * font-size and text-color utility classes as before apply (text-[18px],
- * text-tertiary, …).
+ * text-tertiary, ...).
  */
 import React from 'react';
 import { ICON_PATHS, ICON_VIEWBOX } from './icons/iconPaths.generated';
@@ -28,7 +28,7 @@ export const MaterialIcon: React.FC<MaterialIconProps> = ({
   const paths = ICON_PATHS[icon];
   if (!paths) {
     if (import.meta.env.DEV) {
-      console.warn(`[MaterialIcon] unknown icon "${icon}" — add it to scripts/generate-icons.mjs and run npm run gen:icons`);
+      console.warn(`[MaterialIcon] unknown icon "${icon}" - add it to scripts/generate-icons.mjs and run npm run gen:icons`);
     }
     return null;
   }

@@ -15,6 +15,7 @@ import { useI18n, LANGUAGES, applyDocumentLanguage } from '../../core/i18n';
 import useShare, { ShareOutcome } from '../hooks/useShare';
 import AppLayout from '../components/layout/AppLayout';
 import PrayerTimeSettingsContainer from '../containers/prayer/PrayerTimeSettingsContainer';
+import FeedbackSettingsContainer from '../containers/feedback/FeedbackSettingsContainer';
 
 const Settings: React.FC = () => {
   const { lang, t } = useI18n();
@@ -428,6 +429,10 @@ const Settings: React.FC = () => {
             </button>
           </div>
         </section>
+
+        {/* Feedback (captcha-protected, one-way to the admin) — the
+            container owns the entry row, the modal, and the submit. */}
+        <FeedbackSettingsContainer />
 
         {/* About Section */}
         <section>

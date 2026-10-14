@@ -39,7 +39,7 @@ async function getClient(): Promise<any> {
       createClient(
         import.meta.env.VITE_SUPABASE_URL,
         import.meta.env.VITE_SUPABASE_ANON_KEY,
-        { db: { schema: 'public' }, auth: { persistSession: true, autoRefreshToken: true } }
+        { db: { schema: 'zikr' }, auth: { persistSession: true, autoRefreshToken: true } }
       )
     );
   }
@@ -86,7 +86,7 @@ export class SupabaseZikrSyncBackend implements ZikrSyncBackend {
 
   async shareZikr(input: ShareZikrInput): Promise<{ id: string }> {
     await this.ensureUserId();
-    const { id } = await rpc('share_zikr', {
+    const { id } = await rpc('zikr_share_zikr', {
       p_name: input.name,
       p_arabic_text: input.arabicText || null,
       p_translation: input.translation || null,
@@ -95,7 +95,7 @@ export class SupabaseZikrSyncBackend implements ZikrSyncBackend {
   }
 
   async pullVerifiedZikrs(cursor: ZikrSyncCursor | null): Promise<PullVerifiedPage> {
-    const page = await rpc('pull_verified_zikrs', {
+    const page = await rpc('zikr_pull_verified_zikrs', {
       p_cursor_updated_at: cursor?.updatedAt ?? null,
       p_cursor_id: cursor?.id ?? null,
     });

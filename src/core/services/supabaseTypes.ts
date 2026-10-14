@@ -2,9 +2,8 @@
  * Supabase wire contract — the SINGLE source of truth for every RPC the
  * app calls: parameter names, parameter types, and return shapes.
  *
- * This mirrors the SQL migrations (`supabase/migrations/0001_init.sql` is
- * canonical; the other files carry byte-identical function bodies,
- * enforced by `npm run check:migrations`) and the RPC list documented in
+ * This mirrors the SQL migration (`supabase/migrations/20261014000000_zikr_platform_init.sql`,
+ * the consolidated platform init — see `supabase/README.md`) and the RPC list documented in
  * `supabase/EXPOSURE-RULES.md`. When a migration changes a function's
  * signature or payload, edit THAT file first, then this one: every
  * backend adapter calls RPCs through the typed `SupabaseRpc` surface, so
@@ -32,7 +31,7 @@ import type { Database } from './supabaseDatabase.generated';
 export type SupabasePlanMode = 'combined' | 'per-zikr';
 export type SupabasePlanPeriod = 'one-time' | 'daily' | 'weekly' | 'monthly';
 
-// ---------- Group state (get_group_state, create_group, join_group, create_plan) ----------
+// ---------- Group state (zikr_get_group_state, zikr_create_group, zikr_join_group, zikr_create_plan) ----------
 
 /** The `group` object of a state payload. */
 export interface SupabaseGroupSummary {
@@ -86,7 +85,7 @@ export interface SupabaseGroupState {
   isMember: boolean;
 }
 
-/** The `p_plan` jsonb argument of create_group/create_plan. */
+/** The `p_plan` jsonb argument of zikr_create_group/zikr_create_plan. */
 export interface SupabasePlanPayload {
   title: string | null;
   mode: SupabasePlanMode;
@@ -98,9 +97,9 @@ export interface SupabasePlanPayload {
   endsAt: string | null;
 }
 
-// ---------- Shared zikr library (0003_shared_zikrs.sql) ----------
+// ---------- Shared zikr library (shared zikr library) ----------
 
-/** One item of a pull_verified_zikrs page (a verified shared_zikrs row). */
+/** One item of a zikr_pull_verified_zikrs page (a verified shared_zikrs row). */
 export interface SupabaseSharedZikr {
   id: string;
   name: string;
@@ -111,7 +110,7 @@ export interface SupabaseSharedZikr {
   updatedAt: string;
 }
 
-/** What pull_verified_zikrs sends back (cursor fields feed the next call). */
+/** What zikr_pull_verified_zikrs sends back (cursor fields feed the next call). */
 export interface SupabasePullPage {
   items: SupabaseSharedZikr[];
   nextCursorUpdatedAt: string | null;
@@ -119,13 +118,20 @@ export interface SupabasePullPage {
   hasMore: boolean;
 }
 
-/** What share_zikr sends back. */
+/** What zikr_share_zikr sends back. */
 export interface SupabaseShareResult {
   id: string;
   verified: boolean;
 }
 
-// ---------- The RPC surface — exactly the 13 granted functions ----------
+// ---------- Feedback (feedback) ----------
+
+/** What zikr_submit_feedback sends back. */
+export interface SupabaseFeedbackResult {
+  id: string;
+}
+
+// ---------- The RPC surface — exactly the 14 granted functions ----------
 
 /**
  * Each entry: SQL parameter names (they are part of the PostgREST call —
@@ -134,18 +140,18 @@ export interface SupabaseShareResult {
  * typed `string` — the client only ever passes strings/ISO strings.
  */
 export interface SupabaseRpc {
-  get_group_state: { params: { p_code: string }; returns: SupabaseGroupState };
-  create_group: {
+  zikr_get_group_state: { params: { p_code: string }; returns: SupabaseGroupState };
+  zikr_create_group: {
     params: { p_title: string; p_name: string; p_plan: SupabasePlanPayload };
     returns: SupabaseGroupState;
   };
-  join_group: { params: { p_code: string; p_name: string }; returns: SupabaseGroupState };
-  create_plan: {
+  zikr_join_group: { params: { p_code: string; p_name: string }; returns: SupabaseGroupState };
+  zikr_create_plan: {
     params: { p_code: string; p_plan: SupabasePlanPayload };
     returns: SupabaseGroupState;
   };
-  end_plan: { params: { p_code: string; p_plan_id: string }; returns: void };
-  contribute: {
+  zikr_end_plan: { params: { p_code: string; p_plan_id: string }; returns: void };
+  zikr_contribute: {
     params: {
       p_code: string;
       p_plan_id: string;
@@ -155,21 +161,33 @@ export interface SupabaseRpc {
     };
     returns: { total: number; periodTotal: number };
   };
-  remove_member: { params: { p_code: string; p_user_id: string }; returns: void };
-  leave_group: { params: { p_code: string }; returns: void };
-  close_group: { params: { p_code: string }; returns: void };
-  get_or_create_device_token: { params: Record<string, never>; returns: string };
-  track_event: {
+  zikr_remove_member: { params: { p_code: string; p_user_id: string }; returns: void };
+  zikr_leave_group: { params: { p_code: string }; returns: void };
+  zikr_close_group: { params: { p_code: string }; returns: void };
+  zikr_get_or_create_device_token: { params: Record<PropertyKey, never>; returns: string };
+  zikr_track_event: {
     params: { p_name: string; p_properties?: Record<string, unknown> };
     returns: void;
   };
-  share_zikr: {
+  zikr_share_zikr: {
     params: { p_name: string; p_arabic_text: string | null; p_translation: string | null };
     returns: SupabaseShareResult;
   };
-  pull_verified_zikrs: {
+  zikr_pull_verified_zikrs: {
     params: { p_cursor_updated_at: string | null; p_cursor_id: string | null };
     returns: SupabasePullPage;
+  };
+  zikr_submit_feedback: {
+    params: {
+      p_category: string;
+      p_message: string;
+      p_email: string | null;
+      p_app_version: string | null;
+      p_locale: string | null;
+      p_user_agent: string | null;
+      p_captcha_token: string | null;
+    };
+    returns: SupabaseFeedbackResult;
   };
 }
 
@@ -177,33 +195,34 @@ export type SupabaseRpcName = keyof SupabaseRpc;
 
 /** Runtime mirror of SupabaseRpcName — for tests and diagnostics. */
 export const SUPABASE_RPC_NAMES = [
-  'get_group_state',
-  'create_group',
-  'join_group',
-  'create_plan',
-  'end_plan',
-  'contribute',
-  'remove_member',
-  'leave_group',
-  'close_group',
-  'get_or_create_device_token',
-  'track_event',
-  'share_zikr',
-  'pull_verified_zikrs',
+  'zikr_get_group_state',
+  'zikr_create_group',
+  'zikr_join_group',
+  'zikr_create_plan',
+  'zikr_end_plan',
+  'zikr_contribute',
+  'zikr_remove_member',
+  'zikr_leave_group',
+  'zikr_close_group',
+  'zikr_get_or_create_device_token',
+  'zikr_track_event',
+  'zikr_share_zikr',
+  'zikr_pull_verified_zikrs',
+  'zikr_submit_feedback',
 ] as const satisfies readonly SupabaseRpcName[];
 
 // ---------- Machine guards against SQL drift (generated mirror) ----------
 
-type DbFunctions = Database['public']['Functions'];
+type DbFunctions = Database['zikr']['Functions'];
 
 /**
- * Functions that live in the public schema but are never called by the
- * app: `purge_expired()` is granted to service_role only (keep-alive
+ * Functions that live in the exposed zikr schema but are never called by
+ * the app: `zikr_purge_expired()` is granted to service_role only (keep-alive
  * purge). Any OTHER server-side addition must be joined to SupabaseRpc —
  * the deliberate-edit rule from supabase/EXPOSURE-RULES.md, enforced by
  * the guard below.
  */
-type ServiceOnlyFunctions = 'purge_expired';
+type ServiceOnlyFunctions = 'zikr_purge_expired';
 
 type AppFacingDbFunctions = Exclude<keyof DbFunctions, ServiceOnlyFunctions>;
 
@@ -230,19 +249,20 @@ type ParamNamesInSync<F extends SupabaseRpcName> =
       : never;
 
 export const PARAMS_IN_SYNC: { [F in SupabaseRpcName]: ParamNamesInSync<F> } = {
-  get_group_state: true,
-  create_group: true,
-  join_group: true,
-  create_plan: true,
-  end_plan: true,
-  contribute: true,
-  remove_member: true,
-  leave_group: true,
-  close_group: true,
-  get_or_create_device_token: true,
-  track_event: true,
-  share_zikr: true,
-  pull_verified_zikrs: true,
+  zikr_get_group_state: true,
+  zikr_create_group: true,
+  zikr_join_group: true,
+  zikr_create_plan: true,
+  zikr_end_plan: true,
+  zikr_contribute: true,
+  zikr_remove_member: true,
+  zikr_leave_group: true,
+  zikr_close_group: true,
+  zikr_get_or_create_device_token: true,
+  zikr_track_event: true,
+  zikr_share_zikr: true,
+  zikr_pull_verified_zikrs: true,
+  zikr_submit_feedback: true,
 };
 
 /** `never` here = SUPABASE_RPC_NAMES no longer covers every RPC. */

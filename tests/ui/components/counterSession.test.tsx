@@ -59,7 +59,7 @@ async function renderSession(props: Record<string, unknown> = {}) {
 
 function buttonByText(text: string): HTMLButtonElement | null {
   // Icons are inline SVG (no text content), so match buttons whose visible
-// label text CONTAINS the search text — or whose accessible name does
+// label text CONTAINS the search text - or whose accessible name does
 // (the page Reset is an icon-only button labelled by aria).
   // match buttons whose text CONTAINS the label — or whose accessible
   // name does (the page Reset is an icon-only button labelled by aria).

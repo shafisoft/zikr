@@ -7,14 +7,29 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
-_(nothing yet)_
+### Changed
+- **Backend moved onto the shared platform Supabase project** (internal).
+  The sync/feedback API surface moved from `public` to the exposed
+  `zikr` schema with `zikr_`-prefixed functions, and every call now
+  carries the `zikr` schema profile. Wire-compatible once deployed
+  together with the migration; the standalone-hosted project keeps
+  running the retired 0001–0004 stream.
 
-## [1.9.1] — 2026-10-07
+### Added
+- **Feedback, right from Settings.** A new "Send feedback" card opens a
+  form with four categories (bug / suggestion / question / other), a
+  message (up to 2000 characters), and an optional reply email. Submissions
+  are captcha-protected with a fresh Cloudflare Turnstile check every time,
+  attributed to the device's anonymous identity, and rate-limited to 5 per
+  day on the server. Feedback is the only new networked flow — everything
+  else keeps working fully offline.
+
+## [1.9.1] - 2026-10-07
 
 ### Fixed
 - **Offline marks for an after-salah set now attribute honestly across
   timezones.** A mark-done record is accepted up to 24h after the prayer's
-  start, compared as absolute instants — the old device-local calendar-day
+  start, compared as absolute instants - the old device-local calendar-day
   rule rejected honest marks on devices far west of the saved location
   (Dhaka's Fajr falls on the previous UTC day, for example).
 - **Icons no longer break offline.** Icons were the Google-hosted Material
@@ -22,13 +37,13 @@ _(nothing yet)_
   slices, but the slice carrying the ligature data intermittently missed the
   cache, and offline the app showed raw ligature text ("cloud_off") or blank
   glyphs instead of icons. Every icon is now an inline SVG baked into the app
-  bundle (Material Symbols, weight 400, outlined + filled variants) — identical
+  bundle (Material Symbols, weight 400, outlined + filled variants) - identical
   rendering with no font, network, or cache involved. A few icons were renamed
   to their current Material Symbols equivalents in the process (visually the
-  same glyph): expand_more/expand_less → keyboard_arrow_down/up, place →
-  location_on, vibration → mobile_vibrate, smartphone → mobile, error_outline
-  → error, info_outline → info, delete_outline → delete, auto_awesome →
-  auto_awesome_motion, add_to_home_screen → ios_share, nights_stay →
+  same glyph): expand_more/expand_less -> keyboard_arrow_down/up, place ->
+  location_on, vibration -> mobile_vibrate, smartphone -> mobile, error_outline
+  -> error, info_outline -> info, delete_outline -> delete, auto_awesome ->
+  auto_awesome_motion, add_to_home_screen -> ios_share, nights_stay ->
   nightlight.
 
 ## [1.9.0] — 2026-10-04

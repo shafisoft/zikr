@@ -88,7 +88,7 @@ async function renderAndCapture(): Promise<string> {
 
   return new Promise<string>((resolve, reject) => {
     const host = document.createElement('div');
-    // Raw-HTML template (not React), so the shield icon is an inline SVG here —
+    // Raw-HTML template (not React), so the shield icon is an inline SVG here -
     // core can't import the ui icon component, and the icon webfont is gone.
     // Path matches @material-symbols/svg-400/outlined/shield.svg.
     host.innerHTML = `

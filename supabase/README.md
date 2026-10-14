@@ -1,25 +1,47 @@
 # Supabase — Shared Goals backend
 
-The shared-goals (rooms) feature uses a Supabase project as its sync backend.
-See `docs/SharedGoals-Design.md` for the full design.
+**Co-living deployment (2026-10-14):** this backend now runs in the
+platform repo's SHARED Supabase project alongside `donate`, `prep_app`,
+`ledger`, and `officerider` (contract: `PLAYBOOK.md` in the platform
+repo; registry: `SCHEMAS.md`). The API surface is the exposed `zikr`
+schema — 14 `zikr_*`-prefixed SECURITY INVOKER RPCs; `zikr_app` holds
+the tables and is never exposed. The client passes
+`db: { schema: 'zikr' }` to `createClient`, which sends the
+`Content-Profile: zikr` header on every RPC. Owner decision recorded in
+`SCHEMAS.md`: the invoker model (RLS + scoped grants, not definer
+functions) is a deliberate exception to the platform default. Anonymous
+sign-in is a project-wide auth setting; every anonymous signup fans out
+a `shared.profiles` row (placeholder email `anon-<uuid>`) and an
+`officerider_private.rider_profiles` row via the sibling products'
+triggers — accepted.
 
+The ORIGINAL single-project setup below still applies to zikr's own
+legacy hosted project (`hcbzzdadtnsarxwszwei`), where `public` remains
+the only exposed schema and the RETIRED `migrations/_archive_standalone/`
+stream (0001–0004) is what that database runs. Do NOT apply the archived
+stream to the shared project — it runs `migrations/20261014000000_zikr_platform_init.sql` only.
+
+See `docs/SharedGoals-Design.md` for the full design.
 ## Setup
 
 1. Create a project at [supabase.com](https://supabase.com) (free tier is sufficient).
 2. In **Authentication → Providers**, enable **Anonymous sign-in** (required —
    this is how the app works without logins).
-3. Apply the single migration `migrations/0001_init.sql` in the Supabase
-   dashboard (**SQL Editor**), or via the CLI with `supabase db push` after
-   linking your project.
-4. Leave **Settings → API → Exposed schemas** at its default (`public`
-   only). Do NOT add `zikr_app`: the tables live there and must have no REST
-   endpoints. All app calls go to the thirteen `public.*` RPC functions,
-   which the migrations grant explicitly after revoking EXECUTE from
+3. Apply every file in `migrations/` in order (`0001_init.sql` is canonical;
+   the later files are additive) in the Supabase dashboard (**SQL Editor**),
+   or via the CLI with `supabase db push` after linking your project.
+4. On the shared project, `zikr` must be IN the **Settings → API → Exposed
+   schemas** list (the platform owner applies it with the rest of the
+   PATCH list); on the legacy single project keep it at its default
+   (`public` only). Either way do NOT expose `zikr_app`: the tables live
+   there and must have no REST endpoints. All app calls go to the
+   fourteen `zikr.*` RPC functions,
+   which the init grants them explicitly after revoking EXECUTE from
    everything else in the schema (see `EXPOSURE-RULES.md` for the full
    surface, its rules, and the tightening backlog).
 5. Optionally enable the `pg_cron` extension and uncomment the
    `cron.schedule` line at the bottom of `0001_init.sql` to auto-purge — or
-   call `public.purge_expired()` from your project's keep-alive job using
+   call `zikr.zikr_purge_expired()` from your project's keep-alive job using
    the **service role key** (it also prunes analytics events older than 90
    days and stale unverified submissions; app clients cannot call it).
 6. Copy the project URL and anon key into the app's environment:
@@ -45,6 +67,12 @@ CAPTCHA makes that expensive:
    attaches a fresh token to every `signInAnonymously()` call.
 4. Leave `VITE_TURNSTILE_SITE_KEY` empty in dev if your local project has
    captcha disabled — the client skips the token entirely in that case.
+
+The **site key (client) and secret key (server) are one deployment pair —
+flip them together.** Beyond guarding sign-in, the same pair protects the
+feedback form: when a secret is configured, the feedback RPC verifies a
+fresh token server-side against Cloudflare's siteverify (see below). With
+no secret configured, feedback submissions skip verification.
 
 ## Local migration validation (Docker)
 
@@ -74,7 +102,8 @@ docker compose exec -T db psql -U postgres -d zikr_local \
 
 - `local-test/example.tests.sql` is a working reference (happy paths +
   authorization negatives for every RPC); keep it or per-feature test files
-  in sync with schema changes.
+  (`30-feedback.tests.sql`, …) in sync with schema changes, and run each
+  file the same way after touching its feature.
 - Init runs only on an empty volume — after changing a migration, reset
   with `down -v` first.
 - **Regenerate the client's DB mirror** after changing a migration: with
@@ -88,11 +117,11 @@ docker compose exec -T db psql -U postgres -d zikr_local \
 ## Security model
 
 - Tables (groups, members, plans, plan_zikrs, plan_owners,
-  plan_contributions, devices, analytics_events, shared_zikrs) live in
-  `zikr_app` with RLS policies doing row-level authorization (ownership,
-  membership, own-device rows). The schema is not exposed to the API, so the
-  tables have no REST endpoints.
-- The RPCs in `public` are `security invoker`: they run with the caller's
+  plan_contributions, devices, analytics_events, shared_zikrs, feedback,
+  app_config) live in `zikr_app` with RLS policies doing row-level
+  authorization (ownership, membership, own-device rows). The schema is not
+  exposed to the API, so the tables have no REST endpoints.
+- The RPCs in the exposed `zikr` schema are `security invoker`: they run with the caller's
   privileges, so the migration's scoped table grants + RLS authorize every
   statement. Functions also raise app-specific errors (`group_full`,
   `window_ended`, `not_owner`, …) that the client maps to messages.
@@ -102,7 +131,7 @@ docker compose exec -T db psql -U postgres -d zikr_local \
 - `purge_expired()` is `security definer` and granted to `service_role`
   only.
 
-The anon key is safe to ship: it only works through the thirteen granted
+The anon key is safe to ship: it only works through the fourteen granted
 RPCs, and the backend never stores per-member contribution data (see the
 design doc). The complete exposure policy — what is exposed, what never is,
 and where it can be tightened — lives in `EXPOSURE-RULES.md`.
@@ -111,20 +140,41 @@ and where it can be tightened — lives in `EXPOSURE-RULES.md`.
 
 Crowdsourced zikr definitions with admin moderation:
 
-1. Clients submit custom zikrs via `public.share_zikr(name, arabic, translation)`
+1. Clients submit custom zikrs via `zikr.zikr_share_zikr(name, arabic, translation)`
    — rows land with `verified = false` and are invisible to other users.
 2. **Verification is manual:** review `zikr_app.shared_zikrs` where
    `verified = false` in the Table Editor, fix texts if needed, and set
    `verified = true` + `verified_at = now()` (any UPDATE bumps `updated_at`
    automatically via trigger — that is what re-delivers the row to clients
    that already pulled it).
-3. Clients pull via `public.pull_verified_zikrs(cursor_updated_at, cursor_id)`
+3. Clients pull via `zikr.zikr_pull_verified_zikrs(cursor_updated_at, cursor_id)`
    — cursor-paginated on `(updated_at, id)`, 100 rows per call. The client
    loops while `hasMore` and stores the cursor for incremental syncs.
 
 Rejected submissions: just delete the row (or leave it — `purge_expired()`
 removes unverified rows older than 180 days). Duplicate names are rejected
 case-insensitively by a unique index.
+
+## Feedback (0004_feedback.sql)
+
+One-way messages from users to the admin, submitted from Settings →
+Feedback:
+
+1. `zikr.zikr_submit_feedback(category, message, email?, app_version?,
+   locale?, user_agent?, captcha_token?)` inserts into
+   `zikr_app.feedback`, attributed to the caller's anonymous uid.
+   Rate limit: 5 submissions per user per 24h, checked BEFORE the captcha
+   round-trip. There is no read RPC — RLS lets a user see only their own
+   rows, and clients hold no UPDATE/DELETE grants.
+2. **Reading:** open `zikr_app.feedback` in the Table Editor (newest
+   first), set `status` to `read`/`resolved` as you work the queue. The
+   optional `email` column is the only reply channel.
+3. **Captcha:** with a Turnstile secret configured (CAPTCHA section
+   above), submissions must carry a fresh token which the server verifies
+   against Cloudflare siteverify via the `http` extension. Without a
+   secret, verification is skipped. If the `http` extension is somehow
+   unavailable while a secret IS configured, verification fails closed.
+4. Feedback rows are never auto-purged — they are the deliverable.
 
 ## Troubleshooting "everything 404s"
 
@@ -134,11 +184,13 @@ If Groups and Library sync fail at once with
 404 {"code":"PGRST202","details":"Searched for the function zikr_app.…"}
 ```
 
-the **Exposed schemas** setting drifted: the schema name in the error
-(`zikr_app.<fn>` instead of `public.<fn>`) is the giveaway. Fix:
-**Settings → API → Exposed schemas → `public` ONLY** (remove everything
-else; `Accept-Profile: public` cannot rescue a schema that is not
-exposed). This has regressed more than once — check it first.
+the **Exposed schemas** setting or the client profile drifted. The schema
+name in the error tells you which: `donate.zikr_<fn>` means the call went
+out WITHOUT the `Content-Profile: zikr` header (or `zikr` fell out of the
+shared PATCH list — platform owner re-applies via `expose.sh`);
+`zikr_app.<fn>` on the legacy project means exposure drifted there
+(fix: **Settings → API → Exposed schemas → `public` ONLY**). Profile
+drift has regressed more than once — check it first.
 
 After restoring exposure, re-run the current `migrations/0002_shared_zikrs.sql`
 if Library sync fails with `42P01 relation "page" does not exist` (an

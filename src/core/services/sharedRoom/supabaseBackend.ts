@@ -36,7 +36,7 @@ async function getClient(): Promise<any> {
         import.meta.env.VITE_SUPABASE_ANON_KEY,
         // RPCs live in the public schema (the only PostgREST-exposed one);
         // the zikr_app schema holds the tables and is API-invisible.
-        { db: { schema: 'public' }, auth: { persistSession: true, autoRefreshToken: true } }
+        { db: { schema: 'zikr' }, auth: { persistSession: true, autoRefreshToken: true } }
       )
     );
   }
@@ -165,7 +165,7 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   }
 
   createRoom(input: CreateRoomInput): Promise<RoomStatePayload> {
-    return rpc('create_group', {
+    return rpc('zikr_create_group', {
       p_title: input.title,
       p_name: input.displayName,
       p_plan: planToPayload(input.initialPlan),
@@ -173,18 +173,18 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   }
 
   joinRoom(code: string, displayName: string): Promise<RoomStatePayload> {
-    return rpc('join_group', { p_code: code, p_name: displayName });
+    return rpc('zikr_join_group', { p_code: code, p_name: displayName });
   }
 
   createPlan(code: string, input: CreatePlanInput): Promise<RoomStatePayload> {
-    return rpc('create_plan', {
+    return rpc('zikr_create_plan', {
       p_code: code,
       p_plan: planToPayload(input),
     });
   }
 
   endPlan(code: string, planId: string): Promise<void> {
-    return rpc('end_plan', { p_code: code, p_plan_id: planId });
+    return rpc('zikr_end_plan', { p_code: code, p_plan_id: planId });
   }
 
   contribute(
@@ -194,7 +194,7 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
     delta: number,
     eventId: string
   ): Promise<{ total: number; periodTotal: number }> {
-    return rpc('contribute', {
+    return rpc('zikr_contribute', {
       p_code: code,
       p_plan_id: planId,
       p_zikr_name: zikrName,
@@ -204,30 +204,30 @@ export class SupabaseSharedRoomBackend implements SharedRoomBackend {
   }
 
   getRoomState(code: string): Promise<RoomStatePayload> {
-    return rpc('get_group_state', { p_code: code });
+    return rpc('zikr_get_group_state', { p_code: code });
   }
 
   removeMember(code: string, userId: string): Promise<void> {
-    return rpc('remove_member', { p_code: code, p_user_id: userId });
+    return rpc('zikr_remove_member', { p_code: code, p_user_id: userId });
   }
 
   leaveRoom(code: string): Promise<void> {
-    return rpc('leave_group', { p_code: code });
+    return rpc('zikr_leave_group', { p_code: code });
   }
 
   closeRoom(code: string): Promise<void> {
-    return rpc('close_group', { p_code: code });
+    return rpc('zikr_close_group', { p_code: code });
   }
 
   // ---------- Usage metrics (best-effort; see contract) ----------
 
   async ensureDeviceToken(): Promise<string> {
-    return rpc('get_or_create_device_token', {});
+    return rpc('zikr_get_or_create_device_token', {});
   }
 
   async trackEvent(name: string, properties: Record<string, unknown> = {}): Promise<void> {
     try {
-      await rpc('track_event', { p_name: name, p_properties: properties });
+      await rpc('zikr_track_event', { p_name: name, p_properties: properties });
     } catch {
       // Metrics are best-effort by contract — swallow everything.
     }
