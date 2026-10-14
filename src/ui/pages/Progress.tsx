@@ -110,7 +110,7 @@ const Progress: React.FC = () => {
         editableUntil: new Date(timestampDate.getTime() + 3 * 24 * 60 * 60 * 1000),
         createdAt: new Date(),
         updatedAt: new Date(),
-        countsToGoals: useSettingsStore.getState().settings.countToGoalsAndGroups ?? true,
+        countsToGoals: (useSettingsStore.getState().settings.countToGoalsAndGroups as boolean | undefined) ?? true,
       });
 
       // Clear form

@@ -23,9 +23,9 @@ import { sharedRoomService } from '../sharedRoom';
 import { isCaptchaEnabled, getCaptchaToken } from '../sharedRoom/captcha';
 import { FeedbackError } from './contract';
 import type { FeedbackBackend, FeedbackInput } from './contract';
-import type { SupabaseRpc, SupabaseRpcName } from '../supabaseTypes';
+import type { SupabaseRpc, SupabaseRpcName, SupabaseZikrClient } from '../supabaseTypes';
 
-let clientPromise: Promise<any> | null = null;
+let clientPromise: Promise<SupabaseZikrClient> | null = null;
 
 function isSupabaseConfigured(): boolean {
   return Boolean(
@@ -33,7 +33,7 @@ function isSupabaseConfigured(): boolean {
   );
 }
 
-async function getClient(): Promise<any> {
+async function getClient(): Promise<SupabaseZikrClient> {
   if (!isSupabaseConfigured()) {
     throw new FeedbackError('not-configured');
   }

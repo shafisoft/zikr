@@ -63,6 +63,15 @@ function sendButton(): HTMLButtonElement | null {
   return buttonByText('Send');
 }
 
+/** Poll until `cond` holds — a fixed sleep never survives loaded CI. */
+async function waitFor(cond: () => boolean, ms = 2000) {
+  const start = Date.now();
+  while (!cond()) {
+    if (Date.now() - start > ms) throw new Error('waitFor: condition not met in time');
+    await sleep(10);
+  }
+}
+
 function setMessage(value: string) {
   const el = container!.querySelector('#feedback-message') as HTMLTextAreaElement;
   const setter = Object.getOwnPropertyDescriptor(
@@ -99,7 +108,7 @@ describe('FeedbackFormModal', () => {
     expect(sendButton()!.disabled).toBe(true);
 
     setMessage('The night preset lost my count');
-    await sleep(10);
+    await waitFor(() => sendButton()?.disabled === false);
     expect(sendButton()!.disabled).toBe(false);
   });
 
@@ -118,7 +127,7 @@ describe('FeedbackFormModal', () => {
     buttonByText('Suggestion')!.click();
     setMessage('  Add a Bengali translation for the adhkar  ');
     setEmail('me@example.com');
-    await sleep(10);
+    await waitFor(() => sendButton()?.disabled === false);
 
     sendButton()!.click();
     await sleep(10);

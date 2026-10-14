@@ -46,8 +46,9 @@ function normalizeName(name: string): string {
 
 async function readCursor(): Promise<ZikrSyncCursor | null> {
   const row = await db.settings.get(CURSOR_SETTING_KEY);
-  if (!row?.value?.updatedAt || !row?.value?.id) return null;
-  return row.value as ZikrSyncCursor;
+  const cursor = row?.value as ZikrSyncCursor | undefined;
+  if (!cursor?.updatedAt || !cursor?.id) return null;
+  return cursor;
 }
 
 async function writeCursor(cursor: ZikrSyncCursor): Promise<void> {

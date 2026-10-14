@@ -45,7 +45,7 @@
  * cannot be retracted, so rooms keep today's exact behavior.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CounterCircle from '../CounterCircle';
 import MaterialIcon from '../MaterialIcon';
 import OrnamentDivider from '../decor/OrnamentDivider';
@@ -221,16 +221,16 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   };
 
   // Haptics come straight from settings so a toggle anywhere applies live.
-  const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
+  const hapticsEnabled = useSettingsStore(state => (state.settings.hapticsEnabled as boolean | undefined) ?? true);
   const { trigger: haptic, isSupported: hapticsSupported } = useHaptic(hapticsEnabled);
 
   // Owner-gated forgiveness affordances (1.2a/1.2c): hold-to-take-back and
   // the Undo toast exist only behind this toggle; default stays dead simple.
   const advancedControls = useSettingsStore(
-    state => state.settings.advancedCounterControls ?? false
+    state => (state.settings.advancedCounterControls as boolean | undefined) ?? false
   );
   const holdHintShown = useSettingsStore(
-    state => state.settings.counterHoldHintShown ?? false
+    state => (state.settings.counterHoldHintShown as boolean | undefined) ?? false
   );
   const saveSetting = useSettingsStore(state => state.saveSetting);
 
@@ -275,12 +275,14 @@ const CounterSession: React.FC<CounterSessionProps> = ({
     void checkpointProgress(zikr.id!, saveAmount);
   }, [progressMode, saveAmount, zikr.id, checkpointProgress]);
 
-  const handleIncrement = () => {
+  // Memoized so the keyboard effect below can list them without churning
+  // (the effects still rebind whenever these change — the deps are real).
+  const handleIncrement = useCallback(() => {
     // No target gate on purpose: reaching the target saves a round, and
     // counting flows straight on — every tap is real dhikr.
     setCount(count + 1);
     onCount(isRoomContinuation ? count + 1 : saveAmount + 1);
-  };
+  }, [count, saveAmount, isRoomContinuation, onCount]);
 
   // 1.2a (gated): hold-to-take-back. Floored at zero AND at everything
   // already persisted — the seeded base and saved rounds leave through
@@ -303,17 +305,17 @@ const CounterSession: React.FC<CounterSessionProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canDecrement, holdHintShown, count]);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     // Discard the unsaved remainder; what is already persisted stays.
     setCount(saveableBase + savedSoFar);
     onCount(isRoomContinuation ? saveableBase + savedSoFar : 0);
     haptic('light');
-  };
+  }, [saveableBase, savedSoFar, isRoomContinuation, onCount, haptic]);
 
   // 1.2b (always on): reset is accident protection, so BOTH routes — the
   // tap button and the desktop Escape — go through the in-app confirm with
   // exactly two actions. No native confirm(), no ungated path.
-  const requestReset = async () => {
+  const requestReset = useCallback(async () => {
     const confirmed = await showConfirm({
       message: t('counter.resetConfirm'),
       danger: true,
@@ -321,7 +323,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
       cancelLabel: t('counter.keepCounting'),
     });
     if (confirmed) handleReset();
-  };
+  }, [t, handleReset]);
 
   // Persist what this session added — the business rules (edit window,
   // day-part, routine attribution, counts-toward-goals default, room

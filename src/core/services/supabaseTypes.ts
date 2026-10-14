@@ -25,6 +25,18 @@
  */
 
 import type { Database } from './supabaseDatabase.generated';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * The client all three adapters share (created dynamically with
+ * `db: { schema: 'zikr' }` — see the supabaseBackend files). The Database
+ * generic is deliberately `any`: the app never reads tables over
+ * PostgREST, and every RPC's params/return shape is hand-typed in
+ * `SupabaseRpc` below and machine-guarded against the generated schema by
+ * `supabaseRpcSurface.test.ts`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SupabaseZikrClient = SupabaseClient<any, any, 'zikr'>;
 
 // ---------- Enums (zikr_app.plans check constraints) ----------
 

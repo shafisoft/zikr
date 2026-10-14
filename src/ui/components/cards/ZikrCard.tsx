@@ -25,7 +25,7 @@ export const ZikrCard: React.FC<ZikrCardProps> = ({
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   const { t } = useI18n();
   const { createRipple } = useRipple(buttonRef);
-  const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
+  const hapticsEnabled = useSettingsStore(state => (state.settings.hapticsEnabled as boolean | undefined) ?? true);
   const { trigger: haptic } = useHaptic(hapticsEnabled);
 
   const handleStart = () => {

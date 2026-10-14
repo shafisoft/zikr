@@ -21,13 +21,14 @@ export function getPeriodStart(period: GoalPeriod, baseDate: Date = new Date()):
       date.setHours(0, 0, 0, 0);
       return date;
 
-    case 'weekly':
+    case 'weekly': {
       // Start of week (Monday)
       const day = date.getDay();
       const diff = (day + 6) % 7; // Calculate days since last Monday
       date.setDate(date.getDate() - diff);
       date.setHours(0, 0, 0, 0);
       return date;
+    }
 
     case 'monthly':
       // Start of month (1st day)
@@ -52,21 +53,23 @@ export function getPeriodEnd(period: GoalPeriod, baseDate: Date = new Date()): D
       date.setHours(23, 59, 59, 999);
       return date;
 
-    case 'weekly':
+    case 'weekly': {
       // End of week (Sunday)
       const day = date.getDay();
       const diff = (7 - day) % 7; // Calculate days until next Sunday
       date.setDate(date.getDate() + diff);
       date.setHours(23, 59, 59, 999);
       return date;
+    }
 
-    case 'monthly':
+    case 'monthly': {
       // End of month (last day)
       const month = date.getMonth();
       date.setMonth(month + 1);
       date.setDate(0);
       date.setHours(23, 59, 59, 999);
       return date;
+    }
 
     default:
       // For custom, return end of day
@@ -115,9 +118,10 @@ export function formatPeriod(period: GoalPeriod, baseDate: Date = new Date()): s
     case 'daily':
       return `Today (${date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })})`;
 
-    case 'weekly':
+    case 'weekly': {
       const weekStart = getPeriodStart('weekly', date);
       return `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    }
 
     case 'monthly':
       return `${date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;

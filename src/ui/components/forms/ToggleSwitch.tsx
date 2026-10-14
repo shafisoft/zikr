@@ -13,7 +13,9 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
   disabled = false,
   inputId: inputIdProp,
 }) => {
-  const id = inputIdProp ?? React.useId();
+  // Hooks must run unconditionally — the prop is an override, not a gate.
+  const generatedId = React.useId();
+  const id = inputIdProp ?? generatedId;
 
   return (
     <div className="flex items-center gap-3">

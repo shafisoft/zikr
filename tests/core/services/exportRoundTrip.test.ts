@@ -114,7 +114,7 @@ describe('export → import round trip (Date rehydration)', () => {
 
     const cursorRow = await db.settings.get('zikrSyncCursor');
     expect(cursorRow?.value).toEqual({ updatedAt: '2026-02-28T12:00:00.000Z', id: 'abc' });
-    expect(typeof cursorRow?.value.updatedAt).toBe('string');
+    expect(typeof (cursorRow?.value as { updatedAt: string }).updatedAt).toBe('string');
 
     // Non-date settings survive untouched.
     expect((await db.settings.get('hapticsEnabled'))?.value).toBe(true);

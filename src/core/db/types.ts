@@ -258,7 +258,8 @@ export interface Streak {
 
 export interface Setting {
   key: string;
-  value: any;
+  /** Arbitrary KV payload — each consumer casts to the shape it wrote. */
+  value: unknown;
 }
 
 // NEW (v2): Session update for edit operations

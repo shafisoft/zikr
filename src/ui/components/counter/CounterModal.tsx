@@ -32,7 +32,7 @@ interface CounterModalProps {
 }
 
 const CounterModal: React.FC<CounterModalProps> = ({ isOpen, onClose, zikr, startCount, target, onCount, onFinish }) => {
-  const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
+  const hapticsEnabled = useSettingsStore(state => (state.settings.hapticsEnabled as boolean | undefined) ?? true);
   const saveSetting = useSettingsStore(state => state.saveSetting);
   const { trigger: haptic } = useHaptic(hapticsEnabled);
 

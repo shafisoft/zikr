@@ -148,7 +148,7 @@ const BulkEntryForm: React.FC<BulkEntryFormProps> = ({ onSuccess, onCancel }) =>
           editableUntil: new Date(timestampDate.getTime() + 3 * 24 * 60 * 60 * 1000),
           createdAt: new Date(),
           updatedAt: new Date(),
-          countsToGoals: useSettingsStore.getState().settings.countToGoalsAndGroups ?? true,
+          countsToGoals: (useSettingsStore.getState().settings.countToGoalsAndGroups as boolean | undefined) ?? true,
           // The prayer-anchored part of day — scopes the entry to matching
           // scheduled routines (a Fajr entry never completes the evening set).
           dayPart: PRAYER_DAY_PART[dayPartChoice],

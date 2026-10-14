@@ -3,11 +3,11 @@ import { db } from '../db/db';
 import { exportService } from '../services/exportService';
 
 interface SettingsState {
-  settings: Record<string, any>;
+  settings: Record<string, unknown>;
   loading: boolean;
   loadSettings: () => Promise<void>;
-  saveSetting: (key: string, value: any) => Promise<void>;
-  getSetting: (key: string) => any;
+  saveSetting: (key: string, value: unknown) => Promise<void>;
+  getSetting: (key: string) => unknown;
   /** One-shot maintenance ops (backup/restore/wipe) — no state to mirror. */
   exportData: () => Promise<void>;
   importData: (file: File) => Promise<void>;
@@ -24,7 +24,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const settingsObj = allSettings.reduce((obj, setting) => {
         obj[setting.key] = setting.value;
         return obj;
-      }, {} as Record<string, any>);
+      }, {} as Record<string, unknown>);
 
       set({ settings: settingsObj, loading: false });
     } catch (error) {

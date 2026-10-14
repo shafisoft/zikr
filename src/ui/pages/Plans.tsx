@@ -99,7 +99,7 @@ const Plans: React.FC = () => {
       await updatePlan(planId, {
         status: newActiveState ? 'active' : 'paused',
         ...(newActiveState ? { completedAt: undefined } : {}),
-      } as any);
+      });
     } catch (error) {
       console.error('Failed to update plan:', error);
     } finally {

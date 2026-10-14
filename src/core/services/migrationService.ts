@@ -40,6 +40,7 @@ export async function migrateToV2(
 
   // NEW (design review feedback): Verification step
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Dexie cannot type "rows where the indexed field is missing"; the undefined key IS the query
     const unmigrated = await sessions.where('editableUntil').equals(undefined as any).count();
     if (unmigrated > 0) {
       console.warn(`Migration incomplete: ${unmigrated} sessions missing editableUntil field`);

@@ -41,7 +41,7 @@ const Counter: React.FC = () => {
   // null and must not unmount the container mid-resolution (R2 deadlock).
   const zikrsLoading = useZikrStore(state => state.loading);
   const zikrs = useZikrStore(state => state.zikrs);
-  const hapticsEnabled = useSettingsStore(state => state.settings.hapticsEnabled ?? true);
+  const hapticsEnabled = useSettingsStore(state => (state.settings.hapticsEnabled as boolean | undefined) ?? true);
   const saveSetting = useSettingsStore(state => state.saveSetting);
 
   // Chrome bridge (§16.1): the flow container reports the active step's

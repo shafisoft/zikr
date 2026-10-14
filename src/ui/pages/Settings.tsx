@@ -51,11 +51,12 @@ const Settings: React.FC = () => {
   useEffect(() => {
     // Reflect the effective theme: explicit setting, else system preference
     setDarkMode(
-      settings.darkMode ?? window.matchMedia('(prefers-color-scheme: dark)').matches
+      (settings.darkMode as boolean | undefined) ??
+        window.matchMedia('(prefers-color-scheme: dark)').matches
     );
-    setHapticsEnabled(settings.hapticsEnabled ?? true);
-    setAdvancedCounter(settings.advancedCounterControls ?? false);
-    setCountToGoals(settings.countToGoalsAndGroups ?? true);
+    setHapticsEnabled((settings.hapticsEnabled as boolean | undefined) ?? true);
+    setAdvancedCounter((settings.advancedCounterControls as boolean | undefined) ?? false);
+    setCountToGoals((settings.countToGoalsAndGroups as boolean | undefined) ?? true);
   }, [settings]);
 
   const handleDarkModeToggle = async (value: boolean) => {

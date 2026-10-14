@@ -146,6 +146,6 @@ export const useSessionStore = create<SessionState>((set) => ({
     recordCount({
       ...input,
       countsToGoalsResolver: () =>
-        useSettingsStore.getState().settings.countToGoalsAndGroups ?? true,
+        (useSettingsStore.getState().settings.countToGoalsAndGroups as boolean | undefined) ?? true,
     }),
 }));

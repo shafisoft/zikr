@@ -63,7 +63,7 @@ export function streakStatus(
 
   let value = 0;
   let current = cursor;
-  while (true) {
+  for (;;) {
     if (hasDay(current)) {
       value++;
       current = formatDate(addDays(new Date(current + 'T00:00:00'), -1));
