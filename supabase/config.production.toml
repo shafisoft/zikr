@@ -1,0 +1,40 @@
+# ====================================================================
+# PRODUCTION config profile — zikr product stream (push-only)
+# ====================================================================
+# zikr's supabase/ dir is CLI-unconventional on purpose: local testing
+# runs on this repo's own docker-compose (supabase/local-test/), not the
+# supabase CLI stack, so there is no supabase/config.toml here. This
+# profile exists only for hosted ops against the SHARED project — pass
+# it explicitly:
+#   supabase link --project-ref <ref> --config-path supabase/config.production.toml
+#   supabase db push --config-path supabase/config.production.toml
+#
+# The shared project runs ONLY migrations/20261014000000_zikr_platform_init.sql
+# (the consolidated platform init). The RETIRED standalone stream in
+# migrations/_archive_standalone/ belongs to zikr's legacy single project
+# and must NEVER be applied to the shared project.
+#
+# Hosted exposure is platform-owned: the exposed `zikr` schema goes into
+# the PATCH list via the platform repo's guarded supabase/expose.sh.
+# Project-wide auth requirement (EXPOSURE-RULES.md, SCHEMAS.md): ANON
+# sign-ins must be ENABLED on the hosted project before the client cuts
+# over.
+# ====================================================================
+
+project_id = "zikr-prod"
+
+[api]
+enabled = false
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+enabled = false
+sql_paths = []
