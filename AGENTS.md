@@ -224,3 +224,10 @@ it only when the change ships to GitHub Pages.
 See **docs/architecture.md** for complete data schema and architecture diagrams.
 See **docs/Tasks.md** for v1 task breakdown across 5 epics.
 See **docs/Idea.md** for problem statement and target users.
+
+## Communication style (agent replies)
+
+- Talk less. Keep replies short.
+- Use simple words. Simple sentences.
+- Prefer diagrams (ASCII or Mermaid) over long text when explaining structure or flow.
+
