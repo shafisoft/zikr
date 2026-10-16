@@ -264,6 +264,10 @@ export const bn: Dictionary = {
   'group.planCount': '{{count}} টি পরিকল্পনা',
   'group.privacyNote': 'আপনার ব্যক্তিগত সংখ্যা এই ডিভাইসেই থাকে — গ্রুপে শুধু সবার মিলিত মোট দেখা যায়।',
   'group.timeLeft': '{{time}} বাকি',
+  'group.removeTitle': 'তালিকা থেকে সরান',
+  'group.removeConfirm': 'আপনি "{{name}}" ছেড়ে দেবেন এবং এটি আপনার তালিকা থেকে সরে যাবে।',
+  'group.removeConfirmOwner': 'এটি কেবল আপনার তালিকা থেকে "{{name}}" সরাবে — গ্রুপটি সদস্যদের জন্য রয়ে যাবে, আর সক্রিয় থাকা অবস্থায় কোড দিয়ে আবার যোগ দিতে পারবেন।',
+  'group.removeAction': 'সরান',
 
   'room.addCount': 'আপনার সংখ্যা যোগ করুন',
   'room.customAmount': 'নিজের সংখ্যা লিখুন',

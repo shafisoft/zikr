@@ -265,6 +265,10 @@ export const en = {
   'group.planCount': '{{count}} plans',
   'group.privacyNote': 'Your personal counts stay on this device. Only the combined total is shared with the group.',
   'group.timeLeft': '{{time}} left',
+  'group.removeTitle': 'Remove from list',
+  'group.removeConfirm': 'You will leave "{{name}}" and it will be removed from your list.',
+  'group.removeConfirmOwner': 'This removes "{{name}}" from your list only — the group stays available to members, and you can rejoin with its code while it is active.',
+  'group.removeAction': 'Remove',
 
   'room.addCount': 'Add your count',
   'room.customAmount': 'Enter your count',

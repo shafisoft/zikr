@@ -13,10 +13,14 @@ import { useNavActions } from '../components/navigation/navActions';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
 import CreateRoomModal from '../components/CreateRoomModal';
 import JoinRoomModal from '../components/JoinRoomModal';
+import { showConfirm } from '../components/ConfirmDialog';
 import { useSharedRoomStore } from '../../core/stores/sharedRoomStore';
+import { useSettingsStore } from '../../core/stores/settingsStore';
 import { Plan, SharedRoom } from '../../core/db/types';
 import { getPlanPhase, sharedPlanProgress } from '../../core/utils/planUtils';
 import { useI18n } from '../../core/i18n';
+import { useHaptic } from '../hooks/useHaptic';
+import useLongPress from '../hooks/useLongPress';
 
 const Group: React.FC = () => {
   const navigate = useNavigate();
@@ -31,10 +35,16 @@ const Group: React.FC = () => {
     identity,
     init,
     clearError,
+    leaveRoom,
   } = useSharedRoomStore();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
+
+  const hapticsEnabled = useSettingsStore(
+    state => (state.settings.hapticsEnabled as boolean | undefined) ?? true
+  );
+  const { trigger: haptic } = useHaptic(hapticsEnabled);
 
   // "Signed in" means the backend device identity exists. Creating a group
   // requires it; when init could not establish one (offline, security
@@ -58,6 +68,26 @@ const Group: React.FC = () => {
   }, [rooms]);
 
   const openRoom = (code: string) => navigate(`/group/${code}`);
+
+  // Long-press removal: anyone can take a group off THEIR list. For a
+  // joined group the removal is a real leave (server membership ends, so
+  // the group never comes back); an owner removing an ACTIVE group only
+  // declutters their own list — the group stays live for members, and its
+  // code rejoins while it is active.
+  const removeRoom = async (room: SharedRoom) => {
+    haptic('medium');
+    const ownerActive = room.status === 'active' && room.ownerId === identity?.userId;
+    const ok = await showConfirm({
+      title: t('group.removeTitle'),
+      message: t(ownerActive ? 'group.removeConfirmOwner' : 'group.removeConfirm', {
+        name: room.title,
+      }),
+      danger: true,
+      confirmLabel: t('group.removeAction'),
+      cancelLabel: t('common.cancel'),
+    });
+    if (ok) void leaveRoom(room.code);
+  };
 
   return (
     <AppLayout
@@ -174,7 +204,13 @@ const Group: React.FC = () => {
                   {t('group.groups', { count: grouped.active.length })}
                 </h3>
                 {grouped.active.map((room) => (
-                  <RoomCard key={room.code} room={room} plans={plans} onClick={() => openRoom(room.code)} />
+                  <RoomCard
+                    key={room.code}
+                    room={room}
+                    plans={plans}
+                    onClick={() => openRoom(room.code)}
+                    onRemove={() => void removeRoom(room)}
+                  />
                 ))}
               </section>
             )}
@@ -186,7 +222,13 @@ const Group: React.FC = () => {
                   {t('group.closed')}
                 </h3>
                 {grouped.closed.map((room) => (
-                  <RoomCard key={room.code} room={room} plans={plans} onClick={() => openRoom(room.code)} />
+                  <RoomCard
+                    key={room.code}
+                    room={room}
+                    plans={plans}
+                    onClick={() => openRoom(room.code)}
+                    onRemove={() => void removeRoom(room)}
+                  />
                 ))}
               </section>
             )}
@@ -231,9 +273,11 @@ interface RoomCardProps {
   room: SharedRoom;
   plans: Plan[];
   onClick: () => void;
+  /** Long-press: remove this group from the device's list (see removeRoom). */
+  onRemove: () => void;
 }
 
-const RoomCard: React.FC<RoomCardProps> = ({ room, plans, onClick }) => {
+const RoomCard: React.FC<RoomCardProps> = ({ room, plans, onClick, onRemove }) => {
   const { t } = useI18n();
   const now = new Date();
 
@@ -243,10 +287,15 @@ const RoomCard: React.FC<RoomCardProps> = ({ room, plans, onClick }) => {
   const primaryProgress = primary ? sharedPlanProgress(primary) : null;
   const closed = room.status !== 'active';
 
+  // Tap opens the group; press-and-hold offers removal. The hook swallows
+  // the click that trails a fired long press. select-none keeps the
+  // touch long-press from selecting card text instead of holding.
+  const { handlers } = useLongPress<HTMLButtonElement>({ onLongPress: onRemove, onClick });
+
   return (
     <button
-      onClick={onClick}
-      className="w-full text-left bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 shadow-card relative overflow-hidden hover:shadow-card-lifted transition-shadow duration-300 active-scale-98"
+      {...handlers}
+      className="w-full text-left bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 shadow-card relative overflow-hidden hover:shadow-card-lifted transition-shadow duration-300 active-scale-98 select-none"
     >
       {/* Gold quarter-circle wash */}
       <div
