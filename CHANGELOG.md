@@ -7,6 +7,10 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
+_(nothing yet)_
+
+## [1.11.0] - 2026-10-16
+
 ### Changed
 - **Backend moved to the platform's standard schema layout** (internal):
   tables + helpers now live in `zikr_private` (the shared project's
@@ -15,7 +19,10 @@ user-facing change and date it when it ships.
   same 14 `zikr_*` RPCs in the exposed `zikr` schema, same
   `Content-Profile: zikr` header — so no app release is required; the
   client's generated DB types were regenerated against the renamed
-  schema.
+  schema. Applied on the hosted platform project the same day: the
+  legacy rows were reloaded into `zikr_private`, and Groups / Library /
+  Feedback are live against it (anonymous signup → device token → group
+  creation verified end to end).
 
 ### Added
 - **Long-press a group card to remove it from your list.** Old groups
