@@ -50,7 +50,7 @@ for (const m of sql.matchAll(FN_RE)) {
   seen.set(key, true);
 
   if (m[1].toLowerCase() === 'public') {
-    console.error(`✗ ${key}: defined in the retired public schema — use zikr (app-facing) or zikr_app (helpers)`);
+    console.error(`✗ ${key}: defined in the retired public schema — use zikr (app-facing) or zikr_private (helpers)`);
     ok = false;
   }
   if (!/set\s+search_path\s*=/i.test(m[0])) {
@@ -61,6 +61,14 @@ for (const m of sql.matchAll(FN_RE)) {
 
 if (/search_path\s*=\s*public/i.test(sql)) {
   console.error('✗ found `search_path = public` — public is retired on the shared project');
+  ok = false;
+}
+
+// `zikr_app` was renamed to `zikr_private` (platform `<product>_private`
+// standard) before the hosted cutover — the old name must never return
+// (a stray use would fork the tables on fresh environments).
+if (/zikr_app/.test(sql)) {
+  console.error('✗ found `zikr_app` — retired 2026-10-16, tables live in zikr_private');
   ok = false;
 }
 

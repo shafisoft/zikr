@@ -38,7 +38,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type SupabaseZikrClient = SupabaseClient<any, any, 'zikr'>;
 
-// ---------- Enums (zikr_app.plans check constraints) ----------
+// ---------- Enums (zikr_private.plans check constraints) ----------
 
 export type SupabasePlanMode = 'combined' | 'per-zikr';
 export type SupabasePlanPeriod = 'one-time' | 'daily' | 'weekly' | 'monthly';

@@ -7,7 +7,23 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
-_(nothing yet)_
+### Changed
+- **Backend moved to the platform's standard schema layout** (internal):
+  tables + helpers now live in `zikr_private` (the shared project's
+  `<product>_private` convention), renamed from the retired `zikr_app`
+  name before the hosted cutover. The callable surface is unchanged —
+  same 14 `zikr_*` RPCs in the exposed `zikr` schema, same
+  `Content-Profile: zikr` header — so no app release is required; the
+  client's generated DB types were regenerated against the renamed
+  schema.
+
+### Added
+- **Long-press a group card to remove it from your list.** Old groups
+  (yours closed ones, or ones you joined) no longer pile up forever: a
+  press-and-hold on any group card offers a removal confirm. Removing a
+  joined group also leaves it on the server; removing your own ACTIVE
+  group only clears your list — the group stays live for members and its
+  code rejoins while it is active.
 
 ## [1.10.0] - 2026-10-14
 

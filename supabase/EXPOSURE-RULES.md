@@ -26,7 +26,7 @@ must not be enumerable.
   `public` as the only exposed schema; consolidation (2026-10-14) moved the
   RPCs to `zikr` (all `zikr_`-prefixed) and the client sends
   `Content-Profile: zikr` on every call. Two rules carry over unchanged:
-  1. *Security*: `zikr_app` tables must have no REST endpoints.
+  1. *Security*: `zikr_private` tables must have no REST endpoints.
   2. *Correctness*: PostgREST serves the FIRST exposed schema as the
      default profile — an un-profiled `/rpc/*` call searches `donate`, not
      `zikr`, and 404s with PGRST202 even though the function exists.
@@ -67,7 +67,7 @@ shape, so client/backend drift fails the build instead of the user.
   enabled server-side (Authentication → Settings → CAPTCHA). The pair must
   be flipped together. The SAME pair protects the feedback RPC: when a
   Turnstile secret is configured under key `turnstile_secret` in
-  `zikr_app.app_config`, `zikr_submit_feedback` verifies a fresh token against
+  `zikr_private.app_config`, `zikr_submit_feedback` verifies a fresh token against
   Cloudflare siteverify via the `http` extension (fail-closed: a configured
   secret with a missing token, missing extension, or unreachable siteverify
   rejects). With no secret configured, verification is skipped — feedback
@@ -80,10 +80,10 @@ shape, so client/backend drift fails the build instead of the user.
 
 ## 2. What is NOT exposed — never
 
-- **`zikr_app` tables** (groups, members, devices, analytics_events, plans,
+- **`zikr_private` tables** (groups, members, devices, analytics_events, plans,
   plan_zikrs, plan_owners, plan_contributions, shared_zikrs, feedback,
   app_config): no REST endpoints, ever. Dashboard/SQL/service-role only.
-- **`zikr_app` helper functions** (`random_*`, `is_*`, `group_member_count`,
+- **`zikr_private` helper functions** (`random_*`, `is_*`, `group_member_count`,
   `plan_period_start`, `insert_plan`, `bump_zikr_total`, `set_plan_ended`,
   `verify_turnstile`, the `shared_zikrs_touch` trigger fn): internal,
   schema is API-invisible. `app_config` (Turnstile secret + future
@@ -105,12 +105,12 @@ shape, so client/backend drift fails the build instead of the user.
    precede the per-function grant list. Keep the pattern: a function is
    callable only if it appears in the grant block above.
 2. **Three scoped layers per app-facing RPC.** `security invoker` +
-   `set search_path = zikr, zikr_app, extensions`; RLS does row authorization; table grants are
+   `set search_path = zikr, zikr_private, extensions`; RLS does row authorization; table grants are
    column-scoped. The `raise exception 'snake_code'` checks inside the
    bodies exist for the client's error protocol (RLS only filters rows, it
    cannot produce app error codes).
 3. **Internal helpers are `security definer`**, pinned `search_path`,
-   living in `zikr_app` — invisible to the API and immune to RLS recursion.
+   living in `zikr_private` — invisible to the API and immune to RLS recursion.
 4. **Append-only data flows.** Contributions are insert-only with an
    idempotency PK (`event_id`); no table carries a general UPDATE or DELETE
    grant — only the scoped columns (`groups.status`,
@@ -160,7 +160,7 @@ shape, so client/backend drift fails the build instead of the user.
       `mapServerError` mapping in the client backend, a negative
       authorization test in `supabase/local-test/`, and an update to the
       table in section 1 of this file.
-- [ ] A new table ships with: `zikr_app` schema, RLS enabled on arrival,
+- [ ] A new table ships with: `zikr_private` schema, RLS enabled on arrival,
       column-scoped grants (or none), and a row in section 3.5.
 - [ ] Client still performs zero table access — any `.from()` call is a
       ruleset violation.
@@ -190,7 +190,7 @@ shape, so client/backend drift fails the build instead of the user.
   accept the risk — captcha + the 180-day purge bound the spam.
 - **T6 — Live-database drift audit.** `check:migrations` guards file parity
   only. Add a small read-only audit script (catalog queries + an HTTP probe
-  with the anon key asserting zikr_app tables are not served) to catch
+  with the anon key asserting zikr_private tables are not served) to catch
   dashboard drift: stray grants, extra exposed schemas, functions with
   PUBLIC execute.
 - **T7 — API hygiene:** `zikr_end_plan` ignores `p_code` (ownership is checked

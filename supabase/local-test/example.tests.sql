@@ -254,11 +254,11 @@ begin
 
   -- RLS member visibility: a policy self-query must not recurse, and a
   -- member sees their room's roster rows.
-  if (select count(*) from zikr_app.members) < 1 then raise exception 'FAIL: member sees no roster rows'; end if;
+  if (select count(*) from zikr_private.members) < 1 then raise exception 'FAIL: member sees no roster rows'; end if;
 
   -- Analytics are insert-only: no select grant.
   begin
-    perform count(*) from zikr_app.analytics_events;
+    perform count(*) from zikr_private.analytics_events;
     raise exception 'FAIL: client read analytics_events';
   exception when insufficient_privilege then
     null; -- expected
@@ -329,7 +329,7 @@ end $$;
 -- Admin verifies exactly one zikr; the trigger bumps updated_at, which is
 -- what re-delivers the row to clients that already pulled it.
 reset role;
-update zikr_app.shared_zikrs set verified = true, verified_at = now()
+update zikr_private.shared_zikrs set verified = true, verified_at = now()
 where name = 'Test Zikr Alpha';
 set role authenticated;
 
@@ -346,7 +346,7 @@ end $$;
 -- Boundary: exactly 100 verified → one full page, hasMore = false (a wrong
 -- hasMore here stalls the client cursor on a complete page).
 reset role;
-insert into zikr_app.shared_zikrs (name, verified, updated_at)
+insert into zikr_private.shared_zikrs (name, verified, updated_at)
 select 'bulk ' || g, true, now() + (g * interval '1 second')
 from generate_series(1, 99) g;
 set role authenticated;
@@ -362,7 +362,7 @@ end $$;
 -- One more verified row flips hasMore; the cursor walk then terminates on
 -- a short page with every row delivered exactly once.
 reset role;
-insert into zikr_app.shared_zikrs (name, verified) values ('bulk 100', true);
+insert into zikr_private.shared_zikrs (name, verified) values ('bulk 100', true);
 set role authenticated;
 do $$
 declare r json; n int; total int := 0; pages int := 0; has_more boolean := true;

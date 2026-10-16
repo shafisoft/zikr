@@ -4,7 +4,7 @@
 platform repo's SHARED Supabase project alongside `donate`, `prep_app`,
 `ledger`, and `officerider` (contract: `PLAYBOOK.md` in the platform
 repo; registry: `SCHEMAS.md`). The API surface is the exposed `zikr`
-schema — 14 `zikr_*`-prefixed SECURITY INVOKER RPCs; `zikr_app` holds
+schema — 14 `zikr_*`-prefixed SECURITY INVOKER RPCs; `zikr_private` holds
 the tables and is never exposed. The client passes
 `db: { schema: 'zikr' }` to `createClient`, which sends the
 `Content-Profile: zikr` header on every RPC. Owner decision recorded in
@@ -33,7 +33,7 @@ See `docs/SharedGoals-Design.md` for the full design.
 4. On the shared project, `zikr` must be IN the **Settings → API → Exposed
    schemas** list (the platform owner applies it with the rest of the
    PATCH list); on the legacy single project keep it at its default
-   (`public` only). Either way do NOT expose `zikr_app`: the tables live
+   (`public` only). Either way do NOT expose `zikr_private`: the tables live
    there and must have no REST endpoints. All app calls go to the
    fourteen `zikr.*` RPC functions,
    which the init grants them explicitly after revoking EXECUTE from
@@ -118,14 +118,14 @@ docker compose exec -T db psql -U postgres -d zikr_local \
 
 - Tables (groups, members, plans, plan_zikrs, plan_owners,
   plan_contributions, devices, analytics_events, shared_zikrs, feedback,
-  app_config) live in `zikr_app` with RLS policies doing row-level
+  app_config) live in `zikr_private` with RLS policies doing row-level
   authorization (ownership, membership, own-device rows). The schema is not
   exposed to the API, so the tables have no REST endpoints.
 - The RPCs in the exposed `zikr` schema are `security invoker`: they run with the caller's
   privileges, so the migration's scoped table grants + RLS authorize every
   statement. Functions also raise app-specific errors (`group_full`,
   `window_ended`, `not_owner`, …) that the client maps to messages.
-- Cross-table helpers (membership checks, member counts) live in `zikr_app`
+- Cross-table helpers (membership checks, member counts) live in `zikr_private`
   as small `security definer` functions — invisible to the API, and immune
   to RLS recursion in policies.
 - `purge_expired()` is `security definer` and granted to `service_role`
@@ -142,7 +142,7 @@ Crowdsourced zikr definitions with admin moderation:
 
 1. Clients submit custom zikrs via `zikr.zikr_share_zikr(name, arabic, translation)`
    — rows land with `verified = false` and are invisible to other users.
-2. **Verification is manual:** review `zikr_app.shared_zikrs` where
+2. **Verification is manual:** review `zikr_private.shared_zikrs` where
    `verified = false` in the Table Editor, fix texts if needed, and set
    `verified = true` + `verified_at = now()` (any UPDATE bumps `updated_at`
    automatically via trigger — that is what re-delivers the row to clients
@@ -162,11 +162,11 @@ Feedback:
 
 1. `zikr.zikr_submit_feedback(category, message, email?, app_version?,
    locale?, user_agent?, captcha_token?)` inserts into
-   `zikr_app.feedback`, attributed to the caller's anonymous uid.
+   `zikr_private.feedback`, attributed to the caller's anonymous uid.
    Rate limit: 5 submissions per user per 24h, checked BEFORE the captcha
    round-trip. There is no read RPC — RLS lets a user see only their own
    rows, and clients hold no UPDATE/DELETE grants.
-2. **Reading:** open `zikr_app.feedback` in the Table Editor (newest
+2. **Reading:** open `zikr_private.feedback` in the Table Editor (newest
    first), set `status` to `read`/`resolved` as you work the queue. The
    optional `email` column is the only reply channel.
 3. **Captcha:** with a Turnstile secret configured (CAPTCHA section
@@ -181,14 +181,14 @@ Feedback:
 If Groups and Library sync fail at once with
 
 ```
-404 {"code":"PGRST202","details":"Searched for the function zikr_app.…"}
+404 {"code":"PGRST202","details":"Searched for the function zikr_private.…"}
 ```
 
 the **Exposed schemas** setting or the client profile drifted. The schema
 name in the error tells you which: `donate.zikr_<fn>` means the call went
 out WITHOUT the `Content-Profile: zikr` header (or `zikr` fell out of the
 shared PATCH list — platform owner re-applies via `expose.sh`);
-`zikr_app.<fn>` on the legacy project means exposure drifted there
+`zikr_private.<fn>` on the legacy project means exposure drifted there
 (fix: **Settings → API → Exposed schemas → `public` ONLY**). Profile
 drift has regressed more than once — check it first.
 

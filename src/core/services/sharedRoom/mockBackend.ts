@@ -279,7 +279,7 @@ export class MockSharedRoomBackend implements SharedRoomBackend {
     };
   }
 
-  // ---------- validation + insert (mirrors zikr_app.insert_plan) ----------
+  // ---------- validation + insert (mirrors zikr_private.insert_plan) ----------
 
   private validatePlanInput(input: CreatePlanInput): void {
     if (input.mode !== 'combined' && input.mode !== 'per-zikr')

@@ -63,7 +63,7 @@ export type Database = {
           CompositeTypes: {
             [_ in never]: never
           }
-        },"zikr_app": {
+        },"zikr_private": {
           Tables: {
             "analytics_events": {
                   Row: {
@@ -431,7 +431,7 @@ export const Constants = {
           Enums: {
             
           }
-        },"zikr_app": {
+        },"zikr_private": {
           Enums: {
             
           }

@@ -81,7 +81,7 @@ syncOutbox          pending increments {eventId, roomCode, delta, attempts, next
 - **`get_room_state(p_code text)`** — returns `{room (goal + total), members: [{name, joined_at}]}` in one call.
 - **`create_room(...)`, `join_room(p_code, p_name)`, `remove_member(p_code, p_user_id)`, `close_room(p_code)`** — owner checks enforced via `owner_id = auth.uid()`.
 
-RLS: rooms readable by anyone (code-gated app flow); members rows readable by room members; row changes are constrained by policies (owner inserts rooms, users join as themselves, owner-or-member updates rooms, self-or-owner updates membership rows). All RPCs are `security invoker` in the `public` schema and run under those policies with scoped table grants; the `zikr_app` schema itself is not exposed to the API. There is no submissions table to protect.
+RLS: rooms readable by anyone (code-gated app flow); members rows readable by room members; row changes are constrained by policies (owner inserts rooms, users join as themselves, owner-or-member updates rooms, self-or-owner updates membership rows). All RPCs are `security invoker` in the `public` schema and run under those policies with scoped table grants; the `zikr_private` schema itself is not exposed to the API. There is no submissions table to protect.
 
 ## Client architecture
 

@@ -64,11 +64,11 @@ is ciphertext. Therefore:
 
 ## Server design (migration `0004_device_sync.sql` + canonical 0001)
 
-Tables in `zikr_app` (RLS: rows are reachable only through the RPCs, which
+Tables in `zikr_private` (RLS: rows are reachable only through the RPCs, which
 run as invoker and re-check the account):
 
 ```sql
-create table zikr_app.sync_records (
+create table zikr_private.sync_records (
   account_id text        not null,   -- sha256(syncKey), base64url, 43 chars
   record_id  text        not null,   -- client uuid (syncId)
   kind       text        not null check (kind in ('session','zikr','plan','plan_owner','tombstone')),
@@ -77,7 +77,7 @@ create table zikr_app.sync_records (
   payload    text        not null,   -- AES-GCM ciphertext (base64)
   primary key (account_id, record_id)
 );
-create table zikr_app.sync_cursors (
+create table zikr_private.sync_cursors (
   account_id text not null,
   device_id  text not null,
   pulled_at  timestamptz not null default now(),

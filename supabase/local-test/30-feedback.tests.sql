@@ -14,7 +14,7 @@
 -- Fresh slate: the rate limit counts rows within the last 24h, so stale
 -- rows from a previous run of this file would poison it.
 reset role;
-delete from zikr_app.feedback;
+delete from zikr_private.feedback;
 
 insert into auth.users (id) values
   ('00000000-0000-0000-0000-000000000001'),
@@ -60,15 +60,15 @@ begin
     null
   );
 
-  select user_id into v_user from zikr_app.feedback where id = (r ->> 'id')::uuid;
+  select user_id into v_user from zikr_private.feedback where id = (r ->> 'id')::uuid;
   if v_user is distinct from '00000000-0000-0000-0000-000000000001'::uuid then
     raise exception 'FAIL: row not attributed to the caller';
   end if;
-  if (select message from zikr_app.feedback where id = (r ->> 'id')::uuid)
+  if (select message from zikr_private.feedback where id = (r ->> 'id')::uuid)
        <> 'The counter loses my round when I switch tabs.' then
     raise exception 'FAIL: message not trimmed';
   end if;
-  if (select status from zikr_app.feedback where id = (r ->> 'id')::uuid) <> 'new' then
+  if (select status from zikr_private.feedback where id = (r ->> 'id')::uuid) <> 'new' then
     raise exception 'FAIL: status must default to new';
   end if;
   raise notice 'OK valid submit (attributed, trimmed)';
@@ -111,7 +111,7 @@ begin
 
   -- A long user agent is truncated, not rejected.
   perform public.submit_feedback('suggestion', 'valid message', null, null, null, repeat('UA ', 100), null);
-  if (select char_length(user_agent) from zikr_app.feedback where category = 'suggestion') > 200 then
+  if (select char_length(user_agent) from zikr_private.feedback where category = 'suggestion') > 200 then
     raise exception 'FAIL: user_agent not truncated';
   end if;
 
@@ -126,10 +126,10 @@ declare
   v_count integer;
 begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001"}', false);
-  select count(*) into v_count from zikr_app.feedback where user_id = auth.uid();
+  select count(*) into v_count from zikr_private.feedback where user_id = auth.uid();
   while v_count < 5 loop
     perform public.submit_feedback('other', 'filler message ' || v_count);
-    select count(*) into v_count from zikr_app.feedback where user_id = auth.uid();
+    select count(*) into v_count from zikr_private.feedback where user_id = auth.uid();
   end loop;
 
   begin
@@ -148,19 +148,19 @@ do $$
 begin
   -- U2 must not see U1's five rows.
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002"}', false);
-  if (select count(*) from zikr_app.feedback) <> 0 then
+  if (select count(*) from zikr_private.feedback) <> 0 then
     raise exception 'FAIL: U2 can read another user''s feedback';
   end if;
 
   -- No update/delete grants: append-only for clients.
   begin
-    update zikr_app.feedback set status = 'resolved';
+    update zikr_private.feedback set status = 'resolved';
     raise exception 'FAIL: client updated feedback';
   exception when insufficient_privilege then
     null; -- expected
   end;
   begin
-    delete from zikr_app.feedback;
+    delete from zikr_private.feedback;
     raise exception 'FAIL: client deleted feedback';
   exception when insufficient_privilege then
     null; -- expected
@@ -179,7 +179,7 @@ begin
 
   -- Admin configures the Turnstile secret (as postgres, below).
   reset role;
-  insert into zikr_app.app_config (key, value) values ('turnstile_secret', '1x0000000000000000000000000000000AA')
+  insert into zikr_private.app_config (key, value) values ('turnstile_secret', '1x0000000000000000000000000000000AA')
   on conflict (key) do update set value = excluded.value;
   set role authenticated;
 
@@ -193,7 +193,7 @@ begin
 
   -- The secret row is invisible to clients (no grant, RLS, no policies).
   begin
-    perform count(*) from zikr_app.app_config;
+    perform count(*) from zikr_private.app_config;
     raise exception 'FAIL: client read app_config';
   exception when insufficient_privilege then
     null; -- expected
@@ -203,7 +203,7 @@ end $$;
 
 -- Back to no-secret: submissions flow again (and U2 stays under the cap).
 reset role;
-delete from zikr_app.app_config where key = 'turnstile_secret';
+delete from zikr_private.app_config where key = 'turnstile_secret';
 set role authenticated;
 do $$
 begin
@@ -216,12 +216,12 @@ end $$;
 -- 7. An admin (postgres) reads and resolves — the dashboard flow
 ---------------------------------------------------------------
 reset role;
-update zikr_app.feedback set status = 'resolved'
+update zikr_private.feedback set status = 'resolved'
 where user_id = '00000000-0000-0000-0000-000000000001'::uuid and category = 'bug';
 do $$
 declare v_resolved integer;
 begin
-  select count(*) into v_resolved from zikr_app.feedback
+  select count(*) into v_resolved from zikr_private.feedback
   where user_id = '00000000-0000-0000-0000-000000000001'::uuid and status = 'resolved';
   if v_resolved < 1 then raise exception 'FAIL: admin could not resolve feedback'; end if;
   raise notice 'OK admin read/resolve flow';

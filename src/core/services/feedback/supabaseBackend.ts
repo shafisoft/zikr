@@ -43,7 +43,7 @@ async function getClient(): Promise<SupabaseZikrClient> {
         import.meta.env.VITE_SUPABASE_URL,
         import.meta.env.VITE_SUPABASE_ANON_KEY,
         // RPCs live in the public schema (the only PostgREST-exposed one);
-        // the zikr_app schema holds the tables and is API-invisible.
+        // the zikr_private schema holds the tables and is API-invisible.
         { db: { schema: 'zikr' }, auth: { persistSession: true, autoRefreshToken: true } }
       )
     );
