@@ -31,12 +31,12 @@ declare
 begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001"}', false);
 
-  v_token := public.get_or_create_device_token();
+  v_token := zikr.zikr_get_or_create_device_token();
   if char_length(v_token) <> 12 then raise exception 'FAIL: token length %', v_token; end if;
   -- Second call returns the same token (issued once per device).
-  if public.get_or_create_device_token() <> v_token then raise exception 'FAIL: token not stable'; end if;
+  if zikr.zikr_get_or_create_device_token() <> v_token then raise exception 'FAIL: token not stable'; end if;
 
-  perform public.track_event('app_opened');
+  perform zikr.zikr_track_event('app_opened');
   raise notice 'OK device token + track_event';
 end $$;
 
@@ -49,7 +49,7 @@ declare
 begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001"}', false);
 
-  r := public.create_group('Test Room', 'Ahmed', jsonb_build_object(
+  r := zikr.zikr_create_group('Test Room', 'Ahmed', jsonb_build_object(
     'mode', 'per-zikr',
     'period', 'daily',
     'timeZone', 'UTC',
@@ -88,30 +88,30 @@ declare
 begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001"}', false);
 
-  v_total := (public.contribute(v_code, v_plan, 'Alhamdulillah', 10, ev1) ->> 'total')::int;
+  v_total := (zikr.zikr_contribute(v_code, v_plan, 'Alhamdulillah', 10, ev1) ->> 'total')::int;
   if v_total <> 10 then raise exception 'FAIL: expected total 10, got %', v_total; end if;
 
   -- Replay of the same event id must not double-apply.
-  v_total := (public.contribute(v_code, v_plan, 'Alhamdulillah', 10, ev1) ->> 'total')::int;
+  v_total := (zikr.zikr_contribute(v_code, v_plan, 'Alhamdulillah', 10, ev1) ->> 'total')::int;
   if v_total <> 10 then raise exception 'FAIL: replay changed total to %', v_total; end if;
 
   -- Validation errors surface with the app's codes.
   begin
-    perform public.contribute(v_code, v_plan, 'Alhamdulillah', 0, gen_random_uuid());
+    perform zikr.zikr_contribute(v_code, v_plan, 'Alhamdulillah', 0, gen_random_uuid());
     raise exception 'FAIL: zero delta accepted';
   exception when others then
     if sqlerrm <> 'invalid_delta' then raise exception 'FAIL: expected invalid_delta, got "%"', sqlerrm; end if;
   end;
 
   begin
-    perform public.contribute('NOPE', v_plan, 'Alhamdulillah', 5, gen_random_uuid());
+    perform zikr.zikr_contribute('NOPE', v_plan, 'Alhamdulillah', 5, gen_random_uuid());
     raise exception 'FAIL: unknown group accepted';
   exception when others then
     if sqlerrm <> 'group_not_found' then raise exception 'FAIL: expected group_not_found, got "%"', sqlerrm; end if;
   end;
 
   begin
-    perform public.contribute(v_code, v_plan, 'SubhanAllah', 5, gen_random_uuid());
+    perform zikr.zikr_contribute(v_code, v_plan, 'SubhanAllah', 5, gen_random_uuid());
     raise exception 'FAIL: zikr outside plan accepted';
   exception when others then
     if sqlerrm <> 'zikr_not_in_plan' then raise exception 'FAIL: expected zikr_not_in_plan, got "%"', sqlerrm; end if;
@@ -132,11 +132,11 @@ declare
 begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002"}', false);
 
-  r := public.join_group(v_code, 'Bilal');
+  r := zikr.zikr_join_group(v_code, 'Bilal');
   if (r ->> 'isMember')::boolean is not true then raise exception 'FAIL: joiner not member'; end if;
   if jsonb_array_length(r -> 'members') <> 2 then raise exception 'FAIL: expected 2 members'; end if;
 
-  v_total := (public.contribute(v_code, v_plan, 'Alhamdulillah', 33, gen_random_uuid()) ->> 'total')::int;
+  v_total := (zikr.zikr_contribute(v_code, v_plan, 'Alhamdulillah', 33, gen_random_uuid()) ->> 'total')::int;
   if v_total <> 43 then raise exception 'FAIL: expected total 43, got %', v_total; end if;
 
   raise notice 'OK join_group + member contribute';
@@ -154,7 +154,7 @@ declare
 begin
   -- U1 creates a second group; U2 (non-member) must be rejected by it.
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001"}', false);
-  r2 := public.create_group('Room 2', 'A', jsonb_build_object(
+  r2 := zikr.zikr_create_group('Room 2', 'A', jsonb_build_object(
     'mode', 'per-zikr',
     'period', 'daily',
     'timeZone', 'UTC',
@@ -165,7 +165,7 @@ begin
 
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002"}', false);
   begin
-    perform public.contribute(v_code2, v_plan2, 'SubhanAllah', 5, gen_random_uuid());
+    perform zikr.zikr_contribute(v_code2, v_plan2, 'SubhanAllah', 5, gen_random_uuid());
     raise exception 'FAIL: non-member could contribute';
   exception when others then
     if sqlerrm <> 'not_a_member' then raise exception 'FAIL: expected not_a_member, got "%"', sqlerrm; end if;
@@ -173,7 +173,7 @@ begin
 
   -- Non-owner cannot close.
   begin
-    perform public.close_group(v_code2);
+    perform zikr.zikr_close_group(v_code2);
     raise exception 'FAIL: non-owner closed the group';
   exception when others then
     if sqlerrm <> 'not_owner_or_not_found' then raise exception 'FAIL: expected not_owner_or_not_found, got "%"', sqlerrm; end if;
@@ -181,13 +181,13 @@ begin
 
   -- Owner closes; then the group is un-contributeable.
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001"}', false);
-  perform public.close_group(v_code2);
-  if (public.get_group_state(v_code2) -> 'group' ->> 'status') <> 'closed' then
+  perform zikr.zikr_close_group(v_code2);
+  if (zikr.zikr_get_group_state(v_code2) -> 'group' ->> 'status') <> 'closed' then
     raise exception 'FAIL: group not closed';
   end if;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002"}', false);
   begin
-    perform public.contribute(v_code2, v_plan2, 'SubhanAllah', 5, gen_random_uuid());
+    perform zikr.zikr_contribute(v_code2, v_plan2, 'SubhanAllah', 5, gen_random_uuid());
     raise exception 'FAIL: contributed to closed group';
   exception when others then
     if sqlerrm <> 'group_not_found' then raise exception 'FAIL: expected group_not_found after close, got "%"', sqlerrm; end if;
@@ -208,35 +208,35 @@ declare
 begin
   -- U2 leaves the main group.
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002"}', false);
-  perform public.leave_group(v_code);
-  r := public.get_group_state(v_code);
+  perform zikr.zikr_leave_group(v_code);
+  r := zikr.zikr_get_group_state(v_code);
   -- Non-members no longer see the roster (RLS) — they see isMember=false.
   if (r ->> 'isMember')::boolean then raise exception 'FAIL: leaver still member'; end if;
   -- The owner still sees the shrunken roster.
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001"}', false);
-  r := public.get_group_state(v_code);
+  r := zikr.zikr_get_group_state(v_code);
   if jsonb_array_length(r -> 'members') <> 1 then raise exception 'FAIL: leave did not shrink roster'; end if;
 
   -- Back as U2: no longer a member, cannot contribute.
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002"}', false);
   begin
-    perform public.contribute(v_code, v_plan, 'Alhamdulillah', 5, gen_random_uuid());
+    perform zikr.zikr_contribute(v_code, v_plan, 'Alhamdulillah', 5, gen_random_uuid());
     raise exception 'FAIL: leaver contributed';
   exception when others then
     if sqlerrm <> 'not_a_member' then raise exception 'FAIL: expected not_a_member after leave, got "%"', sqlerrm; end if;
   end;
 
   -- U2 rejoins; owner removes them.
-  perform public.join_group(v_code, 'Bilal');
+  perform zikr.zikr_join_group(v_code, 'Bilal');
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001"}', false);
-  perform public.remove_member(v_code, '00000000-0000-0000-0000-000000000002');
-  select jsonb_array_length((public.get_group_state(v_code) -> 'members')::jsonb) into v_n;
+  perform zikr.zikr_remove_member(v_code, '00000000-0000-0000-0000-000000000002');
+  select jsonb_array_length((zikr.zikr_get_group_state(v_code) -> 'members')::jsonb) into v_n;
   if v_n <> 1 then raise exception 'FAIL: removed member still listed (%s)', v_n; end if;
 
   -- Non-owner cannot remove members.
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002"}', false);
   begin
-    perform public.remove_member(v_code, '00000000-0000-0000-0000-000000000001');
+    perform zikr.zikr_remove_member(v_code, '00000000-0000-0000-0000-000000000001');
     raise exception 'FAIL: non-owner removed a member';
   exception when others then
     if sqlerrm <> 'not_owner' then raise exception 'FAIL: expected not_owner, got "%"', sqlerrm; end if;
@@ -266,7 +266,7 @@ begin
 
   -- Purge is service-role only.
   begin
-    perform public.purge_expired();
+    perform zikr.zikr_purge_expired();
     raise exception 'FAIL: client called purge_expired';
   exception when insufficient_privilege then
     null; -- expected
@@ -281,7 +281,7 @@ end $$;
 set role service_role;
 do $$
 begin
-  perform public.purge_expired();
+  perform zikr.zikr_purge_expired();
   raise notice 'OK service_role purge';
 end $$;
 
@@ -299,15 +299,15 @@ set role authenticated;
 
 do $$
 begin
-  perform public.share_zikr('Test Zikr Alpha', 'الحمد لله', 'Praise be to Allah');
-  perform public.share_zikr('Test Zikr Beta', null, null);
+  perform zikr.zikr_share_zikr('Test Zikr Alpha', 'الحمد لله', 'Praise be to Allah');
+  perform zikr.zikr_share_zikr('Test Zikr Beta', null, null);
   raise notice 'OK share_zikr inserts unverified';
 end $$;
 
 -- Duplicate names are rejected case-insensitively with the app error code.
 do $$
 begin
-  perform public.share_zikr('test zikr alpha', null, null);
+  perform zikr.zikr_share_zikr('test zikr alpha', null, null);
   raise exception 'FAIL: duplicate accepted';
 exception
   when others then
@@ -320,7 +320,7 @@ end $$;
 do $$
 declare r json;
 begin
-  r := public.pull_verified_zikrs(null, null);
+  r := zikr.zikr_pull_verified_zikrs(null, null);
   assert coalesce(json_array_length(r->'items'), 0) = 0, 'expected empty pull';
   assert not (r->>'hasMore')::boolean, 'empty pull must not have more';
   raise notice 'OK pull empty';
@@ -336,7 +336,7 @@ set role authenticated;
 do $$
 declare r json;
 begin
-  r := public.pull_verified_zikrs(null, null);
+  r := zikr.zikr_pull_verified_zikrs(null, null);
   assert json_array_length(r->'items') = 1, 'expected exactly the verified row';
   assert r->'items'->0->>'name' = 'Test Zikr Alpha', 'wrong row delivered';
   assert not (r->>'hasMore')::boolean, 'single row must not have more';
@@ -353,7 +353,7 @@ set role authenticated;
 do $$
 declare r json;
 begin
-  r := public.pull_verified_zikrs(null, null);
+  r := zikr.zikr_pull_verified_zikrs(null, null);
   assert json_array_length(r->'items') = 100, 'expected a full page of 100';
   assert not (r->>'hasMore')::boolean, 'exactly-100 must be terminal';
   raise notice 'OK pull exactly-100 boundary';
@@ -369,7 +369,7 @@ declare r json; n int; total int := 0; pages int := 0; has_more boolean := true;
         cur_ua timestamptz; cur_id uuid;
 begin
   while has_more and pages < 5 loop
-    r := public.pull_verified_zikrs(cur_ua, cur_id);
+    r := zikr.zikr_pull_verified_zikrs(cur_ua, cur_id);
     n := coalesce(json_array_length(r->'items'), 0);
     total := total + n; pages := pages + 1;
     has_more := (r->>'hasMore')::boolean;

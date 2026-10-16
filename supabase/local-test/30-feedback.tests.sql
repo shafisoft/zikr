@@ -32,7 +32,7 @@ begin
   -- in the harness auth.uid() before our check is even reached).
   perform set_config('request.jwt.claims', 'null', false);
   begin
-    perform public.submit_feedback('bug', 'no session here');
+    perform zikr.zikr_submit_feedback('bug', 'no session here');
     raise exception 'FAIL: anonymous feedback accepted';
   exception when others then
     if sqlerrm <> 'not_authenticated' then raise exception 'FAIL: expected not_authenticated, got "%"', sqlerrm; end if;
@@ -50,7 +50,7 @@ declare
 begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001"}', false);
 
-  r := public.submit_feedback(
+  r := zikr.zikr_submit_feedback(
     'bug',
     '  The counter loses my round when I switch tabs.  ',
     'me@example.com',
@@ -82,35 +82,35 @@ begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001"}', false);
 
   begin
-    perform public.submit_feedback('rant', 'valid message');
+    perform zikr.zikr_submit_feedback('rant', 'valid message');
     raise exception 'FAIL: unknown category accepted';
   exception when others then
     if sqlerrm <> 'invalid_category' then raise exception 'FAIL: expected invalid_category, got "%"', sqlerrm; end if;
   end;
 
   begin
-    perform public.submit_feedback('bug', '   ');
+    perform zikr.zikr_submit_feedback('bug', '   ');
     raise exception 'FAIL: whitespace-only message accepted';
   exception when others then
     if sqlerrm <> 'invalid_message' then raise exception 'FAIL: expected invalid_message, got "%"', sqlerrm; end if;
   end;
 
   begin
-    perform public.submit_feedback('bug', repeat('x', 2001));
+    perform zikr.zikr_submit_feedback('bug', repeat('x', 2001));
     raise exception 'FAIL: overlong message accepted';
   exception when others then
     if sqlerrm <> 'invalid_message' then raise exception 'FAIL: expected invalid_message, got "%"', sqlerrm; end if;
   end;
 
   begin
-    perform public.submit_feedback('bug', 'valid message', 'not-an-email');
+    perform zikr.zikr_submit_feedback('bug', 'valid message', 'not-an-email');
     raise exception 'FAIL: malformed email accepted';
   exception when others then
     if sqlerrm <> 'invalid_email' then raise exception 'FAIL: expected invalid_email, got "%"', sqlerrm; end if;
   end;
 
   -- A long user agent is truncated, not rejected.
-  perform public.submit_feedback('suggestion', 'valid message', null, null, null, repeat('UA ', 100), null);
+  perform zikr.zikr_submit_feedback('suggestion', 'valid message', null, null, null, repeat('UA ', 100), null);
   if (select char_length(user_agent) from zikr_private.feedback where category = 'suggestion') > 200 then
     raise exception 'FAIL: user_agent not truncated';
   end if;
@@ -128,12 +128,12 @@ begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001"}', false);
   select count(*) into v_count from zikr_private.feedback where user_id = auth.uid();
   while v_count < 5 loop
-    perform public.submit_feedback('other', 'filler message ' || v_count);
+    perform zikr.zikr_submit_feedback('other', 'filler message ' || v_count);
     select count(*) into v_count from zikr_private.feedback where user_id = auth.uid();
   end loop;
 
   begin
-    perform public.submit_feedback('bug', 'number six should fail');
+    perform zikr.zikr_submit_feedback('bug', 'number six should fail');
     raise exception 'FAIL: sixth submission in 24h accepted';
   exception when others then
     if sqlerrm <> 'rate_limited' then raise exception 'FAIL: expected rate_limited, got "%"', sqlerrm; end if;
@@ -175,7 +175,7 @@ do $$
 begin
   -- No secret configured → verification is skipped (captcha off).
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002"}', false);
-  perform public.submit_feedback('question', 'no captcha configured yet');
+  perform zikr.zikr_submit_feedback('question', 'no captcha configured yet');
 
   -- Admin configures the Turnstile secret (as postgres, below).
   reset role;
@@ -185,7 +185,7 @@ begin
 
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002"}', false);
   begin
-    perform public.submit_feedback('question', 'secret set but no token sent');
+    perform zikr.zikr_submit_feedback('question', 'secret set but no token sent');
     raise exception 'FAIL: feedback accepted without a captcha token';
   exception when others then
     if sqlerrm <> 'captcha_failed' then raise exception 'FAIL: expected captcha_failed, got "%"', sqlerrm; end if;
@@ -208,7 +208,7 @@ set role authenticated;
 do $$
 begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002"}', false);
-  perform public.submit_feedback('question', 'secret removed, uncaptcha''d flow restored');
+  perform zikr.zikr_submit_feedback('question', 'secret removed, uncaptcha''d flow restored');
   raise notice 'OK captcha-off flow';
 end $$;
 

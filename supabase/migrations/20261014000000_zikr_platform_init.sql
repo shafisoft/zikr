@@ -45,10 +45,15 @@ create schema if not exists zikr;
 create schema if not exists zikr_private;
 
 grant usage on schema zikr to anon, authenticated;
--- Supabase-only roles: absent in the vanilla-postgres local harness,
--- present on the platform compose stack and hosted project.
+-- Supabase-only roles: absent in the vanilla-postgres local harness
+-- (which creates anon/authenticated/service_role but NOT authenticator),
+-- present on the platform compose stack and hosted project. Guarded PER
+-- ROLE: one missing role must not silently skip its siblings' grants.
 do $$ begin
-  grant usage on schema zikr to authenticator, service_role;
+  grant usage on schema zikr to authenticator;
+exception when undefined_object then null; end $$;
+do $$ begin
+  grant usage on schema zikr to service_role;
 exception when undefined_object then null; end $$;
 
 -- Platform role-chain assert: every existing product prefix preserved
@@ -59,8 +64,12 @@ exception when undefined_object then null; end $$;
 -- for the harness.
 alter role anon          in database postgres set search_path = pcare, zikr, officerider, ledger, prep_app, donate, shared, extensions;
 alter role authenticated in database postgres set search_path = pcare, zikr, officerider, ledger, prep_app, donate, shared, extensions;
+-- Guarded PER ROLE (see the schema grants above): one missing role must
+-- not silently skip its siblings' chain assert.
 do $$ begin
   alter role authenticator in database postgres set search_path = pcare, zikr, officerider, ledger, prep_app, donate, shared, extensions;
+exception when undefined_object then null; end $$;
+do $$ begin
   alter role service_role  in database postgres set search_path = pcare, zikr, officerider, ledger, prep_app, donate, shared, extensions;
 exception when undefined_object then null; end $$;
 
