@@ -19,16 +19,18 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Pinned: `ubuntu-latest` is rolling to Ubuntu 26 from 2026-10-19 and
+    # annotates every run until then. Move both jobs together when bumping.
+    runs-on: ubuntu-24.04
     # The build needs the VITE_* values, which live in this environment
     # (settings → environments → github-pages). Without declaring it here,
     # the job resolves none of the environment's variables/secrets and the
     # app builds unconfigured (Group tab hidden).
     environment: github-pages
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -81,16 +83,17 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - uses: actions/upload-pages-artifact@v3
+      # v4+ leaves dotfiles out of the artifact; dist/ has none to serve.
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
