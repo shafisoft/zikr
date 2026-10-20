@@ -7,6 +7,10 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
+_(nothing yet)_
+
+## [1.12.0] - 2026-10-20
+
 ### Changed
 - **The after-salah set is now Ayat al-Kursi ×1 · SubhanAllah ×33 ·
   Alhamdulillah ×33 · Allahu Akbar ×34 · istighfar ×1** (was 33·33·34 +
