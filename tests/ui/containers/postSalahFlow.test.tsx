@@ -1,5 +1,5 @@
 // CounterFlowContainer — the post-salah source (§16.4 / AC1.3.x):
-//   - opens on the set's first item (SubhanAllah) with the catalog target
+//   - opens on the set's first item (Ayat al-Kursi) with the catalog target
 //   - in-window sessions advance the derived position (no handler, no
 //     extra state — position IS the derivation, §2.3)
 //   - sessions OUTSIDE the window never masquerade as the set (AC1.2.3)
@@ -71,7 +71,8 @@ const SET_ZIKRS: Zikr[] = [
   zikr(1, 'SubhanAllah'),
   zikr(2, 'Alhamdulillah'),
   zikr(3, 'Allahu Akbar'),
-  zikr(4, 'La ilaha illallah'),
+  zikr(4, 'Astaghfirullah'),
+  zikr(5, 'Ayat al-Kursi'),
 ];
 
 let container: HTMLDivElement | null = null;
@@ -128,14 +129,15 @@ afterEach(async () => {
 });
 
 describe('CounterFlowContainer — post-salah source (§16.4)', () => {
-  it('opens on SubhanAllah and advances by attributed derivation (AC1.3.1/AC1.3.3)', async () => {
+  it('opens on Ayat al-Kursi and advances by attributed derivation (AC1.3.1/AC1.3.3)', async () => {
     await renderFlow();
-    await waitForDom(() => activeStep === 'SubhanAllah');
-    expect(activeStep).toBe('SubhanAllah');
+    await waitForDom(() => activeStep === 'Ayat al-Kursi');
+    expect(activeStep).toBe('Ayat al-Kursi');
 
-    // A partial attributed set: items 1–2 complete → position jumps to item 3.
+    // A partial attributed set: items 1–3 complete → position jumps to item 4.
     useSessionStore.setState({
       sessions: [
+        session(5, 1, new Date('2026-03-20T12:09:00.000Z'), 'maghrib'),
         session(1, 33, new Date('2026-03-20T12:10:00.000Z'), 'maghrib'),
         session(2, 33, new Date('2026-03-20T12:12:00.000Z'), 'maghrib'),
       ],
@@ -146,10 +148,11 @@ describe('CounterFlowContainer — post-salah source (§16.4)', () => {
     // Completing everything lands on the calm done card (AC1.3.6).
     useSessionStore.setState({
       sessions: [
+        session(5, 1, new Date('2026-03-20T12:09:00.000Z'), 'maghrib'),
         session(1, 33, new Date('2026-03-20T12:10:00.000Z'), 'maghrib'),
         session(2, 33, new Date('2026-03-20T12:12:00.000Z'), 'maghrib'),
         session(3, 34, new Date('2026-03-20T12:20:00.000Z'), 'maghrib'),
-        session(4, 100, new Date('2026-03-20T12:30:00.000Z'), 'maghrib'),
+        session(4, 1, new Date('2026-03-20T12:30:00.000Z'), 'maghrib'),
       ],
       loading: false,
     });
@@ -162,6 +165,7 @@ describe('CounterFlowContainer — post-salah source (§16.4)', () => {
     // guided flow — unattributed sessions never complete a set.
     useSessionStore.setState({
       sessions: [
+        session(5, 5, new Date('2026-03-20T08:30:00.000Z')),
         session(1, 500, new Date('2026-03-20T09:00:00.000Z')),
         session(2, 500, new Date('2026-03-20T09:30:00.000Z')),
         session(3, 500, new Date('2026-03-20T10:00:00.000Z')),
@@ -170,7 +174,7 @@ describe('CounterFlowContainer — post-salah source (§16.4)', () => {
       loading: false,
     });
     await renderFlow();
-    await waitForDom(() => activeStep === 'SubhanAllah');
-    expect(activeStep).toBe('SubhanAllah');
+    await waitForDom(() => activeStep === 'Ayat al-Kursi');
+    expect(activeStep).toBe('Ayat al-Kursi');
   });
 });

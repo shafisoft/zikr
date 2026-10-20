@@ -1,6 +1,10 @@
 // PostSalahTrackerContainer render decisions (R1 day view):
 //   - enabled + location + computed periods → the five-salah tracker; the
 //     CURRENT slot is a button that bubbles onStartFlow(prayer, firstZikrId)
+//   - each chip's glyph shows the set's progress for THAT prayer: an empty
+//     ring when nothing was performed, a ring filled in proportion while it
+//     is partly done, the check once complete — the next prayer's chip
+//     always starts back at empty
 //   - a PAST, not-done slot is also a button: it opens the offline mark-done
 //     ask; confirming records attributed sessions for the remaining amounts
 //     and the slot reads Done (a set the user never finished is never
@@ -49,7 +53,8 @@ const SET_ZIKRS: Zikr[] = [
   { id: 1, name: 'SubhanAllah', custom: false, createdAt: new Date() },
   { id: 2, name: 'Alhamdulillah', custom: false, createdAt: new Date() },
   { id: 3, name: 'Allahu Akbar', custom: false, createdAt: new Date() },
-  { id: 4, name: 'La ilaha illallah', custom: false, createdAt: new Date() },
+  { id: 4, name: 'Astaghfirullah', custom: false, createdAt: new Date() },
+  { id: 5, name: 'Ayat al-Kursi', custom: false, createdAt: new Date() },
 ];
 
 function sessionsAt(
@@ -143,6 +148,17 @@ function buttonByText(text: string): HTMLButtonElement | null {
   );
 }
 
+/** The progress glyph inside the chip labeled `prayer` ("0.40", "done", …). */
+function slotGlyph(prayer: string): string | null {
+  const chip = ([...container!.querySelectorAll('[aria-label]')] as HTMLElement[]).find(
+    el =>
+      el.tagName !== 'SECTION' &&
+      el.getAttribute('aria-label')?.includes(prayer) &&
+      el.querySelector('[data-slot-progress]')
+  );
+  return chip?.querySelector('[data-slot-progress]')?.getAttribute('data-slot-progress') ?? null;
+}
+
 beforeEach(async () => {
   await db.delete();
   await db.open();
@@ -161,30 +177,61 @@ afterEach(async () => {
 });
 
 describe('PostSalahTrackerContainer — the enabled tracker', () => {
-  it('renders the five salah chips and the live slot starts the flow', async () => {
+  it('renders the five salah chips, all empty, and the live slot starts the flow', async () => {
     await renderTracker({ settings: { postSalahEnabled: true, prayerLocation: DHAKA } });
     await waitForDom(() => container!.textContent!.includes('After salah azkars'));
 
     for (const prayer of ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha']) {
       expect(container!.textContent).toContain(prayer);
+      // Nothing performed anywhere → every glyph is the empty ring.
+      expect(slotGlyph(prayer)).toBe('0.00');
     }
     // Progress counts done slots (none yet).
     expect(container!.textContent).toContain('0 of 5 complete');
 
+    // The deep link carries the set's FIRST item — Ayat al-Kursi.
     const live = buttonByAria('Start the after-salah set for Maghrib');
     expect(live).not.toBeNull();
     live!.click();
-    expect(started).toEqual({ prayer: 'maghrib', zikrId: 1 });
+    expect(started).toEqual({ prayer: 'maghrib', zikrId: 5 });
   });
 
-  it('a completed live slot reads Done and stops being tappable', async () => {
+  it('a partly done live slot fills its ring in proportion and stays startable', async () => {
+    const times = dayPrayerTimes(DHAKA, new Date(2026, 2, 20, 12))!;
+    // Ayat al-Kursi + SubhanAllah done for maghrib: 2 of the 5 items → 0.40.
+    const sessions = sessionsAt(
+      [
+        { zikrId: 5, count: 1 },
+        { zikrId: 1, count: 33 },
+      ],
+      new Date(times.maghrib.getTime() + 60_000),
+      'maghrib'
+    );
+    await renderTracker({
+      settings: { postSalahEnabled: true, prayerLocation: DHAKA },
+      sessions,
+    });
+    await waitForDom(() => slotGlyph('Maghrib') === '0.40');
+
+    // Partial is not done: the day line stays at 0 and the chip still
+    // starts the flow (which resumes at the remaining items).
+    expect(container!.textContent).toContain('0 of 5 complete');
+    expect(elementByAria('Maghrib — Done')).toBeNull();
+    expect(buttonByAria('Start the after-salah set for Maghrib')).not.toBeNull();
+    // The other prayers' rings are untouched by maghrib's progress.
+    expect(slotGlyph('Fajr')).toBe('0.00');
+    expect(slotGlyph('Isha')).toBe('0.00');
+  });
+
+  it('a completed live slot reads Done with the check and stops being tappable', async () => {
     const times = dayPrayerTimes(DHAKA, new Date(2026, 2, 20, 12))!;
     const sessions = sessionsAt(
       [
+        { zikrId: 5, count: 1 },
         { zikrId: 1, count: 33 },
         { zikrId: 2, count: 33 },
         { zikrId: 3, count: 34 },
-        { zikrId: 4, count: 100 },
+        { zikrId: 4, count: 1 },
       ],
       new Date(times.maghrib.getTime() + 60_000),
       'maghrib'
@@ -196,7 +243,33 @@ describe('PostSalahTrackerContainer — the enabled tracker', () => {
     await waitForDom(() => container!.textContent!.includes('1 of 5 complete'));
 
     expect(elementByAria('Maghrib — Done')).not.toBeNull();
+    expect(slotGlyph('Maghrib')).toBe('done');
     expect(buttonByAria('Start the after-salah set for Maghrib')).toBeNull();
+  });
+
+  it('partial progress stays on its own prayer; the next prayer starts back at empty', async () => {
+    const times = dayPrayerTimes(DHAKA, new Date(2026, 2, 20, 12))!;
+    // Three items done in the ASR period, then the clock is at maghrib+1min.
+    const sessions = sessionsAt(
+      [
+        { zikrId: 5, count: 1 },
+        { zikrId: 1, count: 33 },
+        { zikrId: 2, count: 33 },
+      ],
+      new Date(times.asr.getTime() + 60_000),
+      'asr'
+    );
+    await renderTracker({
+      settings: { postSalahEnabled: true, prayerLocation: DHAKA },
+      sessions,
+    });
+    await waitForDom(() => slotGlyph('Asr') === '0.60');
+
+    // Asr moved on undone — its ring keeps the 3/5 fill and its chip is the
+    // offline ask (never "missed"); the live maghrib ring is empty.
+    expect(buttonByAria('Mark the after-Asr set as done')).not.toBeNull();
+    expect(slotGlyph('Maghrib')).toBe('0.00');
+    expect(container!.textContent).toContain('0 of 5 complete');
   });
 
   it('a past prayer’s chip asks, then marks the offline completion', async () => {
@@ -227,8 +300,9 @@ describe('PostSalahTrackerContainer — the enabled tracker', () => {
     // The mark recorded the set's remaining amounts, attributed to Fajr.
     const sessions = await db.sessions.toArray();
     const fajrSets = sessions.filter(s => s.postSalah === 'fajr');
-    expect(fajrSets.map(s => s.count).sort((a, b) => a - b)).toEqual([33, 33, 34, 100]);
+    expect(fajrSets.map(s => s.count).sort((a, b) => a - b)).toEqual([1, 1, 33, 33, 34]);
     expect(elementByAria('Fajr — Done')).not.toBeNull();
+    expect(slotGlyph('Fajr')).toBe('done');
     // The other moved-on prayers stay pending (tappable asks).
     expect(buttonByAria('Mark the after-Dhuhr set as done')).not.toBeNull();
   });

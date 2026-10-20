@@ -7,7 +7,19 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
-_(nothing yet)_
+### Changed
+- **The after-salah set is now Ayat al-Kursi ×1 · SubhanAllah ×33 ·
+  Alhamdulillah ×33 · Allahu Akbar ×34 · istighfar ×1** (was 33·33·34 +
+  La ilaha illallah ×100). The guided flow opens on Ayat al-Kursi and
+  ends on Astaghfirullah; the Home card, opt-in offer and Settings copy
+  describe the new set.
+- **The after-salah tracker chips now show how far each prayer's set
+  got.** An empty ring means nothing was performed for that prayer; the
+  ring fills clockwise in proportion to the set's progress (each of the
+  five items is worth a fifth, filled by its own count), and a check
+  replaces it once the set is complete. Progress stays with its own
+  prayer — when the next prayer arrives its chip starts empty, and a
+  partly done prayer keeps its partial fill (tappable to mark the rest).
 
 ## [1.11.0] - 2026-10-16
 

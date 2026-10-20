@@ -148,6 +148,7 @@ const PostSalahTrackerContainer: React.FC<PostSalahTrackerContainerProps> = ({
           : slot.pending
             ? 'past'
             : 'upcoming',
+      progress: slot.progress,
       onPress:
         slot.current && !slot.done
           ? () => onStartFlow(slot.prayer, firstZikrId)

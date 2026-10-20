@@ -29,10 +29,12 @@
  * to mark an offline completion.
  *
  * Done-attribution is derived, never persisted (AC1.2.5): an occurrence is
- * done iff each of the four set items reached its target from the sessions
+ * done iff each of the five set items reached its target from the sessions
  * the guided flow / offline mark attributed to that prayer — free counting
  * never completes a set by itself (AC1.2.3, as revised after field
  * feedback: all-day tasbeeh counting was completing every window's set).
+ * Partial progress stays with ITS prayer: the next prayer opens a new
+ * occurrence whose attributed total starts at zero.
  */
 
 import {
@@ -50,7 +52,7 @@ import type { Session, Zikr } from '../db/types';
  * Session.postSalah carries it; aliased here for the util's public surface). */
 export type PrayerName = PostSalahPrayer;
 
-// ---------- The fixed after-salah set (AC1.3.1; catalog 33/33/34/100) ----------
+// ---------- The fixed after-salah set (AC1.3.1; Kursi · 33 · 33 · 34 · istighfar) ----------
 
 export interface PostSalahSetItem {
   /** Catalog name — resolved against the user's seeded zikr rows. */
@@ -58,12 +60,13 @@ export interface PostSalahSetItem {
   target: number;
 }
 
-/** The four catalog items of the post-salah set, in order (zikrCatalog). */
+/** The five catalog items of the post-salah set, in order (zikrCatalog). */
 export const POST_SALAH_SET: readonly PostSalahSetItem[] = [
+  { name: 'Ayat al-Kursi', target: 1 },
   { name: 'SubhanAllah', target: 33 },
   { name: 'Alhamdulillah', target: 33 },
   { name: 'Allahu Akbar', target: 34 },
-  { name: 'La ilaha illallah', target: 100 },
+  { name: 'Astaghfirullah', target: 1 },
 ];
 
 /** Fixed window length — REMOVED: the offer follows the prayer PERIOD
@@ -283,7 +286,7 @@ function nameKey(name: string): string {
   return name.trim().toLowerCase();
 }
 
-/** Map the four set items onto the user's LIVE zikr rows, in set order. */
+/** Map the five set items onto the user's LIVE zikr rows, in set order. */
 export function resolvePostSalahSet(zikrs: Zikr[]): Array<PostSalahSetItem & { zikr: Zikr }> {
   const live = new Map<string, Zikr>();
   for (const zikr of zikrs) {
@@ -325,7 +328,12 @@ export interface PostSalahSlot {
   current: boolean;
   /** The set is complete for this occurrence (occurrenceDone). */
   done: boolean;
-  /** 0..1 — reached fraction of the resolved set's total target. */
+  /**
+   * 0..1 — every set item weighs the same (1/N), each filled by its own
+   * reached fraction. Count-weighting would make the one-recitation items
+   * (Ayat al-Kursi, istighfar) a 1% sliver next to the 33-count tasbeeh;
+   * this way each finished item moves the chip by a visible fifth.
+   */
   progress: number;
   /**
    * The period began, has already been replaced by a later prayer, and the
@@ -353,7 +361,6 @@ export function postSalahSlots(
   zikrs: Zikr[]
 ): PostSalahSlot[] {
   const resolved = resolvePostSalahSet(zikrs);
-  const totalTarget = resolved.reduce((n, item) => n + item.target, 0);
   const t = now.getTime();
 
   const isInside = (o: PrayerOccurrence) =>
@@ -375,8 +382,12 @@ export function postSalahSlots(
     const occ = byPrayer.get(prayer);
     if (!occ) continue;
     const counts = attributedCounts(occ, sessions);
-    const reached = resolved.reduce(
-      (n, item) => n + Math.min(item.target, counts.get(item.zikr.id!) ?? 0),
+    const itemFractions = resolved.reduce(
+      (n, item) =>
+        n +
+        (item.target > 0
+          ? Math.min(1, (counts.get(item.zikr.id!) ?? 0) / item.target)
+          : 1),
       0
     );
     const done =
@@ -390,7 +401,7 @@ export function postSalahSlots(
       end: occ.end,
       current,
       done,
-      progress: totalTarget > 0 ? reached / totalTarget : 0,
+      progress: resolved.length > 0 ? itemFractions / resolved.length : 0,
       pending: !current && !upcoming && !done,
       upcoming,
     });
@@ -409,8 +420,8 @@ export interface PostSalahStep {
 }
 
 /**
- * The 33 → 33 → 34 → 100 sequence resolved against the user's seeded rows
- * (§4.6). `attributed` credits the prayer's attributed sessions per zikr,
+ * The Kursi → 33 → 33 → 34 → istighfar sequence resolved against the user's
+ * seeded rows (§4.6). `attributed` credits the prayer's attributed sessions per zikr,
  * so flow position DERIVES from sessions (resume AC1.3.3; an Undo steps the
  * position back — OQ-3), exactly like the routine flow.
  */

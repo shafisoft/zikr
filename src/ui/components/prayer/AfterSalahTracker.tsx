@@ -1,16 +1,20 @@
 /**
  * AfterSalahTracker — the day view of the after-salah practice (R1):
- * five salah chips showing which prayers' sets are done, which prayer is
- * current, and which passed. Presentational only — labels and states
- * arrive via props; taps bubble up as onPress (the current prayer's chip
- * starts the set; a past prayer's chip asks to mark an offline
- * completion). A past, not-done prayer is never labeled "missed" — the
- * offer moved on silently.
+ * five salah chips showing how far each prayer's set got — an empty ring
+ * when nothing was performed, a ring filling in proportion to the set's
+ * progress, and a check once the set is complete — plus which prayer is
+ * current and which passed. Presentational only — labels, states and
+ * progress arrive via props; taps bubble up as onPress (the current
+ * prayer's chip starts the set; a past prayer's chip asks to mark an
+ * offline completion). A past, not-done prayer is never labeled "missed" —
+ * the offer moved on silently, and whatever progress it had stays on its
+ * ring.
  */
 
 import React from 'react';
 import MaterialIcon from '../MaterialIcon';
 import PatternBackdrop from '../decor/PatternBackdrop';
+import SalahProgressRing from './SalahProgressRing';
 import { useI18n } from '../../../core/i18n';
 import type { PrayerName } from '../../../core/utils/prayerTimes';
 
@@ -21,6 +25,8 @@ export interface AfterSalahSlotView {
   /** Localized prayer name. */
   label: string;
   state: AfterSalahSlotState;
+  /** 0..1 reached fraction of this prayer's set (1 ⇔ state 'done'). */
+  progress: number;
   /**
    * Tap action: the CURRENT prayer starts its set; a PAST prayer opens
    * the offline mark-done ask. Done and upcoming chips are not tappable.
@@ -34,12 +40,12 @@ interface AfterSalahTrackerProps {
   progressLine: string;
 }
 
-const SLOT_ICON: Record<AfterSalahSlotState, { icon: string; filled: boolean }> = {
-  done: { icon: 'check_circle', filled: true },
-  active: { icon: 'radio_button_checked', filled: true },
-  past: { icon: 'radio_button_unchecked', filled: false },
-  upcoming: { icon: 'radio_button_unchecked', filled: false },
-};
+/** Any progress reads in the gold accent; an untouched chip takes its state's tone. */
+function glyphTone(slot: AfterSalahSlotView): string {
+  if (slot.state === 'done' || slot.state === 'active') return 'text-tertiary';
+  if (slot.progress > 0) return 'text-tertiary/80';
+  return slot.state === 'past' ? 'text-on-surface-variant' : 'text-on-surface-variant/50';
+}
 
 const AfterSalahTracker: React.FC<AfterSalahTrackerProps> = ({ slots, progressLine }) => {
   const { t } = useI18n();
@@ -63,21 +69,17 @@ const AfterSalahTracker: React.FC<AfterSalahTrackerProps> = ({ slots, progressLi
         <div className="flex items-stretch justify-between gap-1.5">
           {slots.map(slot => {
             const stateLabel = t(`postSalah.tracker.state.${slot.state}`);
-            const { icon, filled } = SLOT_ICON[slot.state];
             const tappable = slot.onPress != null && (slot.state === 'active' || slot.state === 'past');
+            const glyph = glyphTone(slot);
             const chip = (
               <>
-                <MaterialIcon
-                  icon={icon}
-                  filled={filled}
-                  className={`text-[18px] ${
-                    slot.state === 'done' || slot.state === 'active'
-                      ? 'text-tertiary'
-                      : slot.state === 'past'
-                        ? 'text-on-surface-variant'
-                        : 'text-on-surface-variant/50'
-                  }`}
-                />
+                {slot.state === 'done' ? (
+                  <span className="flex" data-slot-progress="done">
+                    <MaterialIcon icon="check_circle" filled className={`text-[20px] ${glyph}`} />
+                  </span>
+                ) : (
+                  <SalahProgressRing progress={slot.progress} className={glyph} />
+                )}
                 <span
                   className={`font-caption text-caption ${
                     slot.state === 'active'

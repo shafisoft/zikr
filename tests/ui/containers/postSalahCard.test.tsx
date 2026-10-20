@@ -68,7 +68,8 @@ const SET_ZIKRS: Zikr[] = [
   zikr(1, 'SubhanAllah'),
   zikr(2, 'Alhamdulillah'),
   zikr(3, 'Allahu Akbar'),
-  zikr(4, 'La ilaha illallah'),
+  zikr(4, 'Astaghfirullah'),
+  zikr(5, 'Ayat al-Kursi'), // the set's FIRST item — the deep link's zikrId
 ];
 
 let container: HTMLDivElement | null = null;
@@ -176,7 +177,7 @@ describe('PostSalahCardContainer — the active moment (AC1.2.1 / §16.6.3)', ()
 
     startButton()!.click();
     await sleep(20);
-    expect(started).toEqual({ prayer: 'maghrib', zikrId: 1 });
+    expect(started).toEqual({ prayer: 'maghrib', zikrId: 5 });
   });
 
   it('past the prayer’s own time (Fajr after sunrise), the offer softens into the ask', async () => {
@@ -197,20 +198,21 @@ describe('PostSalahCardContainer — the active moment (AC1.2.1 / §16.6.3)', ()
 
     startButton()!.click();
     await sleep(20);
-    expect(started).toEqual({ prayer: 'fajr', zikrId: 1 });
+    expect(started).toEqual({ prayer: 'fajr', zikrId: 5 });
   });
 
   it('shows the quiet completed state when the attributed set is done (AC1.2.3)', async () => {
     useZikrStore.setState({ zikrs: SET_ZIKRS, loading: false });
-    // All four items at target from sessions the guided flow attributed to
+    // All five items at target from sessions the guided flow attributed to
     // maghrib; free counting and other prayers' attribution must not count.
     useSessionStore.setState({
       sessions: [
         session(1, 500, new Date('2026-03-20T09:00:00.000Z')), // free counting — ignored
+        session(5, 1, new Date('2026-03-20T12:09:00.000Z'), 'maghrib'),
         session(1, 33, new Date('2026-03-20T12:10:00.000Z'), 'maghrib'),
         session(2, 33, new Date('2026-03-20T12:15:00.000Z'), 'maghrib'),
         session(3, 34, new Date('2026-03-20T12:20:00.000Z'), 'maghrib'),
-        session(4, 100, new Date('2026-03-20T12:30:00.000Z'), 'maghrib'),
+        session(4, 1, new Date('2026-03-20T12:30:00.000Z'), 'maghrib'),
       ],
       loading: false,
     });

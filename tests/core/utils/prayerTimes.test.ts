@@ -401,7 +401,8 @@ describe('attributedCounts / occurrenceDone — flow-attributed truth (AC1.2.3, 
     zikr(1, 'SubhanAllah'),
     zikr(2, 'Alhamdulillah'),
     zikr(3, 'Allahu Akbar'),
-    zikr(4, 'La ilaha illallah'),
+    zikr(4, 'Astaghfirullah'),
+    zikr(5, 'Ayat al-Kursi'),
   ];
   const occ = {
     prayer: 'maghrib' as const,
@@ -420,7 +421,7 @@ describe('attributedCounts / occurrenceDone — flow-attributed truth (AC1.2.3, 
       // A different prayer's attribution never masquerades.
       session(3, 34, new Date(Date.UTC(2026, 2, 20, 12, 15)), 'fajr'),
       // Yesterday's maghrib set stays on its own occurrence.
-      session(4, 100, new Date(Date.UTC(2026, 2, 19, 12, 30)), 'maghrib'),
+      session(4, 1, new Date(Date.UTC(2026, 2, 19, 12, 30)), 'maghrib'),
     ];
     const counts = attributedCounts(occ, sessions);
     expect(counts.get(1)).toBe(33);
@@ -428,16 +429,17 @@ describe('attributedCounts / occurrenceDone — flow-attributed truth (AC1.2.3, 
     expect(counts.has(3)).toBe(false);
     expect(counts.has(4)).toBe(false);
 
-    // 66 of 200 — short of done.
+    // Two of five items — short of done.
     expect(occurrenceDone(occ, sessions, setZikrs)).toBe(false);
   });
 
   it('the attributed complete set IS done', () => {
     const sessions: Session[] = [
+      session(5, 1, new Date(occ.start.getTime() + 60_000), 'maghrib'),
       session(1, 33, new Date(occ.start.getTime() + 60_000), 'maghrib'),
       session(2, 33, new Date(occ.start.getTime() + 60_000), 'maghrib'),
       session(3, 34, new Date(occ.start.getTime() + 60_000), 'maghrib'),
-      session(4, 100, new Date(occ.end.getTime() + 60_000), 'maghrib'),
+      session(4, 1, new Date(occ.end.getTime() + 60_000), 'maghrib'),
     ];
     expect(occurrenceDone(occ, sessions, setZikrs)).toBe(true);
   });
@@ -446,30 +448,33 @@ describe('attributedCounts / occurrenceDone — flow-attributed truth (AC1.2.3, 
     // The user taps the past chip at 18:00 and marks the set done — the
     // same-day mark counts even though the period ended at 12:39.
     const sessions: Session[] = [
+      session(5, 1, new Date(Date.UTC(2026, 2, 20, 18, 0)), 'maghrib'),
       session(1, 33, new Date(Date.UTC(2026, 2, 20, 18, 0)), 'maghrib'),
       session(2, 33, new Date(Date.UTC(2026, 2, 20, 18, 0)), 'maghrib'),
       session(3, 34, new Date(Date.UTC(2026, 2, 20, 18, 0)), 'maghrib'),
-      session(4, 100, new Date(Date.UTC(2026, 2, 20, 18, 0)), 'maghrib'),
+      session(4, 1, new Date(Date.UTC(2026, 2, 20, 18, 0)), 'maghrib'),
     ];
     expect(occurrenceDone(occ, sessions, setZikrs)).toBe(true);
   });
 
   it('a mark logged before the prayer ever began never counts', () => {
     const sessions: Session[] = [
+      session(5, 1, new Date(Date.UTC(2026, 2, 20, 9, 0)), 'maghrib'),
       session(1, 33, new Date(Date.UTC(2026, 2, 20, 9, 0)), 'maghrib'),
       session(2, 33, new Date(Date.UTC(2026, 2, 20, 9, 0)), 'maghrib'),
       session(3, 34, new Date(Date.UTC(2026, 2, 20, 9, 0)), 'maghrib'),
-      session(4, 100, new Date(Date.UTC(2026, 2, 20, 9, 0)), 'maghrib'),
+      session(4, 1, new Date(Date.UTC(2026, 2, 20, 9, 0)), 'maghrib'),
     ];
     expect(occurrenceDone(occ, sessions, setZikrs)).toBe(false);
   });
 
   it('unattributed (legacy) sessions leave the occurrence undone', () => {
     const sessions: Session[] = [
+      session(5, 1, new Date(occ.start.getTime() + 60_000)),
       session(1, 33, new Date(occ.start.getTime() + 60_000)),
       session(2, 33, new Date(occ.start.getTime() + 60_000)),
       session(3, 34, new Date(occ.start.getTime() + 60_000)),
-      session(4, 100, new Date(occ.start.getTime() + 60_000)),
+      session(4, 1, new Date(occ.start.getTime() + 60_000)),
     ];
     expect(occurrenceDone(occ, sessions, setZikrs)).toBe(false);
   });
@@ -490,8 +495,8 @@ describe('attributedCounts / occurrenceDone — flow-attributed truth (AC1.2.3, 
         start: times.fajr,
         end: times.dhuhr,
       };
-      const sessions: Session[] = [1, 2, 3, 4]
-        .map(i => session(i, [33, 33, 34, 100][i - 1], markAt, 'fajr'));
+      const sessions: Session[] = [1, 2, 3, 4, 5]
+        .map(i => session(i, [33, 33, 34, 1, 1][i - 1], markAt, 'fajr'));
       expect(new Date(fajrOcc.start).getDate()).not.toBe(markAt.getDate()); // prev UTC day
       expect(occurrenceDone(fajrOcc, sessions, setZikrs)).toBe(true);
     } finally {
@@ -501,10 +506,11 @@ describe('attributedCounts / occurrenceDone — flow-attributed truth (AC1.2.3, 
 
   it('a mark beyond 24h after the prayer never counts', () => {
     const sessions: Session[] = [
+      session(5, 1, new Date(occ.start.getTime() + 25 * 3_600_000), 'maghrib'),
       session(1, 33, new Date(occ.start.getTime() + 25 * 3_600_000), 'maghrib'),
       session(2, 33, new Date(occ.start.getTime() + 25 * 3_600_000), 'maghrib'),
       session(3, 34, new Date(occ.start.getTime() + 25 * 3_600_000), 'maghrib'),
-      session(4, 100, new Date(occ.start.getTime() + 25 * 3_600_000), 'maghrib'),
+      session(4, 1, new Date(occ.start.getTime() + 25 * 3_600_000), 'maghrib'),
     ];
     expect(occurrenceDone(occ, sessions, setZikrs)).toBe(false);
   });
@@ -514,13 +520,15 @@ describe('attributedCounts / occurrenceDone — flow-attributed truth (AC1.2.3, 
       zikr(1, '  subhanallah '),
       zikr(2, 'ALHAMDULILLAH'),
       zikr(3, 'Allahu  Akbar'),
-      zikr(4, 'la ilaha illallah'),
+      zikr(4, 'astaghfirullah'),
+      zikr(5, ' AYAT AL-KURSI'),
     ];
     const sessions: Session[] = [
+      session(5, 1, new Date(occ.start.getTime() + 60_000), 'maghrib'),
       session(1, 33, new Date(occ.start.getTime() + 60_000), 'maghrib'),
       session(2, 33, new Date(occ.start.getTime() + 60_000), 'maghrib'),
       session(3, 34, new Date(occ.start.getTime() + 60_000), 'maghrib'),
-      session(4, 100, new Date(occ.start.getTime() + 60_000), 'maghrib'),
+      session(4, 1, new Date(occ.start.getTime() + 60_000), 'maghrib'),
     ];
     expect(occurrenceDone(occ, sessions, oddNames)).toBe(true);
 
@@ -530,18 +538,26 @@ describe('attributedCounts / occurrenceDone — flow-attributed truth (AC1.2.3, 
   });
 });
 
-describe('postSalahSequence — the 33 → 33 → 34 → 100 flow source (AC1.3.1)', () => {
+describe('postSalahSequence — the Kursi → 33 → 33 → 34 → istighfar flow source (AC1.3.1)', () => {
   const setZikrs: Zikr[] = [
     zikr(1, 'SubhanAllah'),
     zikr(2, 'Alhamdulillah'),
     zikr(3, 'Allahu Akbar'),
-    zikr(4, 'La ilaha illallah'),
+    zikr(4, 'Astaghfirullah'),
+    zikr(5, 'Ayat al-Kursi'),
   ];
 
-  it('resolves the four catalog items in order with catalog targets', () => {
+  it('resolves the five catalog items in set order (not library order) with catalog targets', () => {
     const steps = postSalahSequence(setZikrs);
-    expect(steps.map(s => s.target)).toEqual([33, 33, 34, 100]);
-    expect(steps.map(s => s.itemIndex)).toEqual([0, 1, 2, 3]);
+    expect(steps.map(s => s.zikr.name)).toEqual([
+      'Ayat al-Kursi',
+      'SubhanAllah',
+      'Alhamdulillah',
+      'Allahu Akbar',
+      'Astaghfirullah',
+    ]);
+    expect(steps.map(s => s.target)).toEqual([1, 33, 33, 34, 1]);
+    expect(steps.map(s => s.itemIndex)).toEqual([0, 1, 2, 3, 4]);
   });
 
   it('in-window credit reduces the remaining target; an item at target is finished', () => {
@@ -550,17 +566,23 @@ describe('postSalahSequence — the 33 → 33 → 34 → 100 flow source (AC1.3.
       [2, 33], // already complete this occurrence
     ]);
     const steps = postSalahSequence(setZikrs, credit);
-    expect(steps.map(s => s.target)).toEqual([21, 0, 34, 100]);
+    expect(steps.map(s => s.target)).toEqual([1, 21, 0, 34, 1]);
   });
 
   it('a set item whose zikr is missing is skipped, like the routine flow', () => {
-    const partial: Zikr[] = [zikr(1, 'SubhanAllah'), zikr(4, 'La ilaha illallah')];
+    const partial: Zikr[] = [zikr(1, 'SubhanAllah'), zikr(4, 'Astaghfirullah')];
     const steps = postSalahSequence(partial);
-    expect(steps.map(s => s.target)).toEqual([33, 100]);
+    expect(steps.map(s => s.target)).toEqual([33, 1]);
   });
 
-  it('the catalog set itself is 33/33/34/100', () => {
-    expect(POST_SALAH_SET.map(i => i.target)).toEqual([33, 33, 34, 100]);
+  it('the catalog set itself is Ayat al-Kursi ×1, 33/33/34, istighfar ×1', () => {
+    expect(POST_SALAH_SET.map(i => [i.name, i.target])).toEqual([
+      ['Ayat al-Kursi', 1],
+      ['SubhanAllah', 33],
+      ['Alhamdulillah', 33],
+      ['Allahu Akbar', 34],
+      ['Astaghfirullah', 1],
+    ]);
   });
 });
 describe('postSalahSlots — the day tracker (five salah, one set)', () => {
@@ -568,7 +590,8 @@ describe('postSalahSlots — the day tracker (five salah, one set)', () => {
     zikr(1, 'SubhanAllah'),
     zikr(2, 'Alhamdulillah'),
     zikr(3, 'Allahu Akbar'),
-    zikr(4, 'La ilaha illallah'),
+    zikr(4, 'Astaghfirullah'),
+    zikr(5, 'Ayat al-Kursi'),
   ];
   // A synthetic day of PERIODS: fajr 03:00 (until dhuhr), dhuhr 06:00,
   // asr 09:00, maghrib 12:00, isha 13:30 (until fajr + 24h) — with
@@ -608,25 +631,64 @@ describe('postSalahSlots — the day tracker (five salah, one set)', () => {
     const slots = postSalahSlots(occurrences, t(20, 12, 1), sessions, setZikrs);
     const asr = slots.find(s => s.prayer === 'asr')!;
     const maghrib = slots.find(s => s.prayer === 'maghrib')!;
-    // Asr: 2 of 4 items complete → (33+33)/(33+33+34+100).
+    // Asr: 2 of 5 items complete → 2/5.
     expect(asr.done).toBe(false);
-    expect(asr.progress).toBeCloseTo(66 / 200, 10);
-    // Maghrib: only Allahu Akbar so far → 34/200; NOT credited to asr.
-    expect(maghrib.progress).toBeCloseTo(34 / 200, 10);
+    expect(asr.progress).toBeCloseTo(2 / 5, 10);
+    // Maghrib: only Allahu Akbar so far → 1/5; NOT credited to asr.
+    expect(maghrib.progress).toBeCloseTo(1 / 5, 10);
     expect(maghrib.done).toBe(false);
 
     // Completing the set for maghrib flips exactly that slot.
     const complete = [
       ...sessions,
+      session(5, 1, new Date(t(20, 12).getTime() + 120_000), 'maghrib'),
       session(1, 33, new Date(t(20, 12).getTime() + 120_000), 'maghrib'),
       session(2, 33, new Date(t(20, 12).getTime() + 120_000), 'maghrib'),
-      session(4, 100, new Date(t(20, 12).getTime() + 120_000), 'maghrib'),
+      session(4, 1, new Date(t(20, 12).getTime() + 120_000), 'maghrib'),
     ];
     const after = postSalahSlots(occurrences, t(20, 12, 5), complete, setZikrs);
     expect(after.find(s => s.prayer === 'maghrib')!.done).toBe(true);
+    expect(after.find(s => s.prayer === 'maghrib')!.progress).toBe(1);
     expect(after.find(s => s.prayer === 'maghrib')!.current).toBe(true);
     // Asr stays undone — the day moved on; pending, never "missed".
     expect(after.find(s => s.prayer === 'asr')!.pending).toBe(true);
+  });
+
+  it('progress weighs every item equally, each filled by its own reached fraction', () => {
+    // Count-weighting would hide the one-recitation items (1 of 102); here
+    // Ayat al-Kursi alone moves the chip a full fifth, and a mid-item
+    // tasbeeh contributes its fraction of a fifth. Over-target never
+    // overfills an item.
+    const at = new Date(t(20, 12).getTime() + 60_000);
+    const sessions: Session[] = [
+      session(5, 1, at, 'maghrib'), // Kursi done → 1/5
+      session(1, 11, at, 'maghrib'), // SubhanAllah 11/33 → (1/3)/5
+      session(3, 68, at, 'maghrib'), // Allahu Akbar 68/34 → capped at 1/5
+    ];
+    const maghrib = postSalahSlots(occurrences, t(20, 12, 1), sessions, setZikrs).find(
+      s => s.prayer === 'maghrib'
+    )!;
+    expect(maghrib.progress).toBeCloseTo((1 + 1 / 3 + 1) / 5, 10);
+    expect(maghrib.done).toBe(false);
+  });
+
+  it('partial progress stays with its prayer; the next prayer starts at zero', () => {
+    // Three items in the asr period; the clock then passes maghrib. Asr
+    // keeps its 3/5 (pending, tappable for the offline mark) and the live
+    // maghrib slot has nothing attributed yet.
+    const at = new Date(t(20, 9).getTime() + 60_000);
+    const sessions: Session[] = [
+      session(5, 1, at, 'asr'),
+      session(1, 33, at, 'asr'),
+      session(2, 33, at, 'asr'),
+    ];
+    const slots = postSalahSlots(occurrences, t(20, 12, 1), sessions, setZikrs);
+    const asr = slots.find(s => s.prayer === 'asr')!;
+    const maghrib = slots.find(s => s.prayer === 'maghrib')!;
+    expect(asr.progress).toBeCloseTo(3 / 5, 10);
+    expect(asr.pending).toBe(true);
+    expect(maghrib.current).toBe(true);
+    expect(maghrib.progress).toBe(0);
   });
 
   it('collapses the midnight-crossing isha: the live yesterday period wins at 00:10', () => {
