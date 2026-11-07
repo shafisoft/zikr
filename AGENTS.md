@@ -39,6 +39,7 @@ npm run test:watch      # Watch mode
 
 # Deployment
 # GitHub Pages via Actions (push to main2) — see docs/DEPLOYMENT.md
+# Backend (Supabase) migrations: ship from the PLATFORM repo, never from here — see "Backend migrations" below
 ```
 
 ```bash
@@ -49,6 +50,28 @@ npm run check:migrations # Supabase migration drift check (also part of lint)
 npm run gen:db-types     # Regenerate Supabase DB types (local docker harness must be up)
 npm run size-check       # Verify bundle size against 200KB limit
 ```
+
+## Backend migrations (hosted Supabase)
+
+Hosted deploys happen ONLY from the platform repo (`shafisoft/platform`,
+sibling-of-sibling checkout — its `docker/products.txt` lists this repo).
+Never `supabase db push` / `config push` / `migration repair` against
+hosted from HERE: the migration history table is per-PROJECT and shared by
+every co-living product.
+
+```sh
+# 1. author it here: supabase/migrations/<timestamp>_<name>.sql
+#    unique version, CLI-clean SQL (no psql meta-commands, no COPY FROM stdin)
+#    never edit or rename 20261014000000_zikr_platform_init.sql — it shipped
+# 2. from the platform repo:
+sh scripts/sync.sh      # stage it into the ONE consolidated folder
+sh scripts/deploy.sh    # guard → dry-run → ask → hosted
+# 3. commit + push both repos; CI re-runs deploy.sh ("up to date")
+```
+
+If the platform guard flags a duplicate version, rename the file HERE first,
+then sync. Data API exposure is platform-owned (`supabase/expose.sh`).
+Full contract: `PLAYBOOK.md` in the platform repo.
 
 ## Architecture
 
