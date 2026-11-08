@@ -21,6 +21,7 @@ import { sharedRoomErrorMessage } from '../utils/roomErrors';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import CounterModal from '../components/counter/CounterModal';
 import CreatePlanModal from '../components/CreatePlanModal';
+import StarMosaic from '../components/progress/StarMosaic';
 import { Plan, SharedSubmission, Zikr } from '../../core/db/types';
 import {
   formatTimeRemaining,
@@ -682,6 +683,12 @@ const PlanCard: React.FC<PlanCardProps> = ({
   const now = new Date();
   const phase = getPlanPhase(plan, now);
   const progress = sharedPlanProgress(plan);
+  // The mosaic reads the COLLECTIVE volume (combined vs target) — the
+  // whole circle's fill, not the weakest zikr's percent.
+  const mosaicPercent =
+    progress.target > 0
+      ? Math.min(100, Math.round((progress.combined / progress.target) * 100))
+      : 0;
   const multiZikr = plan.zikrs.length > 1;
   const activeZikr = quickZikr ?? plan.zikrs[0]?.name;
   const singleZikr = plan.zikrs.length === 1 ? plan.zikrs[0] : null;
@@ -735,6 +742,20 @@ const PlanCard: React.FC<PlanCardProps> = ({
           </button>
         )}
       </div>
+
+      {/* Communal mosaic (Noor 2.0, phase 4): the shared target as a
+          khatam-star strip — render-only over the mirrored progress. */}
+      {mosaicPercent > 0 && (
+        <div className="mb-4 flex items-center gap-3">
+          <StarMosaic
+            percent={mosaicPercent}
+            ariaLabel={t('room.mosaicAria', { percent: mosaicPercent })}
+          />
+          <span className="font-caption text-caption text-on-surface-variant tabular-nums">
+            {mosaicPercent}%
+          </span>
+        </div>
+      )}
 
       {/* Progress */}
       {plan.mode === 'combined' ? (

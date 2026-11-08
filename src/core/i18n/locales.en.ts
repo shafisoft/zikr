@@ -264,6 +264,8 @@ export const en = {
   'progress.dots.legendGrace': 'Grace',
   'progress.dots.legendMissed': 'Missed',
   'progress.dotsAria': 'Last 30 days: {{done}} practiced, {{grace}} on grace, {{missed}} missed',
+  // Noor 2.0 phase 4 — the Circle's communal mosaic
+  'room.mosaicAria': 'Collective progress: {{percent}} percent',
 
   'group.heading': 'Groups',
   'group.sub': 'Do dhikr together with family and friends — wherever they are.',

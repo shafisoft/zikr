@@ -263,6 +263,8 @@ export const bn: Dictionary = {
   'progress.dots.legendGrace': 'অনুগ্রহ',
   'progress.dots.legendMissed': 'বাদ',
   'progress.dotsAria': 'শেষ ৩০ দিন: {{done}} দিন জিকির, {{grace}} দিন অনুগ্রহ, {{missed}} দিন বাদ',
+  // Noor 2.0 phase 4 — সার্কেলের সম্মিলিত মোজাইক
+  'room.mosaicAria': 'সম্মিলিত অগ্রগতি: {{percent}} শতাংশ',
 
   'group.heading': 'গ্রুপ',
   'group.sub': 'পরিবার ও বন্ধুদের সাথে একসাথে জিকির করুন — যেখানেই থাকুন না কেন।',

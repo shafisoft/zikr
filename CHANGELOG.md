@@ -22,6 +22,10 @@ user-facing change and date it when it ships.
   as a held line, never as guilt; and the lifetime total sits in gold at
   the arch's foot. Two quiet insights join it: your best hour and your
   most-practiced dhikr.
+- **Group plans read as a communal mosaic** (Noor 2.0, phase 4). Each plan
+  card in a circle now opens with a strip of khatam stars that fill as the
+  collective target fills — the star currently being earned glows gold.
+  Render-only over the mirrored progress; members stay anonymous.
 
 ### Changed
 - **Home's day hero now carries the whole day** (Noor 2.0, phase 1). The
