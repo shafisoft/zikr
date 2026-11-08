@@ -49,7 +49,7 @@ import {
 } from '../../../core/utils/prayerTimes';
 import type { PrayerLocation } from '../../../core/db/types';
 import type { PrayerName } from '../../../core/utils/prayerTimes';
-import { formatDate, getToday } from '../../../core/utils/dateUtils';
+import { formatDate, getToday, isSameDay } from '../../../core/utils/dateUtils';
 import { getZikrDisplayInfoFromZikr } from '../../utils/zikrMapping';
 import type { Zikr } from '../../../core/db/types';
 
@@ -71,6 +71,23 @@ interface CounterFlowContainerProps {
 interface BoardSnapshot {
   stepId: number | null;
   startCount: number;
+}
+
+/**
+ * The durable checkpoint as a resume count — day-scoped: a checkpoint only
+ * resumes on the day it was written, so yesterday's unfinished remainder
+ * never carries ("the target resets at the end of the time boundary"). A
+ * multi-day plan keeps its carry through the saved sessions its window
+ * seed reads, not through a stale checkpoint. Re-checked at every snapshot
+ * build, so an app kept open past midnight is covered without a refetch.
+ */
+function todayCheckpoint(
+  checkpoints: Record<number, { count: number; updatedAt: Date }>,
+  zikrId: number | null | undefined
+): number {
+  if (zikrId == null) return 0;
+  const row = checkpoints[zikrId];
+  return row && isSameDay(new Date(row.updatedAt), new Date()) ? row.count : 0;
 }
 
 const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
@@ -226,7 +243,7 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
       derivedStepId != null && currentSession.zikrId === derivedStepId
         ? currentSession.count
         : 0;
-    const checkpoint = derivedStepId != null ? checkpoints[derivedStepId] ?? 0 : 0;
+    const checkpoint = todayCheckpoint(checkpoints, derivedStepId);
     setFlowBoard({ stepId: derivedStepId, startCount: Math.max(mirror, checkpoint) });
   }
 
@@ -347,7 +364,7 @@ const CounterFlowContainer: React.FC<CounterFlowContainerProps> = ({
     const mirror = plainStepId != null && currentSession.zikrId === plainStepId
       ? currentSession.count
       : 0;
-    const checkpoint = plainStepId != null ? checkpoints[plainStepId] ?? 0 : 0;
+    const checkpoint = todayCheckpoint(checkpoints, plainStepId);
     const startCount = planSeedFor(plainStepId) + Math.max(mirror, checkpoint);
     if (plainStepId !== plainBoard.stepId || startCount !== plainBoard.startCount) {
       setPlainBoard({ stepId: plainStepId, startCount });

@@ -22,6 +22,10 @@ export function isToday(date: Date): boolean {
   return date.toDateString() === today.toDateString();
 }
 
+export function isSameDay(date1: Date, date2: Date): boolean {
+  return date1.toDateString() === date2.toDateString();
+}
+
 export function isYesterday(date: Date): boolean {
   const yesterday = new Date(getToday());
   yesterday.setDate(yesterday.getDate() - 1);

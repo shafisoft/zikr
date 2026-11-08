@@ -11,6 +11,12 @@
  * the durable zikrLastCount table as it counts (debounced per zikr), so
  * the counter can resume where it left off even after the tab is evicted
  * or the app is killed. A round that actually saves clears its checkpoint.
+ * The resume is DAY-SCOPED: a checkpoint only counts on the day it was
+ * written — the target resets at the day boundary (a multi-day plan keeps
+ * its carry through the saved sessions its window seed reads, never
+ * through a stale checkpoint). purgeStaleCheckpoints() enforces it on the
+ * table at startup; the store's hydration + the container's resume read
+ * apply the same rule via dateUtils.isSameDay.
  */
 
 import { DayPart, PostSalahPrayer, Session } from '../db/types';
@@ -18,6 +24,7 @@ import { db } from '../db/db';
 import { add as addSession } from './sessionService';
 import { sharedRoomService } from './sharedRoom';
 import { dayPartOfTime } from '../utils/routineUtils';
+import { isSameDay } from '../utils/dateUtils';
 
 const EDIT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -141,4 +148,26 @@ export async function clearCheckpoint(zikrId: number): Promise<void> {
   await db.zikrLastCount.delete(zikrId);
 }
 
-export const countRecorder = { recordCount, checkpointProgress, clearCheckpoint };
+/**
+ * The day-boundary sweep: checkpoints from before today are dead — the
+ * counter must never resume yesterday's unfinished remainder. Called at
+ * store startup so the table and the resume map agree; the liveQuery
+ * refires over the smaller set. (The resume read re-checks the day at
+ * render, so an app kept open past midnight is covered even before the
+ * sweep lands.)
+ */
+export async function purgeStaleCheckpoints(now: Date = new Date()): Promise<void> {
+  const rows = await db.zikrLastCount.toArray();
+  await Promise.all(
+    rows
+      .filter(row => !isSameDay(new Date(row.updatedAt), now))
+      .map(row => db.zikrLastCount.delete(row.zikrId))
+  );
+}
+
+export const countRecorder = {
+  recordCount,
+  checkpointProgress,
+  clearCheckpoint,
+  purgeStaleCheckpoints,
+};

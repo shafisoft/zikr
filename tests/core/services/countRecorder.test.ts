@@ -5,6 +5,7 @@ import {
   recordCount,
   checkpointProgress,
   clearCheckpoint,
+  purgeStaleCheckpoints,
 } from '../../../src/core/services/countRecorder';
 import { sharedRoomService } from '../../../src/core/services/sharedRoom';
 
@@ -126,5 +127,21 @@ describe('progress checkpoints', () => {
     await clearCheckpoint(9);
     await wait(1100);
     expect(await db.zikrLastCount.get(9)).toBeUndefined();
+  });
+
+  it('the day-boundary sweep deletes pre-today checkpoints and keeps today’s', async () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    await db.zikrLastCount.bulkPut([
+      { zikrId: 1, count: 80, updatedAt: yesterday },
+      { zikrId: 2, count: 5, updatedAt: new Date() },
+    ]);
+
+    await purgeStaleCheckpoints();
+
+    // Yesterday's unfinished 80 is dead at the boundary…
+    expect(await db.zikrLastCount.get(1)).toBeUndefined();
+    // …today's safety net survives.
+    expect(await db.zikrLastCount.get(2)).toMatchObject({ count: 5 });
   });
 });

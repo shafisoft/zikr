@@ -7,7 +7,14 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
-_(nothing yet)_
+### Fixed
+- **An unfinished counter count no longer carries into the next day.**
+  Previously, closing the app mid-count (say, 80 of a 100 target) resumed
+  from 80 when you reopened the zikr the next day. The counter's resume
+  checkpoint and unsaved round are now day-scoped: the target resets at the
+  day boundary and the next day starts fresh at 0. Targets set for multiple
+  days (a personal plan with a multi-day window) still accumulate across
+  the window, and daily plans already reset with their rolling period.
 
 ## [1.12.0] - 2026-10-20
 

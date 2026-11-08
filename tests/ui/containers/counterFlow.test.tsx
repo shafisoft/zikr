@@ -420,6 +420,37 @@ describe('CounterFlowContainer — seeded plan progress + exit flush', () => {
   });
 });
 
+describe('CounterFlowContainer — the day boundary resets the resume', () => {
+  it('a checkpoint from before today never resumes: 80 counted yesterday opens at 0', async () => {
+    useZikrStore.setState({ zikrs: [zikr(1, 'Zikr One')], loading: false });
+    useSessionStore.setState({ sessions: [], loading: false });
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    // The killed-tab safety net holds yesterday's unfinished remainder.
+    useSessionStore.setState({
+      checkpoints: { 1: { count: 80, updatedAt: yesterday } },
+      loading: false,
+    });
+
+    await renderFlow({ zikrIdParam: '1', targetParam: 100 });
+    await waitForDom(() => activeStep === 'Zikr One');
+    await waitForDom(() => countDisplay() === '0');
+  });
+
+  it("today's checkpoint still resumes — the killed-tab safety net holds within the day", async () => {
+    useZikrStore.setState({ zikrs: [zikr(1, 'Zikr One')], loading: false });
+    useSessionStore.setState({ sessions: [], loading: false });
+    useSessionStore.setState({
+      checkpoints: { 1: { count: 80, updatedAt: new Date() } },
+      loading: false,
+    });
+
+    await renderFlow({ zikrIdParam: '1', targetParam: 100 });
+    await waitForDom(() => activeStep === 'Zikr One');
+    await waitForDom(() => countDisplay() === '80');
+  });
+});
+
 function buttonByText(text: string): HTMLButtonElement | null {
   return (
     ([...container!.querySelectorAll('button')] as HTMLButtonElement[]).find(

@@ -7,8 +7,10 @@ import {
   recordCount,
   checkpointProgress,
   clearCheckpoint,
+  purgeStaleCheckpoints,
   RecordCountResult,
 } from '../services/countRecorder';
+import { isSameDay } from '../utils/dateUtils';
 import { useSettingsStore } from './settingsStore';
 
 interface CurrentSession {
@@ -18,9 +20,9 @@ interface CurrentSession {
 
 // The unsaved round survives full reloads and app kills, not just in-app
 // navigation — memory alone loses it whenever the OS discards the tab.
-// A round abandoned longer than 48 hours is treated as finished.
+// A round last touched before today is treated as finished: the day
+// boundary resets it, like the durable checkpoint.
 const UNSAVED_ROUND_KEY = 'zikr-unsaved-round';
-const UNSAVED_ROUND_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
 interface PersistedUnsavedRound extends CurrentSession {
   savedAt: number;
@@ -33,7 +35,7 @@ function loadUnsavedRound(): CurrentSession {
     const parsed = JSON.parse(raw) as Partial<PersistedUnsavedRound>;
     const fresh =
       typeof parsed.savedAt === 'number' &&
-      Date.now() - parsed.savedAt <= UNSAVED_ROUND_MAX_AGE_MS;
+      isSameDay(new Date(parsed.savedAt), new Date());
     if (!fresh || typeof parsed.count !== 'number' || parsed.count < 0) {
       return { zikrId: null, count: 0 };
     }
@@ -55,8 +57,13 @@ function saveUnsavedRound(session: CurrentSession): void {
 interface SessionState {
   sessions: Session[];
   currentSession: CurrentSession;
-  /** Durable in-progress counts per zikr (zikrLastCount mirror) — the resume source. */
-  checkpoints: Record<number, number>;
+  /**
+   * Durable in-progress counts per zikr (zikrLastCount mirror) — the resume
+   * source, each with its write time: a checkpoint only resumes on the day
+   * it was written (the resume read applies the day rule, so an app kept
+   * open past midnight never picks up yesterday's remainder).
+   */
+  checkpoints: Record<number, { count: number; updatedAt: Date }>;
   loading: boolean;
   error: string | null;
   initialize: () => () => void;
@@ -95,6 +102,13 @@ export const useSessionStore = create<SessionState>((set) => ({
   error: null,
 
   initialize: () => {
+    // Yesterday's checkpoints are dead at the day boundary — sweep them so
+    // the table matches the resume rule (best-effort; the liveQuery below
+    // refires over the smaller set).
+    void purgeStaleCheckpoints().catch((error) =>
+      console.error('[sessionStore] checkpoint purge failed:', error)
+    );
+
     const unsubscribeSessions = createRetryableSubscription(
       () => db.sessions.toArray(),
       (sessions) => set({ sessions, loading: false, error: null }),
@@ -111,7 +125,9 @@ export const useSessionStore = create<SessionState>((set) => ({
       () => db.zikrLastCount.toArray(),
       (rows) =>
         set({
-          checkpoints: Object.fromEntries(rows.map(row => [row.zikrId, row.count])),
+          checkpoints: Object.fromEntries(
+            rows.map(row => [row.zikrId, { count: row.count, updatedAt: row.updatedAt }])
+          ),
         }),
       (error) => console.error('[sessionStore] checkpoint load failed:', error)
     );
