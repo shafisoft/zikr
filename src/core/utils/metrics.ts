@@ -103,6 +103,55 @@ export function recentDailyAverage(
   return Math.round(total / days);
 }
 
+// ---------------------------------------------------------------
+// Noor 2.0 phase 3 — quiet insights for the Progress mihrab.
+// ---------------------------------------------------------------
+
+export interface HourInsight {
+  /** Hour of day 0–23 (device-local, from session timestamps). */
+  hour: number;
+  /** Total dhikr counted in that hour across all history. */
+  count: number;
+}
+
+/**
+ * The hour of day the user has counted the most dhikr in, across all
+ * history. Null when there is nothing to read yet.
+ */
+export function bestPracticeHour(sessions: Session[]): HourInsight | null {
+  const buckets = new Array<number>(24).fill(0);
+  for (const s of sessions) {
+    buckets[new Date(s.timestamp).getHours()] += s.count;
+  }
+  let best = -1;
+  for (let h = 0; h < 24; h++) {
+    if (buckets[h] > 0 && (best === -1 || buckets[h] > buckets[best])) best = h;
+  }
+  return best === -1 ? null : { hour: best, count: buckets[best] };
+}
+
+export interface ZikrInsight {
+  zikrId: number;
+  count: number;
+}
+
+/** The most-practiced zikr by lifetime count. Null with no sessions. */
+export function topZikr(sessions: Session[]): ZikrInsight | null {
+  const totals = new Map<number, number>();
+  for (const s of sessions) {
+    totals.set(s.zikrId, (totals.get(s.zikrId) ?? 0) + s.count);
+  }
+  let bestId = -1;
+  let bestCount = 0;
+  totals.forEach((count, zikrId) => {
+    if (count > bestCount) {
+      bestCount = count;
+      bestId = zikrId;
+    }
+  });
+  return bestId === -1 ? null : { zikrId: bestId, count: bestCount };
+}
+
 export interface WeekPoint {
   /** Localized day label supplied by the caller (Monday-first). */
   day: string;

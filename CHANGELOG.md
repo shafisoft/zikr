@@ -15,6 +15,13 @@ user-facing change and date it when it ships.
 - **Tasbeeh is a bottom-nav tab** — counting, the app's core act, is now
   one tap from anywhere (the counter still opens contextually from plans,
   routines, and after-salah offers exactly as it did).
+- **Progress renders as a mihrab** (Noor 2.0, phase 3). The streak lives in
+  an arch whose gold glow grows with it (full at 40 days, then it holds);
+  a 30-day strip tells the same story the badge does — done / grace /
+  missed, read by the very same walk — the "never miss twice" grace shows
+  as a held line, never as guilt; and the lifetime total sits in gold at
+  the arch's foot. Two quiet insights join it: your best hour and your
+  most-practiced dhikr.
 
 ### Changed
 - **Home's day hero now carries the whole day** (Noor 2.0, phase 1). The

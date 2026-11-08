@@ -256,6 +256,13 @@ export const bn: Dictionary = {
   'progress.hide': 'লুকান',
   'progress.saved': 'অগ্রগতি সফলভাবে সংরক্ষিত হয়েছে!',
   'progress.validCount': '1 থেকে 10000 এর মধ্যে একটি বৈধ সংখ্যা দিন',
+  // Noor 2.0 phase 3 — প্রগ্রেস মিহরাব
+  'progress.insight.bestHour': 'সেরা সময়',
+  'progress.insight.topZikr': 'সর্বাধিক জিকির',
+  'progress.dots.legendDone': 'সম্পন্ন',
+  'progress.dots.legendGrace': 'অনুগ্রহ',
+  'progress.dots.legendMissed': 'বাদ',
+  'progress.dotsAria': 'শেষ ৩০ দিন: {{done}} দিন জিকির, {{grace}} দিন অনুগ্রহ, {{missed}} দিন বাদ',
 
   'group.heading': 'গ্রুপ',
   'group.sub': 'পরিবার ও বন্ধুদের সাথে একসাথে জিকির করুন — যেখানেই থাকুন না কেন।',

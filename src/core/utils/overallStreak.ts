@@ -128,6 +128,68 @@ export function calculateOverallStreak(sessionDates: Date[]): number {
   return streakStatusOf(sessionDates).value;
 }
 
+// ---------------------------------------------------------------
+// Noor 2.0 phase 3 — the Progress mihrab's 30-day dot strip.
+// ---------------------------------------------------------------
+
+export type PracticeDayState = 'done' | 'grace' | 'missed' | 'pending';
+
+export interface PracticeDay {
+  /** YYYY-MM-DD (midnight-normalized, like the day-set keys). */
+  date: string;
+  state: PracticeDayState;
+}
+
+/**
+ * Per-day states over the `days` days ending today (oldest first), read by
+ * the SAME walk the streak number uses — the dots can never tell a
+ * different story than the badge:
+ * - 'done': the day has a session, however old the streak story around it.
+ * - 'grace': a day the walk FORGAVE — a single gap it stepped over on its
+ *   way back (the shield; the trailing-edge case is exactly the badge's
+ *   grace mode).
+ * - 'missed': a day before the walk's break — plain absence, never
+ *   rendered as guilt.
+ * - 'pending': today without a session yet (it breaks nothing, R3.0).
+ */
+export function practiceDayStates(
+  sessionDates: Date[],
+  days: number,
+  today: Date = getToday()
+): PracticeDay[] {
+  const daySet = new Set(sessionDates.map(d => formatDate(d)));
+  const todayStr = formatDate(today);
+  const cursor = daySet.has(todayStr) ? todayStr : formatDate(addDays(today, -1));
+
+  // Replay the streak walk, recording every day it steps on: practiced days
+  // as 'done', skipped single gaps as forgiven ('grace'). The walk stops at
+  // a double gap — everything from there back is off-chain.
+  const forgiven = new Set<string>();
+  let current = cursor;
+  for (;;) {
+    if (daySet.has(current)) {
+      current = formatDate(addDays(new Date(current + 'T00:00:00'), -1));
+    } else {
+      const peek = formatDate(addDays(new Date(current + 'T00:00:00'), -1));
+      if (!daySet.has(peek)) break;
+      forgiven.add(current);
+      current = peek; // the peek itself is marked 'done' on the next loop
+    }
+  }
+
+  const out: PracticeDay[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const date = formatDate(addDays(today, -i));
+    let state: PracticeDayState;
+    if (daySet.has(date)) state = 'done';
+    else if (date === todayStr) state = 'pending';
+    else if (forgiven.has(date)) state = 'grace';
+    else state = 'missed';
+    out.push({ date, state });
+  }
+  return out;
+}
+
 /** Full streak status (value + mode) over raw session dates. */
 export function streakStatusOf(sessionDates: Date[]): StreakStatus {
   const daySet = new Set(sessionDates.map(d => formatDate(d)));

@@ -16,9 +16,10 @@ import WeeklyChart from '../components/progress/WeeklyChart';
 import SessionHistory from '../components/SessionHistory';
 import BulkEntryForm from '../components/BulkEntryForm';
 import OrnamentDivider from '../components/decor/OrnamentDivider';
-import StreakStatusContainer from '../containers/streaks/StreakStatusContainer';
+import StreakMihrabContainer from '../containers/streaks/StreakMihrabContainer';
+import ProgressInsightsContainer from '../containers/streaks/ProgressInsightsContainer';
 import { useSessionStore } from '../../core/stores/sessionStore';
-import { totalDhikr as metricsTotalDhikr, weeklyData as metricsWeeklyData } from '../../core/utils/metrics';
+import { weeklyData as metricsWeeklyData } from '../../core/utils/metrics';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSettingsStore } from '../../core/stores/settingsStore';
 import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
@@ -72,9 +73,7 @@ const Progress: React.FC = () => {
 
   // Derived statistics — pure functions from core/utils (same ones Home
   // uses), memoized off the stores. No effect/state round-trip. The streak
-  // number and its grace framing come from StreakStatusContainer (§16.5) —
-  // one canonical derivation shared with Home (AC3.4.1).
-  const totalDhikr = useMemo(() => metricsTotalDhikr(sessions), [sessions]);
+  // story (number, mode, day strip, lifetime) lives in StreakMihrabContainer.
   const weeklyData = useMemo(
     () => metricsWeeklyData(sessions, WEEK_LABELS[lang]),
     [sessions, lang]
@@ -155,28 +154,15 @@ const Progress: React.FC = () => {
           <OrnamentDivider className="w-48 mx-auto" />
         </div>
 
-        {/* Stats Overview (Bento Style) */}
-        <div className="grid grid-cols-2 gap-4">
-          {/* Streak Card — the same container Home uses (badge only, §16.5);
-              grace and fresh-start framing follow the shared derivation. */}
-          <GlassCard className="p-6 flex flex-col items-center justify-center text-center">
-            <StreakStatusContainer showPrompt={false} hideWhenEmpty={false} />
-            <p className="font-caption text-caption text-on-surface-variant mt-2">
-              {t('progress.streakLabel')}
-            </p>
-          </GlassCard>
+        {/* Streak mihrab (Noor 2.0, phase 3): the arch carries the whole
+            streak story — the glow that grows with it, the 30-day strip
+            read by the same walk as the badge, the grace shield line, and
+            the lifetime total in gold. */}
+        <StreakMihrabContainer />
 
-          {/* Total Count Card */}
-          <GlassCard className="p-6 flex flex-col items-center justify-center text-center">
-            <MaterialIcon icon="all_inclusive" className="text-primary mb-2 text-4xl" />
-            <p className="font-headline-md text-headline-md text-primary tabular-nums">
-              {totalDhikr.toLocaleString()}
-            </p>
-            <p className="font-caption text-caption text-on-surface-variant mt-1">
-              {t('progress.totalLabel')}
-            </p>
-          </GlassCard>
-        </div>
+        {/* Quiet insights (phase 3): best hour + most practiced — they
+            render nothing until there is history to read. */}
+        <ProgressInsightsContainer />
 
         {/* Weekly Progress */}
         <GlassCard className="p-6" pattern>

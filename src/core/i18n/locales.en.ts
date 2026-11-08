@@ -257,6 +257,13 @@ export const en = {
   'progress.hide': 'Hide',
   'progress.saved': 'Progress saved successfully!',
   'progress.validCount': 'Please enter a valid count between 1 and 10000',
+  // Noor 2.0 phase 3 — the Progress mihrab
+  'progress.insight.bestHour': 'Best hour',
+  'progress.insight.topZikr': 'Most practiced',
+  'progress.dots.legendDone': 'Done',
+  'progress.dots.legendGrace': 'Grace',
+  'progress.dots.legendMissed': 'Missed',
+  'progress.dotsAria': 'Last 30 days: {{done}} practiced, {{grace}} on grace, {{missed}} missed',
 
   'group.heading': 'Groups',
   'group.sub': 'Do dhikr together with family and friends — wherever they are.',
