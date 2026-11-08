@@ -26,6 +26,9 @@ user-facing change and date it when it ships.
   card in a circle now opens with a strip of khatam stars that fill as the
   collective target fills — the star currently being earned glows gold.
   Render-only over the mirrored progress; members stay anonymous.
+- **Today reads both calendars** (Noor 2.0, phase 5). The greeting carries
+  a quiet date line — weekday plus the Hijri date (Umm al-Qura, computed
+  on-device via Intl; hidden gracefully where a runtime lacks it).
 
 ### Changed
 - **Home's day hero now carries the whole day** (Noor 2.0, phase 1). The

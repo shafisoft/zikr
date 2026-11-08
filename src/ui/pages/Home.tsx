@@ -23,6 +23,7 @@ import { getZikrDisplayInfoFromZikr } from '../utils/zikrMapping';
 import { counterUrl, PostSalahPrayerParam } from '../utils/counterLink';
 import GoalRowCard from '../components/cards/GoalRowCard';
 import { formatDate, getToday } from '../../core/utils/dateUtils';
+import { dateLineLabel } from '../../core/utils/hijriDate';
 import { calculateOverallStreak } from '../../core/utils/overallStreak';
 import StreakStatusContainer from '../containers/streaks/StreakStatusContainer';
 import RoutinesSectionContainer, {
@@ -105,6 +106,8 @@ const Home: React.FC = () => {
     [sessions]
   );
   const todayTotal = useMemo(() => metricsTodayTotal(sessions), [sessions]);
+  // The day line — both calendars, locale-aware (Hijri via Umm al-Qura).
+  const dateLine = useMemo(() => dateLineLabel(new Date(), lang), [lang]);
 
   // "Your Goals" rows: every zikr the user's countable plans cover — the
   // selection, targets, and name-binding rules live in planUtils so the
@@ -253,6 +256,11 @@ const Home: React.FC = () => {
         {/* Welcome & Streak Header */}
         <section className="relative flex flex-col items-center text-center gap-2">
           <PatternBackdrop className="absolute -inset-x-8 -top-8 h-48" />
+          {/* Noor 2.0 phase 5: the day in both calendars — the Hijri date
+              anchors the app to the practice calendar. */}
+          <p className="relative font-caption text-caption text-on-surface-variant/70">
+            {dateLine}
+          </p>
           <p className="relative font-display-arabic text-[32px] leading-[48px] text-tertiary" lang="ar" dir="rtl">
             ٱلسَّلَامُ عَلَيْكُمْ
           </p>

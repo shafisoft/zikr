@@ -98,7 +98,7 @@ One vertical timeline anchored on Fajr → Isha replaces the stacked islands:
 | 2 | Zen mode + Tasbeeh tab (bead strand declined — gold ring stays) | `ui/components/counter` presentation |
 | 3 | Progress mihrab, dots, insights | `containers/streaks` + pure utils in `core/utils/metrics` |
 | 4 | Circle mosaic | render-only over the existing `sharedRoomStore` mirror |
-| 5 | Hijri strip, Ramadan mode, 3-tap onboarding | later; onboarding touches only settings store |
+| 5 | Hijri date line *(shipped)*; Ramadan mode + 3-tap onboarding deferred | `core/utils/hijriDate` + Home greeting |
 
 Every phase obeys the layer rules: pages → containers → components; stores own writes;
 derived metrics via `useMemo` utils; services/db untouched except where a phase says so.
