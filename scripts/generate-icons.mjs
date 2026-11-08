@@ -55,6 +55,7 @@ const ICONS = [
   'error',
   'event',
   'feedback',
+  'fingerprint',
   'flag',
   'group_add',
   'groups',
@@ -103,6 +104,8 @@ const ICONS = [
   'trending_up',
   'tune',
   'upload',
+  'visibility',
+  'visibility_off',
   'vpn_key',
   'wb_twilight',
   'wifi_off',
@@ -131,7 +134,7 @@ function readFill(name) {
 // including comparison values like `plan.period === 'daily'`. These tokens are
 // state values, not icons - list any new ones here (the scan fails loudly so a
 // genuinely new icon is never silently skipped).
-const NON_ICON_LITERALS = new Set(['locating', 'daily', 'synced', 'pending']);
+const NON_ICON_LITERALS = new Set(['locating', 'daily', 'synced', 'pending', 'active']);
 
 function walk(dir, files = []) {
   for (const entry of readdirSync(dir)) {

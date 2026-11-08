@@ -1,14 +1,15 @@
 /**
- * AfterSalahTracker — the day view of the after-salah practice (R1):
- * five salah chips showing how far each prayer's set got — an empty ring
- * when nothing was performed, a ring filling in proportion to the set's
- * progress, and a check once the set is complete — plus which prayer is
- * current and which passed. Presentational only — labels, states and
+ * AfterSalahTracker — the day view of the after-salah practice (R1),
+ * rendered as the Home prayer rail: five salah rows down the day, each
+ * anchored on its dot — a gold check once a prayer's set is complete, a
+ * ring filling in proportion while it is partly done — with the CURRENT
+ * prayer highlighted (the offer rides its row) and passed prayers kept
+ * quietly tappable. Presentational only — labels, states, times and
  * progress arrive via props; taps bubble up as onPress (the current
- * prayer's chip starts the set; a past prayer's chip asks to mark an
- * offline completion). A past, not-done prayer is never labeled "missed" —
- * the offer moved on silently, and whatever progress it had stays on its
- * ring.
+ * prayer's row starts the set; a past prayer's row asks to mark an
+ * offline completion). A past, not-done prayer is never labeled "missed"
+ * — the offer moved on silently, and whatever progress it had stays on
+ * its ring.
  */
 
 import React from 'react';
@@ -24,12 +25,14 @@ export interface AfterSalahSlotView {
   prayer: PrayerName;
   /** Localized prayer name. */
   label: string;
+  /** Localized clock time of the prayer — the rail row's subtitle. */
+  timeLabel?: string;
   state: AfterSalahSlotState;
   /** 0..1 reached fraction of this prayer's set (1 ⇔ state 'done'). */
   progress: number;
   /**
    * Tap action: the CURRENT prayer starts its set; a PAST prayer opens
-   * the offline mark-done ask. Done and upcoming chips are not tappable.
+   * the offline mark-done ask. Done and upcoming rows are not tappable.
    */
   onPress?: () => void;
 }
@@ -40,7 +43,7 @@ interface AfterSalahTrackerProps {
   progressLine: string;
 }
 
-/** Any progress reads in the gold accent; an untouched chip takes its state's tone. */
+/** Any progress reads in the gold accent; an untouched row takes its state's tone. */
 function glyphTone(slot: AfterSalahSlotView): string {
   if (slot.state === 'done' || slot.state === 'active') return 'text-tertiary';
   if (slot.progress > 0) return 'text-tertiary/80';
@@ -56,7 +59,7 @@ const AfterSalahTracker: React.FC<AfterSalahTrackerProps> = ({ slots, progressLi
       aria-label={t('postSalah.tracker.title')}
     >
       <PatternBackdrop className="absolute inset-0" variant="green" />
-      <div className="relative flex flex-col gap-3 px-4 py-3">
+      <div className="relative flex flex-col gap-2 px-4 py-3">
         <div className="flex items-baseline justify-between gap-2">
           <span className="flex items-center gap-1.5 font-label-md text-label-md text-primary">
             <MaterialIcon icon="mosque" className="text-[18px] text-tertiary" />
@@ -66,67 +69,103 @@ const AfterSalahTracker: React.FC<AfterSalahTrackerProps> = ({ slots, progressLi
             {progressLine}
           </span>
         </div>
-        <div className="flex items-stretch justify-between gap-1.5">
-          {slots.map(slot => {
+        <ol className="flex flex-col">
+          {slots.map((slot, index) => {
             const stateLabel = t(`postSalah.tracker.state.${slot.state}`);
             const tappable = slot.onPress != null && (slot.state === 'active' || slot.state === 'past');
             const glyph = glyphTone(slot);
-            const chip = (
+            const last = index === slots.length - 1;
+            // The row itself carries the state tone: the live prayer glows
+            // gold; a passed prayer reads as "action available" on a dashed
+            // hairline — never red, never "missed".
+            const rowTone =
+              slot.state === 'active'
+                ? 'bg-tertiary-container/25'
+                : slot.state === 'past'
+                  ? 'border border-dashed border-on-surface-variant/40'
+                  : '';
+            const dotTone =
+              slot.state === 'done'
+                ? 'bg-tertiary-container/30'
+                : slot.state === 'active'
+                  ? 'border border-tertiary-container/60 bg-tertiary-container/25'
+                  : slot.state === 'past'
+                    ? 'border border-dashed border-on-surface-variant/40'
+                    : 'border border-outline-variant/20';
+            const labelTone =
+              slot.state === 'active'
+                ? 'text-primary font-medium'
+                : slot.state === 'past'
+                  ? 'text-on-surface'
+                  : slot.state === 'upcoming'
+                    ? 'text-on-surface-variant/70'
+                    : 'text-on-surface';
+            const content = (
               <>
-                {slot.state === 'done' ? (
-                  <span className="flex" data-slot-progress="done">
-                    <MaterialIcon icon="check_circle" filled className={`text-[20px] ${glyph}`} />
-                  </span>
-                ) : (
-                  <SalahProgressRing progress={slot.progress} className={glyph} />
-                )}
                 <span
-                  className={`font-caption text-caption ${
-                    slot.state === 'active'
-                      ? 'text-primary font-medium'
-                      : slot.state === 'past'
-                        ? 'text-on-surface'
-                        : 'text-on-surface-variant/80'
-                  }`}
+                  className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${dotTone}`}
                 >
-                  {slot.label}
+                  {slot.state === 'done' ? (
+                    <span className="flex" data-slot-progress="done">
+                      <MaterialIcon icon="check_circle" filled className={`text-[20px] ${glyph}`} />
+                    </span>
+                  ) : (
+                    <SalahProgressRing progress={slot.progress} className={glyph} />
+                  )}
                 </span>
+                <span className="min-w-0 flex-1">
+                  <span className={`block truncate font-label-md text-label-md ${labelTone}`}>
+                    {slot.label}
+                  </span>
+                  {slot.timeLabel && (
+                    <span className="block font-caption text-caption text-on-surface-variant/60 tabular-nums">
+                      {slot.timeLabel}
+                    </span>
+                  )}
+                </span>
+                {tappable && (
+                  <MaterialIcon
+                    icon={slot.state === 'active' ? 'play_arrow' : 'task_alt'}
+                    className="text-[20px] text-on-surface-variant/70"
+                  />
+                )}
               </>
             );
-            // Upcoming stays visually inert (solid hairline, dimmed). A PAST
-            // prayer reads as "action available" — undimmed content on a
-            // dashed border — so the offline mark-done tap is discoverable.
-            const tone =
-              slot.state === 'active'
-                ? 'bg-tertiary-container/25 border-tertiary-container/60'
-                : slot.state === 'past'
-                  ? 'border-dashed border-on-surface-variant/40'
-                  : 'border-outline-variant/20';
-            return tappable ? (
-              <button
-                key={slot.prayer}
-                type="button"
-                onClick={slot.onPress}
-                className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 rounded-xl border px-1 py-2 active:scale-[0.97] transition-all ${tone}`}
-                aria-label={
-                  slot.state === 'active'
-                    ? t('postSalah.tracker.startAria', { prayer: slot.label })
-                    : t('postSalah.tracker.markAria', { prayer: slot.label })
-                }
-              >
-                {chip}
-              </button>
-            ) : (
-              <div
-                key={slot.prayer}
-                className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 rounded-xl border px-1 py-2 ${tone}`}
-                aria-label={`${slot.label} — ${stateLabel}`}
-              >
-                {chip}
-              </div>
+            const rowLabel =
+              slot.state === 'active' && tappable
+                ? t('postSalah.tracker.startAria', { prayer: slot.label })
+                : slot.state === 'past' && tappable
+                  ? t('postSalah.tracker.markAria', { prayer: slot.label })
+                  : `${slot.label} — ${stateLabel}`;
+            return (
+              <li key={slot.prayer} className="relative">
+                {!last && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute left-[21px] top-[30px] bottom-[-10px] w-0.5 rounded bg-outline-variant/40"
+                  />
+                )}
+                {tappable ? (
+                  <button
+                    type="button"
+                    onClick={slot.onPress}
+                    aria-label={rowLabel}
+                    className={`relative flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left active:scale-[0.99] transition-all ${rowTone}`}
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <div
+                    aria-label={rowLabel}
+                    className={`relative flex w-full items-center gap-3 rounded-xl px-2 py-2 ${rowTone}`}
+                  >
+                    {content}
+                  </div>
+                )}
+              </li>
             );
           })}
-        </div>
+        </ol>
       </div>
     </section>
   );

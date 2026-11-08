@@ -5,6 +5,7 @@ import type { Dictionary } from './locales.en';
 
 export const bn: Dictionary = {
   'nav.home': 'হোম',
+  'nav.counter': 'তাসবিহ',
   'nav.plans': 'পরিকল্পনা',
   'nav.group': 'গ্রুপ',
   'nav.progress': 'অগ্রগতি',
@@ -43,6 +44,12 @@ export const bn: Dictionary = {
   'home.beginJourneyHint': 'শুরু করতে আপনার প্রথম জিকির তৈরি করুন।',
   'home.createZikr': 'জিকির তৈরি করুন',
   'home.doneToday': 'আজ আপনি {{count}} বার জিকির করেছেন',
+  // Noor 2.0 phase 1 — Today hero (অভিন্ন দিনের সংখ্যা + ছন্দ + প্ল্যান চিপ)
+  'home.hero.aria': 'আজকের দিন এক নজরে',
+  'home.pace.ahead': 'সাপ্তাহিক ছন্দের চেয়ে এগিয়ে',
+  'home.pace.even': 'সাপ্তাহিক ছন্দ ধরে রেখেছেন',
+  'home.pace.behind': 'সাপ্তাহিক ছন্দ: দিনে {{avg}}',
+  'home.hero.chipAria': 'Plans-এ {{name}} খুলুন',
   'card.doneToday': 'আজ সম্পন্ন',
   'home.beginPractice': 'আপনার জিকিরের সূচনা করুন।',
   'home.phrase1': 'আমাকে স্মরণ করো, আমি তোমাকে স্মরণ করব',
@@ -186,6 +193,9 @@ export const bn: Dictionary = {
   'counter.keepCounting': 'গণনা চালিয়ে যান',
   'counter.hapticsUnsupported': 'এই ডিভাইসে হ্যাপটিক ফিডব্যাক সমর্থিত নয় — কাউন্ট তবুও গণনা হবে।',
   'counter.holdHint': 'একটি কমাতে চেপে ধরে রাখুন',
+  // Noor 2.0 phase 2 — জেন মোড: জিকিরের সময় ডিভাইস অদৃশ্য হয়ে যায়
+  'counter.zen': 'জেন মোড — শুধু তাসবিহ',
+  'counter.zenExit': 'জেন মোড বন্ধ করুন',
   'counter.roundSavedToast': 'রাউন্ড সংরক্ষিত হয়েছে',
   'counter.undo': 'ফিরিয়ে আনুন',
   'counter.roundSharedNoUndo': 'রাউন্ড সংরক্ষিত — গ্রুপের সাথে শেয়ার হয়ে গেছে, তাই এখান থেকে এটি ফেরানো যাবে না।',

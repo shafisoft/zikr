@@ -6,6 +6,7 @@
 
 export const en = {
   'nav.home': 'Home',
+  'nav.counter': 'Tasbeeh',
   'nav.plans': 'Plans',
   'nav.group': 'Group',
   'nav.progress': 'Progress',
@@ -44,6 +45,12 @@ export const en = {
   'home.beginJourneyHint': 'Create your first zikr to start practicing.',
   'home.createZikr': 'Create Zikr',
   'home.doneToday': "You've done {{count}} dhikr today",
+  // Noor 2.0 phase 1 — Today hero (unified day number + pace + plan chips)
+  'home.hero.aria': 'Today at a glance',
+  'home.pace.ahead': 'Ahead of your weekly rhythm',
+  'home.pace.even': 'Right on your weekly rhythm',
+  'home.pace.behind': 'Your weekly rhythm: {{avg}} a day',
+  'home.hero.chipAria': 'Open {{name}} in Plans',
   'card.doneToday': 'Done today',
   'home.beginPractice': 'Begin your practice of remembrance.',
   'home.phrase1': 'Remember Me, and I will remember you',
@@ -187,6 +194,9 @@ export const en = {
   'counter.keepCounting': 'Keep counting',
   'counter.hapticsUnsupported': 'Haptic feedback is not supported on this device — taps still count.',
   'counter.holdHint': 'Hold to take one back',
+  // Noor 2.0 phase 2 — zen mode: the device disappears during dhikr
+  'counter.zen': 'Zen mode — just the tasbeeh',
+  'counter.zenExit': 'Exit zen mode',
   'counter.roundSavedToast': 'Round saved',
   'counter.undo': 'Undo',
   'counter.roundSharedNoUndo': 'Round saved — already shared with your group, so it can’t be undone here.',

@@ -244,6 +244,55 @@ export function buildGoalRows(input: {
   return rows;
 }
 
+/**
+ * One chip for the Home hero's plan rail (Noor 2.0 phase 1): a plan's
+ * name and rounded percent — the whole plan, not its zikrs. Personal
+ * plans read the owner's own progress; group plans read the server
+ * mirror. Same countable rules as the goal rows: personal plans must be
+ * active or completed (paused stays hidden), group plans must be in
+ * their active window. Personal chips come first, then group chips.
+ */
+export interface PlanChipRow {
+  key: string;
+  title: string;
+  /** 0..100, capped — a completed plan reads 100%, never 140%. */
+  percent: number;
+  /** Server-mirrored group plan (renders with the groups glyph). */
+  group: boolean;
+}
+
+export function buildPlanChips(input: {
+  personalPlans: Plan[];
+  groupPlans: Plan[];
+  sessions: Session[];
+  progressOf: (plan: Plan, sessions: Session[]) => PersonalPlanProgressLike;
+}): PlanChipRow[] {
+  const { personalPlans, groupPlans, sessions, progressOf } = input;
+  const chips: PlanChipRow[] = [];
+  for (const plan of personalPlans) {
+    if (plan.status !== 'active' && plan.status !== 'completed') continue;
+    const target = planTargetTotal(plan);
+    const current = progressOf(plan, sessions).currentCount;
+    chips.push({
+      key: `personal-${plan.id}`,
+      title: planDisplayName(plan),
+      percent: target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0,
+      group: false,
+    });
+  }
+  for (const plan of groupPlans) {
+    if (getPlanPhase(plan) !== 'active') continue;
+    const progress = sharedPlanProgress(plan);
+    chips.push({
+      key: `group-${plan.id}`,
+      title: planDisplayName(plan),
+      percent: Math.min(100, Math.max(0, Math.round(progress.percent))),
+      group: true,
+    });
+  }
+  return chips;
+}
+
 export interface SharedPlanProgress {
   percent: number;
   /** Target(s) reached in the current scope (window for one-time, period for recurring). */

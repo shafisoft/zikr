@@ -232,6 +232,12 @@ const CounterSession: React.FC<CounterSessionProps> = ({
   const holdHintShown = useSettingsStore(
     state => (state.settings.counterHoldHintShown as boolean | undefined) ?? false
   );
+  // Noor 2.0 phase 2: zen mode — the device disappears during dhikr. One
+  // persisted toggle; the board keeps strand + count (+ the step rail in a
+  // guided flow, which is navigation, not decoration).
+  const counterZen = useSettingsStore(
+    state => (state.settings.counterZen as boolean | undefined) ?? false
+  );
   const saveSetting = useSettingsStore(state => state.saveSetting);
 
   const zikrDisplayInfo = getZikrDisplayInfoFromZikr(zikr, lang);
@@ -487,7 +493,10 @@ const CounterSession: React.FC<CounterSessionProps> = ({
           circle leaves, and the REGION scrolls when content is long — no
           fixed vh caps inside an overflow-hidden screen, so long texts
           never clip mid-verse and the circle always stays on screen.
-          (Modal keeps the compact capped h1: its panel scrolls as a whole.) */}
+          (Modal keeps the compact capped h1: its panel scrolls as a whole.)
+          Zen mode (Noor 2.0 phase 2) unmounts the reference content so the
+          strand becomes the whole screen; the step rail survives zen — it
+          is navigation, not decoration. */}
       <div className="relative z-10 flex flex-col items-center gap-2 w-full flex-1 min-h-0 pt-2">
         {stepIndex != null && stepCount != null && stepCount > 1 && (
           <StepRail
@@ -497,6 +506,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
             onNext={onNextStep}
           />
         )}
+        {!counterZen && (
         <div className="relative w-full flex-1 min-h-0 flex">
           <div
             ref={regionRef}
@@ -553,6 +563,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
             />
           )}
         </div>
+        )}
       </div>
 
       {/* Counter Circle — onDecrement arms the gated hold-to-take-back */}
@@ -565,14 +576,33 @@ const CounterSession: React.FC<CounterSessionProps> = ({
         className="shrink-0"
       />
 
-      {/* One-time hold hint (1.2a, gated) */}
-      {holdHintVisible && (
+      {/* One-time hold hint (1.2a, gated) — zen hides reference material */}
+      {holdHintVisible && !counterZen && (
         <p
           role="note"
           className="mt-3 text-center font-caption text-caption text-on-surface-variant/80 z-10 px-6"
         >
           {t('counter.holdHint')}
         </p>
+      )}
+
+      {/* Zen toggle (Noor 2.0 phase 2, page only): bottom-left, mirroring
+          the reset. Persisted — the next session opens the way you left it. */}
+      {variant === 'page' && (
+        <button
+          onClick={() => {
+            void saveSetting('counterZen', !counterZen);
+            haptic('light');
+          }}
+          aria-label={t(counterZen ? 'counter.zenExit' : 'counter.zen')}
+          title={t(counterZen ? 'counter.zenExit' : 'counter.zen')}
+          aria-pressed={counterZen}
+          className={`absolute z-10 left-4 bottom-[calc(env(safe-area-inset-bottom)+20px)] w-touch-target-min h-touch-target-min rounded-full flex items-center justify-center hover:bg-surface-variant/50 active:scale-95 transition-all ${
+            counterZen ? 'text-tertiary' : 'text-on-surface-variant/80'
+          }`}
+        >
+          <MaterialIcon icon={counterZen ? 'visibility' : 'visibility_off'} className="text-[22px]" />
+        </button>
       )}
 
       {/* Reset — tucked into the counting screen's unused bottom-right corner
@@ -601,7 +631,7 @@ const CounterSession: React.FC<CounterSessionProps> = ({
 
       {/* Haptics silently no-op on browsers without the Vibration API
           (all iOS browsers) — say so instead of leaving a dead toggle. */}
-      {!hapticsSupported && hapticsEnabled && (
+      {!hapticsSupported && hapticsEnabled && !counterZen && (
         <p className="mt-3 text-center font-caption text-caption text-on-surface-variant/60 z-10 px-6">
           {t('counter.hapticsUnsupported')}
         </p>

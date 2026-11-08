@@ -80,6 +80,29 @@ export function planRingProgress(plans: Plan[], sessions: Session[]): PlanRing {
   return { percent, todayCount, target };
 }
 
+/**
+ * Mean daily total across the `days` FULL days before `now` (today is
+ * never averaged into its own rhythm — an in-progress day would drag the
+ * comparison it is being judged against). Rounded. The UI hides the pace
+ * line while this is 0: a rhythm needs history before it can compare.
+ */
+export function recentDailyAverage(
+  sessions: Session[],
+  days = 7,
+  now: Date = new Date()
+): number {
+  let total = 0;
+  for (let i = 1; i <= days; i++) {
+    const day = new Date(now);
+    day.setDate(day.getDate() - i);
+    const dayStr = formatDate(day);
+    total += sessions
+      .filter(s => formatDate(s.date) === dayStr)
+      .reduce((sum, s) => sum + s.count, 0);
+  }
+  return Math.round(total / days);
+}
+
 export interface WeekPoint {
   /** Localized day label supplied by the caller (Monday-first). */
   day: string;

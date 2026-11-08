@@ -25,6 +25,7 @@ import AfterSalahTracker, { AfterSalahSlotView } from '../../components/prayer/A
 import MaterialIcon from '../../components/MaterialIcon';
 import { showConfirm } from '../../components/ConfirmDialog';
 import { useI18n } from '../../../core/i18n';
+import { formatTime } from '../../../core/utils/dateUtils';
 import { useSessionStore } from '../../../core/stores/sessionStore';
 import { useZikrStore } from '../../../core/stores/zikrStore';
 import { useSettingsStore } from '../../../core/stores/settingsStore';
@@ -141,6 +142,7 @@ const PostSalahTrackerContainer: React.FC<PostSalahTrackerContainerProps> = ({
     const views: AfterSalahSlotView[] = slots.map(slot => ({
       prayer: slot.prayer,
       label: t(`postSalah.prayer.${slot.prayer}`),
+      timeLabel: formatTime(slot.start),
       state: slot.done
         ? 'done'
         : slot.current

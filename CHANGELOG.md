@@ -7,6 +7,26 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
+### Added
+- **Zen mode** — an eye toggle (bottom-left of the counter) collapses the
+  verse reference so the gold-ring board and the count stand alone. It
+  persists across sessions, and the guided step rail survives it. Haptics
+  and all counting rules are unchanged.
+- **Tasbeeh is a bottom-nav tab** — counting, the app's core act, is now
+  one tap from anywhere (the counter still opens contextually from plans,
+  routines, and after-salah offers exactly as it did).
+
+### Changed
+- **Home's day hero now carries the whole day** (Noor 2.0, phase 1). The
+  daily-plan arch gained the day's total (the "You've done N dhikr today"
+  line moved down from the greeting, which now only nudges on an untouched
+  day), a guilt-free pace line against your last-7-days rhythm, and one
+  progress chip per countable plan (personal and group) that opens Plans.
+- **The after-salah tracker renders as a vertical prayer rail** — five rows
+  down the day, each with its prayer time: the current prayer highlighted
+  with its set startable, past sets still tappable for the offline mark-done
+  ask, done sets checked in gold. Same rules, new shape.
+
 ### Fixed
 - **An unfinished counter count no longer carries into the next day.**
   Previously, closing the app mid-count (say, 80 of a 100 target) resumed

@@ -12,7 +12,7 @@ import { ICON_PATHS } from '../../../src/ui/components/icons/iconPaths.generated
 const ROOT = join(__dirname, '../../..');
 
 // Keep in sync with the scan in scripts/generate-icons.mjs.
-const NON_ICON_LITERALS = new Set(['locating', 'daily', 'synced', 'pending']);
+const NON_ICON_LITERALS = new Set(['locating', 'daily', 'synced', 'pending', 'active']);
 
 function walk(dir: string, files: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {

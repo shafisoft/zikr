@@ -8,12 +8,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavActions } from '../components/navigation/navActions';
-import CircularProgress from '../components/progress/CircularProgress';
 import ZikrCard from '../components/cards/ZikrCard';
 import MaterialIcon from '../components/MaterialIcon';
 import ZikrFormModal from '../components/ZikrFormModal';
 import PatternBackdrop from '../components/decor/PatternBackdrop';
-import OrnamentDivider from '../components/decor/OrnamentDivider';
+import TodayHeroContainer from '../containers/today/TodayHeroContainer';
 import { useZikrStore } from '../../core/stores/zikrStore';
 import { useSessionStore } from '../../core/stores/sessionStore';
 import { usePlanStore } from '../../core/stores/planStore';
@@ -33,7 +32,7 @@ import RitualNowContainer from '../containers/routines/RitualNowContainer';
 import RoutineEditorContainer from '../containers/routines/RoutineEditorContainer';
 import PostSalahCardContainer from '../containers/postSalah/PostSalahCardContainer';
 import PostSalahTrackerContainer from '../containers/postSalah/PostSalahTrackerContainer';
-import { todayTotal as metricsTodayTotal, planRingProgress } from '../../core/utils/metrics';
+import { todayTotal as metricsTodayTotal } from '../../core/utils/metrics';
 import { buildGoalRows, GoalZikrRow } from '../../core/utils/planUtils';
 import { Routine, Zikr } from '../../core/db/types';
 
@@ -106,10 +105,6 @@ const Home: React.FC = () => {
     [sessions]
   );
   const todayTotal = useMemo(() => metricsTodayTotal(sessions), [sessions]);
-  const dailyGoalProgress = useMemo(
-    () => planRingProgress(plans, sessions).percent,
-    [plans, sessions]
-  );
 
   // "Your Goals" rows: every zikr the user's countable plans cover — the
   // selection, targets, and name-binding rules live in planUtils so the
@@ -270,12 +265,14 @@ const Home: React.FC = () => {
               {streakDays > 0 ? t('home.keepGoing') : t(`home.phrase${phraseKey}`)}
             </h2>
           )}
-          <p className="relative font-body-md text-body-md text-on-surface-variant">
-            {todayTotal > 0
-              ? t('home.doneToday', { count: todayTotal })
-              : t('home.beginPractice')
-            }
-          </p>
+          {/* When something was practiced the hero arch below carries the
+              number (one number, one home — never said twice); the quiet
+              nudge stays only for an untouched day. */}
+          {todayTotal === 0 && (
+            <p className="relative font-body-md text-body-md text-on-surface-variant">
+              {t('home.beginPractice')}
+            </p>
+          )}
           {!postSalahActive && streakDays === 0 && t(`home.phrase${phraseKey}Source`) && (
             <p className="relative font-caption text-caption text-tertiary">
               — {t(`home.phrase${phraseKey}Source`)}
@@ -304,26 +301,10 @@ const Home: React.FC = () => {
           onOpenSettings={() => navigate('/settings')}
         />
 
-        {/* Daily Goal Progress — mihrab arch */}
-        {plans.length > 0 && (
-          <section className="relative w-full max-w-[300px] mx-auto flex flex-col items-center rounded-t-full rounded-b-2xl border border-tertiary-container/30 bg-surface-container-low shadow-card px-6 pt-20 pb-8 overflow-hidden">
-            <PatternBackdrop className="absolute inset-0" variant="green" />
-            <div className="relative flex flex-col items-center gap-5">
-              <CircularProgress progress={dailyGoalProgress} size={192}>
-                <div className="flex flex-col items-center justify-center text-center">
-                  <MaterialIcon icon="spa" filled className="text-tertiary text-4xl mb-1" />
-                  <span className="font-headline-lg-mobile text-headline-lg-mobile text-primary tabular-nums">
-                    {dailyGoalProgress}%
-                  </span>
-                  <span className="font-caption text-caption text-on-surface-variant mt-1">
-                    {t('home.dailyGoal')}
-                  </span>
-                </div>
-              </CircularProgress>
-              <OrnamentDivider className="w-32" />
-            </div>
-          </section>
-        )}
+        {/* Today hero — the unified day (Noor 2.0 phase 1): the plan ring,
+            the day's total, the pace line, and one chip per countable plan.
+            Self-collapses when there is nothing to show yet. */}
+        <TodayHeroContainer onOpenPlans={() => navigate('/plans')} />
 
         {/* Your Goals — the zikrs the countable plans and groups cover, each
             toward its own target; tapping starts the counter on it */}
