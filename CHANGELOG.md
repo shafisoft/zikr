@@ -7,6 +7,10 @@ user-facing change and date it when it ships.
 
 ## [Unreleased]
 
+_(nothing yet)_
+
+## [1.13.0] - 2026-11-09
+
 ### Added
 - **Zen mode** — an eye toggle (bottom-left of the counter) collapses the
   verse reference so the gold-ring board and the count stand alone. It
